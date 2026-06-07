@@ -35,6 +35,7 @@ export type ArtifactRecord = {
 export type CreateProjectResponse = {
   project: ProjectRecord;
   run: PipelineRunRecord;
+  topic_request_artifact: ArtifactRecord;
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -61,10 +62,10 @@ export function listProjects(): Promise<ProjectRecord[]> {
   return request<ProjectRecord[]>("/projects");
 }
 
-export function createProject(title: string): Promise<CreateProjectResponse> {
+export function createProject(topic: string, angle: string): Promise<CreateProjectResponse> {
   return request<CreateProjectResponse>("/projects", {
     method: "POST",
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ topic, angle }),
   });
 }
 
@@ -94,4 +95,3 @@ export function listArtifactChildren(
     `/artifacts/${artifactId}/children`
   );
 }
-

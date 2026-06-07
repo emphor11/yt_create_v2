@@ -22,7 +22,8 @@ export function ProjectListPage() {
   const [selectedArtifact, setSelectedArtifact] = useState<ArtifactRecord | null>(null);
   const [parents, setParents] = useState<Record<string, ArtifactRecord>>({});
   const [children, setChildren] = useState<ArtifactRecord[]>([]);
-  const [title, setTitle] = useState("");
+  const [topic, setTopic] = useState("");
+  const [angle, setAngle] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,10 +45,11 @@ export function ProjectListPage() {
     setIsBusy(true);
     setError(null);
     try {
-      const created = await createProject(title);
+      const created = await createProject(topic, angle);
       const nextProjects = await listProjects();
       setProjects(nextProjects);
-      setTitle("");
+      setTopic("");
+      setAngle("");
       await selectProject(created.project);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -115,11 +117,11 @@ export function ProjectListPage() {
       <header className="dashboard-header">
         <div>
           <p className="section-label">YTCreate V2</p>
-          <h1>Artifact Infrastructure</h1>
+          <h1>TopicRequest Capture</h1>
         </div>
         <p>
-          Project and run records are now backed by SQLite. Artifacts can be inspected
-          through run-scoped JSON and role-map lineage.
+          Create a project from a topic and angle. The first TopicRequest artifact is
+          saved inside the deterministic run for inspection.
         </p>
       </header>
 
@@ -128,9 +130,11 @@ export function ProjectListPage() {
       <div className="dashboard-grid">
         <aside className="sidebar">
           <CreateProjectPage
-            title={title}
+            topic={topic}
+            angle={angle}
             isBusy={isBusy}
-            onTitleChange={setTitle}
+            onTopicChange={setTopic}
+            onAngleChange={setAngle}
             onSubmit={handleCreateProject}
           />
           <section className="panel">
@@ -175,4 +179,3 @@ export function ProjectListPage() {
     </div>
   );
 }
-

@@ -1,21 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.dependencies import get_artifact_store
-from artifact_store.models import PipelineRunRecord, ProjectRecord
+from artifact_store.models import ArtifactRecord, PipelineRunRecord, ProjectRecord
 from artifact_store.sqlite_store import ArtifactStore, RecordNotFoundError
+from domain.topic_request import TopicRequest
+from domain.validators.topic_request_validator import TopicRequestValidator
 
 
 router = APIRouter()
 
 
 class CreateProjectRequest(BaseModel):
-    title: str = Field(min_length=1)
+    topic: str = ""
+    angle: str = ""
+    title: str | None = None
 
 
 class CreateProjectResponse(BaseModel):
     project: ProjectRecord
     run: PipelineRunRecord
+    topic_request_artifact: ArtifactRecord
 
 
 @router.post("/projects", response_model=CreateProjectResponse)
@@ -24,11 +29,29 @@ def create_project(
     store: ArtifactStore = Depends(get_artifact_store),
 ) -> CreateProjectResponse:
     try:
-        project = store.create_project(request.title)
+        topic = request.topic.strip()
+        angle = request.angle.strip()
+        project_title = (request.title or "").strip() or topic or "Untitled Project"
+        project = store.create_project(project_title)
         run = store.create_run(project.id, mode="deterministic")
+        topic_request = TopicRequest(topic=topic, angle=angle)
+        validation = TopicRequestValidator().validate(topic_request)
+        topic_request_artifact = store.save_artifact(
+            project_id=project.id,
+            run_id=run.id,
+            artifact_type="topic_request",
+            schema_version=topic_request.schema_version,
+            payload_json=topic_request.model_dump(),
+            parent_artifact_roles_json={},
+            validation_json=validation,
+        )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
-    return CreateProjectResponse(project=project, run=run)
+    return CreateProjectResponse(
+        project=project,
+        run=run,
+        topic_request_artifact=topic_request_artifact,
+    )
 
 
 @router.get("/projects", response_model=list[ProjectRecord])
@@ -68,4 +91,3 @@ def get_run(
         return store.get_run(project_id, run_id)
     except RecordNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
-

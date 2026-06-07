@@ -14,36 +14,74 @@ def make_client(tmp_path) -> tuple[TestClient, ArtifactStore]:
     return TestClient(app), store
 
 
-def test_create_project_creates_deterministic_run(tmp_path) -> None:
+def test_create_project_creates_deterministic_run_and_topic_request(tmp_path) -> None:
     client, _store = make_client(tmp_path)
 
-    response = client.post("/projects", json={"title": "Monthly Payments"})
+    response = client.post(
+        "/projects",
+        json={
+            "topic": "Why Monthly Payments Feel Cheap",
+            "angle": "How EMIs hide total cost",
+        },
+    )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["project"]["title"] == "Monthly Payments"
+    assert body["project"]["title"] == "Why Monthly Payments Feel Cheap"
     assert body["run"]["project_id"] == body["project"]["id"]
     assert body["run"]["mode"] == "deterministic"
+    assert body["topic_request_artifact"]["artifact_type"] == "topic_request"
+    assert body["topic_request_artifact"]["status"] == "valid"
+    assert body["topic_request_artifact"]["parent_artifact_roles_json"] == {}
+    assert body["topic_request_artifact"]["payload_json"] == {
+        "schema_version": "1",
+        "topic": "Why Monthly Payments Feel Cheap",
+        "angle": "How EMIs hide total cost",
+    }
 
     projects_response = client.get("/projects")
     runs_response = client.get(f"/projects/{body['project']['id']}/runs")
+    artifacts_response = client.get(
+        f"/projects/{body['project']['id']}/runs/{body['run']['id']}/artifacts"
+    )
 
     assert projects_response.status_code == 200
     assert len(projects_response.json()) == 1
     assert runs_response.status_code == 200
     assert runs_response.json()[0]["id"] == body["run"]["id"]
+    assert artifacts_response.status_code == 200
+    assert len(artifacts_response.json()) == 1
+    assert artifacts_response.json()[0]["artifact_type"] == "topic_request"
 
 
-def test_run_artifact_list_starts_empty(tmp_path) -> None:
+def test_empty_topic_creates_blocked_topic_request(tmp_path) -> None:
     client, _store = make_client(tmp_path)
-    created = client.post("/projects", json={"title": "Monthly Payments"}).json()
 
-    response = client.get(
-        f"/projects/{created['project']['id']}/runs/{created['run']['id']}/artifacts"
+    response = client.post(
+        "/projects",
+        json={"topic": "", "angle": "How EMIs hide total cost"},
     )
 
     assert response.status_code == 200
-    assert response.json() == []
+    artifact = response.json()["topic_request_artifact"]
+    assert artifact["artifact_type"] == "topic_request"
+    assert artifact["status"] == "blocked"
+    assert artifact["validation_json"]["errors"] == ["Topic is required."]
+
+
+def test_empty_angle_creates_blocked_topic_request(tmp_path) -> None:
+    client, _store = make_client(tmp_path)
+
+    response = client.post(
+        "/projects",
+        json={"topic": "Why Monthly Payments Feel Cheap", "angle": ""},
+    )
+
+    assert response.status_code == 200
+    artifact = response.json()["topic_request_artifact"]
+    assert artifact["artifact_type"] == "topic_request"
+    assert artifact["status"] == "blocked"
+    assert artifact["validation_json"]["errors"] == ["Angle is required."]
 
 
 def test_local_frontend_origin_is_allowed(tmp_path) -> None:
