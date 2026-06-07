@@ -32,6 +32,8 @@ def run_stage(
             artifact = pipeline_service.run_script_brief(project_id, run_id)
         elif stage == "narrative_arc":
             artifact = pipeline_service.run_narrative_arc(project_id, run_id)
+        elif stage == "script_draft":
+            artifact = pipeline_service.run_script_draft(project_id, run_id)
         else:
             raise HTTPException(status_code=404, detail=f"Stage {stage} is not implemented.")
     except RecordNotFoundError as error:

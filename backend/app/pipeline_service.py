@@ -1,11 +1,14 @@
 from artifact_store.models import ArtifactRecord, is_advanceable_status
 from artifact_store.sqlite_store import ArtifactStore
+from domain.narrative_arc import NarrativeArc
 from domain.script_brief import ScriptBrief
 from domain.topic_request import TopicRequest
 from domain.validators.narrative_arc_validator import NarrativeArcValidator
 from domain.validators.script_brief_validator import ScriptBriefValidator
+from domain.validators.script_draft_validator import ScriptDraftValidator
 from engines.narrative_arc_engine import NarrativeArcEngine
 from engines.script_brief_engine import ScriptBriefEngine
+from engines.script_draft_engine import ScriptDraftEngine
 from registries.finance_domain_registry import FinanceDomainRegistry
 
 
@@ -23,6 +26,8 @@ class PipelineService:
         script_brief_validator: ScriptBriefValidator,
         narrative_arc_engine: NarrativeArcEngine,
         narrative_arc_validator: NarrativeArcValidator,
+        script_draft_engine: ScriptDraftEngine,
+        script_draft_validator: ScriptDraftValidator,
     ):
         self.store = store
         self.finance_registry = finance_registry
@@ -30,6 +35,8 @@ class PipelineService:
         self.script_brief_validator = script_brief_validator
         self.narrative_arc_engine = narrative_arc_engine
         self.narrative_arc_validator = narrative_arc_validator
+        self.script_draft_engine = script_draft_engine
+        self.script_draft_validator = script_draft_validator
 
     def run_script_brief(self, project_id: str, run_id: str) -> ArtifactRecord:
         existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "script_brief")
@@ -99,6 +106,60 @@ class PipelineService:
             validation_json=validation,
         )
 
+    def run_script_draft(self, project_id: str, run_id: str) -> ArtifactRecord:
+        existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "script_draft")
+        if existing_artifact is not None:
+            return existing_artifact
+
+        script_brief_artifact = self.store.find_artifact_by_type(
+            project_id,
+            run_id,
+            "script_brief",
+        )
+        if script_brief_artifact is None:
+            raise PipelineServiceError("Cannot run script_draft without a script_brief artifact.")
+        if not is_advanceable_status(script_brief_artifact.status):
+            raise PipelineServiceError(
+                "Cannot run script_draft because the script_brief artifact is not advanceable."
+            )
+
+        narrative_arc_artifact = self.store.find_artifact_by_type(
+            project_id,
+            run_id,
+            "narrative_arc",
+        )
+        if narrative_arc_artifact is None:
+            raise PipelineServiceError("Cannot run script_draft without a narrative_arc artifact.")
+        if not is_advanceable_status(narrative_arc_artifact.status):
+            raise PipelineServiceError(
+                "Cannot run script_draft because the narrative_arc artifact is not advanceable."
+            )
+
+        script_brief = ScriptBrief.model_validate(script_brief_artifact.payload_json)
+        narrative_arc = NarrativeArc.model_validate(narrative_arc_artifact.payload_json)
+        script_draft = self.script_draft_engine.run(
+            script_brief=script_brief,
+            narrative_arc=narrative_arc,
+        )
+        validation = self.script_draft_validator.validate(
+            script_draft,
+            script_brief=script_brief,
+            narrative_arc=narrative_arc,
+        )
+
+        return self.store.save_artifact(
+            project_id=project_id,
+            run_id=run_id,
+            artifact_type="script_draft",
+            schema_version=script_draft.schema_version,
+            payload_json=script_draft.model_dump(),
+            parent_artifact_roles_json={
+                "script_brief": script_brief_artifact.id,
+                "narrative_arc": narrative_arc_artifact.id,
+            },
+            validation_json=validation,
+        )
+
 
 def build_pipeline_service(store: ArtifactStore) -> PipelineService:
     finance_registry = FinanceDomainRegistry()
@@ -109,4 +170,6 @@ def build_pipeline_service(store: ArtifactStore) -> PipelineService:
         script_brief_validator=ScriptBriefValidator(finance_registry),
         narrative_arc_engine=NarrativeArcEngine(),
         narrative_arc_validator=NarrativeArcValidator(),
+        script_draft_engine=ScriptDraftEngine(),
+        script_draft_validator=ScriptDraftValidator(),
     )

@@ -43,4 +43,13 @@ Phase 4 adds explicit story progression:
 - `PipelineService` support for `narrative_arc`
 - `POST /projects/{project_id}/runs/{run_id}/run/narrative_arc`
 
-Script drafts, scene scripts, semantic parsing, visual planning, and rendering logic are intentionally not implemented yet.
+Phase 5 adds deterministic narration drafting:
+
+- `ScriptDraft`
+- `DraftScene`
+- pure `ScriptDraftEngine`
+- `ScriptDraftValidator`
+- `PipelineService` support for `script_draft`
+- `POST /projects/{project_id}/runs/{run_id}/run/script_draft`
+
+Scene scripts, semantic parsing, visual planning, and rendering logic are intentionally not implemented yet.

@@ -146,3 +146,35 @@ Not allowed yet:
 - rendering
 
 `NarrativeArc` owns story progression only. It must not write narration, extract numbers, choose visuals, or create render instructions.
+
+## Phase 5 Boundary
+
+Phase 5 implements the deterministic `ScriptDraft` stage.
+
+Allowed:
+
+- transform a valid `ScriptBrief` and valid `NarrativeArc` into one `ScriptDraft`
+- write the hook, draft scene narration, and outro
+- preserve ScriptBrief topic, angle, thesis, scene function labels, and recurring example
+- preserve NarrativeArc scene order
+- store the `script_draft` artifact with parent role map:
+
+```json
+{
+  "script_brief": "artifact_123",
+  "narrative_arc": "artifact_456"
+}
+```
+
+Not allowed yet:
+
+- `SceneScript`
+- independent regenerable scene units
+- semantic entity extraction
+- semantic relationships
+- visual event creation
+- visual component selection
+- timing
+- rendering
+
+`ScriptDraft` owns narration only. It must not create semantic roles, visual events, component props, timing spans, or render instructions.
