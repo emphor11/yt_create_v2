@@ -1,0 +1,19 @@
+.DS_Store
+
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Node
+node_modules/
+npm-debug.log*
+.vite/
+
+# Remotion output
+out/
+renders/
+
