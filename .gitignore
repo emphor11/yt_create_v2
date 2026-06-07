@@ -4,6 +4,7 @@
 __pycache__/
 .pytest_cache/
 .venv/
+.data/
 dist/
 build/
 *.egg-info/
@@ -16,4 +17,3 @@ npm-debug.log*
 # Remotion output
 out/
 renders/
-

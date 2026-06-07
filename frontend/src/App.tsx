@@ -1,12 +1,11 @@
 import { AppShell } from "./components/AppShell";
-import { HomePage } from "./pages/HomePage";
+import { ProjectListPage } from "./pages/ProjectListPage";
 import "./styles/global.css";
 
 export function App() {
   return (
     <AppShell>
-      <HomePage />
+      <ProjectListPage />
     </AppShell>
   );
 }
-

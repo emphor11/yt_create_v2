@@ -30,3 +30,45 @@ Phase 0 intentionally does not implement:
 - video rendering
 - AI
 
+## Phase 1 Boundary
+
+Phase 1 implements storage and inspection only.
+
+Allowed:
+
+- create project records
+- create deterministic pipeline run records
+- save immutable artifact records through `ArtifactStore`
+- inspect artifacts as JSON
+- inspect parents and children through role-map lineage
+
+Not allowed yet:
+
+- stage execution
+- `PipelineService`
+- `TopicRequest`
+- engines
+- validators beyond the shared `ValidationResult` contract
+- renderer integration
+- AI
+
+Artifacts are stored with `project_id` and `run_id`. Parent lineage must use role names:
+
+```json
+{
+  "script_brief": "artifact_123"
+}
+```
+
+Parent artifacts must belong to the same project and run as the child artifact.
+
+All artifact statuses are stored:
+
+```text
+valid
+warning
+blocked
+failed
+```
+
+Only `valid` and `warning` may advance in future phases. Phase 1 exposes this policy but does not implement stage advancement.
