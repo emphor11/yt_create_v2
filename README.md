@@ -24,4 +24,14 @@ Phase 2 adds the first real pipeline artifact:
 - project creation with topic and angle
 - automatic root TopicRequest artifact inside the deterministic run
 
-Pipeline orchestration, engines, stage execution, script generation, semantic parsing, visual planning, and rendering logic are intentionally not implemented yet.
+Phase 3 adds the first deterministic stage:
+
+- `ScriptBrief`
+- `SceneFunction`
+- `FinanceDomainRegistry`
+- pure `ScriptBriefEngine`
+- `ScriptBriefValidator`
+- `PipelineService` support for `script_brief`
+- `POST /projects/{project_id}/runs/{run_id}/run/script_brief`
+
+Narrative arcs, script drafts, scene scripts, semantic parsing, visual planning, and rendering logic are intentionally not implemented yet.

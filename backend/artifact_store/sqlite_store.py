@@ -249,6 +249,30 @@ class ArtifactStore:
                 ).fetchall()
         return [self._artifact_from_row(row) for row in rows]
 
+    def find_artifact_by_type(
+        self,
+        project_id: str,
+        run_id: str,
+        artifact_type: str,
+    ) -> ArtifactRecord | None:
+        self.get_run(project_id, run_id)
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, project_id, run_id, artifact_type, schema_version,
+                       payload_json, parent_artifact_roles_json, validation_json,
+                       status, created_at
+                FROM artifacts
+                WHERE project_id = ? AND run_id = ? AND artifact_type = ?
+                ORDER BY created_at ASC
+                LIMIT 1
+                """,
+                (project_id, run_id, artifact_type),
+            ).fetchone()
+        if row is None:
+            return None
+        return self._artifact_from_row(row)
+
     def get_parents(self, artifact_id: str) -> dict[str, ArtifactRecord]:
         artifact = self.get_artifact(artifact_id)
         return {
@@ -325,4 +349,3 @@ class ArtifactStore:
             status=row["status"],
             created_at=row["created_at"],
         )
-

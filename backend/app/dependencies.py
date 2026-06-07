@@ -3,6 +3,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from artifact_store.sqlite_store import ArtifactStore
+from app.pipeline_service import PipelineService, build_pipeline_service
 
 
 def _default_database_path() -> Path:
@@ -17,4 +18,8 @@ def get_artifact_store() -> ArtifactStore:
     store = ArtifactStore(_default_database_path())
     store.initialize()
     return store
+
+
+def get_pipeline_service() -> PipelineService:
+    return build_pipeline_service(get_artifact_store())
 

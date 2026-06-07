@@ -6,6 +6,7 @@ import {
   listProjects,
   listRunArtifacts,
   listRuns,
+  runScriptBrief,
   type ArtifactRecord,
   type PipelineRunRecord,
   type ProjectRecord,
@@ -25,6 +26,7 @@ export function ProjectListPage() {
   const [topic, setTopic] = useState("");
   const [angle, setAngle] = useState("");
   const [isBusy, setIsBusy] = useState(false);
+  const [isRunningStage, setIsRunningStage] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -112,6 +114,24 @@ export function ProjectListPage() {
     }
   }
 
+  async function handleRunScriptBrief() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      const response = await runScriptBrief(selectedProject.id, selectedRun.id);
+      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
+      setArtifacts(artifactRecords);
+      await selectArtifact(response.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+    }
+  }
+
   return (
     <div className="dashboard">
       <header className="dashboard-header">
@@ -120,8 +140,8 @@ export function ProjectListPage() {
           <h1>TopicRequest Capture</h1>
         </div>
         <p>
-          Create a project from a topic and angle. The first TopicRequest artifact is
-          saved inside the deterministic run for inspection.
+          Create a project from a topic and angle, then run the deterministic ScriptBrief
+          stage inside the selected run.
         </p>
       </header>
 
@@ -174,6 +194,8 @@ export function ProjectListPage() {
           children={children}
           onRunSelect={selectRun}
           onArtifactSelect={selectArtifact}
+          onRunScriptBrief={handleRunScriptBrief}
+          isRunningStage={isRunningStage}
         />
       </div>
     </div>

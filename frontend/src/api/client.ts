@@ -38,6 +38,12 @@ export type CreateProjectResponse = {
   topic_request_artifact: ArtifactRecord;
 };
 
+export type RunStageResponse = {
+  artifact_id: string;
+  artifact: ArtifactRecord;
+  validation: ValidationResult;
+};
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -78,6 +84,15 @@ export function listRunArtifacts(
   runId: string
 ): Promise<ArtifactRecord[]> {
   return request<ArtifactRecord[]>(`/projects/${projectId}/runs/${runId}/artifacts`);
+}
+
+export function runScriptBrief(
+  projectId: string,
+  runId: string
+): Promise<RunStageResponse> {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/script_brief`, {
+    method: "POST",
+  });
 }
 
 export function listArtifactParents(

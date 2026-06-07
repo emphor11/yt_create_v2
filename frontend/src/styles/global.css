@@ -113,6 +113,10 @@ button:disabled {
   gap: 16px;
 }
 
+.stage-actions {
+  margin-top: 16px;
+}
+
 .field {
   display: grid;
   gap: 8px;

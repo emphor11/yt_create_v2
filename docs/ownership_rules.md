@@ -96,3 +96,27 @@ Not allowed yet:
 - rendering
 
 `TopicRequest` captures user intent only. It does not decide finance mechanisms, scene functions, script structure, semantic roles, components, timing, or render props.
+
+## Phase 3 Boundary
+
+Phase 3 implements the deterministic `ScriptBrief` stage.
+
+Allowed:
+
+- transform a valid `TopicRequest` into one `ScriptBrief`
+- use `FinanceDomainRegistry` for allowed mechanisms
+- store the `script_brief` artifact with parent role map `{ "topic_request": "..." }`
+- return the existing `script_brief` artifact if the stage is run again in the same run
+
+Not allowed yet:
+
+- `NarrativeArc`
+- narration writing
+- scene script generation
+- semantic extraction
+- visual event creation
+- visual component selection
+- timing
+- rendering
+
+`ScriptBrief` owns strategy only. It may name mechanisms, thesis, recurring example, and scene function. It must not create narration, semantic roles, visual props, or render instructions.

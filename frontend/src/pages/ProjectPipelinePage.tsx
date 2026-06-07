@@ -12,6 +12,8 @@ type ProjectPipelinePageProps = {
   children: ArtifactRecord[];
   onRunSelect: (run: PipelineRunRecord) => void;
   onArtifactSelect: (artifact: ArtifactRecord) => void;
+  onRunScriptBrief: () => void;
+  isRunningStage: boolean;
 };
 
 export function ProjectPipelinePage({
@@ -24,6 +26,8 @@ export function ProjectPipelinePage({
   children,
   onRunSelect,
   onArtifactSelect,
+  onRunScriptBrief,
+  isRunningStage,
 }: ProjectPipelinePageProps) {
   if (!project) {
     return (
@@ -77,6 +81,16 @@ export function ProjectPipelinePage({
           <p className="section-label">Artifacts</p>
           <h2>Run Artifacts</h2>
         </div>
+        <div className="stage-actions">
+          <button
+            className="primary-button"
+            disabled={!selectedRun || isRunningStage}
+            onClick={onRunScriptBrief}
+            type="button"
+          >
+            Run ScriptBrief
+          </button>
+        </div>
         {artifacts.length > 0 ? (
           <div className="button-list">
             {artifacts.map((artifact) => (
@@ -103,4 +117,3 @@ export function ProjectPipelinePage({
     </div>
   );
 }
-
