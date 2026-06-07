@@ -27,11 +27,13 @@ def run_stage(
     stage: str,
     pipeline_service: PipelineService = Depends(get_pipeline_service),
 ) -> RunStageResponse:
-    if stage != "script_brief":
-        raise HTTPException(status_code=404, detail=f"Stage {stage} is not implemented.")
-
     try:
-        artifact = pipeline_service.run_script_brief(project_id, run_id)
+        if stage == "script_brief":
+            artifact = pipeline_service.run_script_brief(project_id, run_id)
+        elif stage == "narrative_arc":
+            artifact = pipeline_service.run_narrative_arc(project_id, run_id)
+        else:
+            raise HTTPException(status_code=404, detail=f"Stage {stage} is not implemented.")
     except RecordNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except PipelineServiceError as error:
@@ -42,4 +44,3 @@ def run_stage(
         artifact=artifact,
         validation=artifact.validation_json,
     )
-

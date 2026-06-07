@@ -114,6 +114,9 @@ button:disabled {
 }
 
 .stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 16px;
 }
 
@@ -146,6 +149,11 @@ button:disabled {
   border-color: #166663;
   color: #ffffff;
   font-weight: 800;
+}
+
+.primary-button.secondary {
+  background: #ffffff;
+  color: #166663;
 }
 
 .button-list {

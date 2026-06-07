@@ -120,3 +120,29 @@ Not allowed yet:
 - rendering
 
 `ScriptBrief` owns strategy only. It may name mechanisms, thesis, recurring example, and scene function. It must not create narration, semantic roles, visual props, or render instructions.
+
+## Phase 4 Boundary
+
+Phase 4 implements the deterministic `NarrativeArc` stage.
+
+Allowed:
+
+- transform a valid `ScriptBrief` into one `NarrativeArc`
+- define the viewer question
+- define the arc phases: curiosity, comfort, reversal, realization
+- map every ScriptBrief scene function to a scene arc step
+- identify at least one payoff scene
+- store the `narrative_arc` artifact with parent role map `{ "script_brief": "..." }`
+
+Not allowed yet:
+
+- narration writing
+- `ScriptDraft`
+- scene script generation
+- semantic extraction
+- visual event creation
+- visual component selection
+- timing
+- rendering
+
+`NarrativeArc` owns story progression only. It must not write narration, extract numbers, choose visuals, or create render instructions.

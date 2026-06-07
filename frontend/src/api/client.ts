@@ -95,6 +95,15 @@ export function runScriptBrief(
   });
 }
 
+export function runNarrativeArc(
+  projectId: string,
+  runId: string
+): Promise<RunStageResponse> {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/narrative_arc`, {
+    method: "POST",
+  });
+}
+
 export function listArtifactParents(
   artifactId: string
 ): Promise<{ artifact_id: string; parents: Record<string, ArtifactRecord> }> {

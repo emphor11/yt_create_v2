@@ -34,4 +34,13 @@ Phase 3 adds the first deterministic stage:
 - `PipelineService` support for `script_brief`
 - `POST /projects/{project_id}/runs/{run_id}/run/script_brief`
 
-Narrative arcs, script drafts, scene scripts, semantic parsing, visual planning, and rendering logic are intentionally not implemented yet.
+Phase 4 adds explicit story progression:
+
+- `NarrativeArc`
+- `SceneArcStep`
+- pure `NarrativeArcEngine`
+- `NarrativeArcValidator`
+- `PipelineService` support for `narrative_arc`
+- `POST /projects/{project_id}/runs/{run_id}/run/narrative_arc`
+
+Script drafts, scene scripts, semantic parsing, visual planning, and rendering logic are intentionally not implemented yet.

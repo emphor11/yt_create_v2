@@ -13,6 +13,7 @@ type ProjectPipelinePageProps = {
   onRunSelect: (run: PipelineRunRecord) => void;
   onArtifactSelect: (artifact: ArtifactRecord) => void;
   onRunScriptBrief: () => void;
+  onRunNarrativeArc: () => void;
   isRunningStage: boolean;
 };
 
@@ -27,6 +28,7 @@ export function ProjectPipelinePage({
   onRunSelect,
   onArtifactSelect,
   onRunScriptBrief,
+  onRunNarrativeArc,
   isRunningStage,
 }: ProjectPipelinePageProps) {
   if (!project) {
@@ -89,6 +91,14 @@ export function ProjectPipelinePage({
             type="button"
           >
             Run ScriptBrief
+          </button>
+          <button
+            className="primary-button secondary"
+            disabled={!selectedRun || isRunningStage}
+            onClick={onRunNarrativeArc}
+            type="button"
+          >
+            Run NarrativeArc
           </button>
         </div>
         {artifacts.length > 0 ? (
