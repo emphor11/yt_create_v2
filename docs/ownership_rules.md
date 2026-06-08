@@ -278,3 +278,34 @@ Not allowed yet:
 - rendering
 
 `VisualEventSequence` owns viewer-facing event order only. It must not invent numbers, choose components, create layout props, assign timing, or create render instructions.
+
+## Phase 9 Boundary
+
+Phase 9 implements the deterministic `VisualPlan` stage.
+
+Allowed:
+
+- transform a valid `SemanticScene` and valid `VisualEventSequence` into one `VisualPlan`
+- select `SplitComparison` from `ComponentRegistry`
+- map `product_price` to the left side
+- map `monthly_payment` to the right side
+- copy raw values, numeric values, units, and semantic entity ids from `SemanticScene`
+- reference the `attention_shift` event from `VisualEventSequence`
+- store a selection reason
+- store the `visual_plan` artifact with parent role map:
+
+```json
+{
+  "semantic_scene": "artifact_123",
+  "visual_event_sequence": "artifact_456"
+}
+```
+
+Not allowed yet:
+
+- timing spans
+- frame math
+- render specs
+- rendering
+
+`VisualPlan` owns component choice and component props only. It must not invent numbers, assign timing, convert seconds to frames, or create render instructions.

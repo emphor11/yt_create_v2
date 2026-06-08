@@ -143,6 +143,15 @@ export function runVisualEventSequence(
   );
 }
 
+export function runVisualPlan(
+  projectId: string,
+  runId: string
+): Promise<RunStageResponse> {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/visual_plan`, {
+    method: "POST",
+  });
+}
+
 export function listArtifactParents(
   artifactId: string
 ): Promise<{ artifact_id: string; parents: Record<string, ArtifactRecord> }> {

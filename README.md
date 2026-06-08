@@ -82,4 +82,15 @@ Phase 8 adds visual event sequencing:
 - `PipelineService` support for `visual_event_sequence`
 - `POST /projects/{project_id}/runs/{run_id}/run/visual_event_sequence`
 
-Visual planning, timing, and rendering logic are intentionally not implemented yet.
+Phase 9 adds visual planning:
+
+- `ComponentRegistry` with `SplitComparison`
+- `VisualPlan`
+- `SplitComparisonProps`
+- pure `VisualPlanEngine`
+- `VisualPlanValidator`
+- component and prop mapping from semantic entities/events
+- `PipelineService` support for `visual_plan`
+- `POST /projects/{project_id}/runs/{run_id}/run/visual_plan`
+
+Timing, render specs, and rendering logic are intentionally not implemented yet.

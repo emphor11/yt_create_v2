@@ -12,6 +12,7 @@ import {
   runScriptBrief,
   runScriptDraft,
   runVisualEventSequence,
+  runVisualPlan,
   type ArtifactRecord,
   type PipelineRunRecord,
   type ProjectRecord,
@@ -227,15 +228,33 @@ export function ProjectListPage() {
     }
   }
 
+  async function handleRunVisualPlan() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      const response = await runVisualPlan(selectedProject.id, selectedRun.id);
+      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
+      setArtifacts(artifactRecords);
+      await selectArtifact(response.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+    }
+  }
+
   return (
     <div className="dashboard">
       <header className="dashboard-header">
         <div>
           <p className="section-label">YTCreate V2</p>
-          <h1>VisualEventSequence</h1>
+          <h1>VisualPlan</h1>
         </div>
         <p>
-          Convert semantic meaning into reveal and attention-shift events for scene_01.
+          Choose SplitComparison and map semantic numbers into traceable component props.
         </p>
       </header>
 
@@ -294,6 +313,7 @@ export function ProjectListPage() {
           onRunSceneScript={handleRunSceneScript}
           onRunSemanticScene={handleRunSemanticScene}
           onRunVisualEventSequence={handleRunVisualEventSequence}
+          onRunVisualPlan={handleRunVisualPlan}
           isRunningStage={isRunningStage}
         />
       </div>
