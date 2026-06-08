@@ -91,8 +91,8 @@ def test_unimplemented_stage_returns_404(tmp_path) -> None:
     created = create_valid_project(client)
 
     response = client.post(
-        f"/projects/{created['project']['id']}/runs/{created['run']['id']}/run/scene_script"
+        f"/projects/{created['project']['id']}/runs/{created['run']['id']}/run/semantic_scene"
     )
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "Stage scene_script is not implemented."
+    assert response.json()["detail"] == "Stage semantic_scene is not implemented."

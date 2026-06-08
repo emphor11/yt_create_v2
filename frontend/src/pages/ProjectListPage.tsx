@@ -7,6 +7,7 @@ import {
   listRunArtifacts,
   listRuns,
   runNarrativeArc,
+  runSceneScript,
   runScriptBrief,
   runScriptDraft,
   type ArtifactRecord,
@@ -170,16 +171,34 @@ export function ProjectListPage() {
     }
   }
 
+  async function handleRunSceneScript() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      const response = await runSceneScript(selectedProject.id, selectedRun.id);
+      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
+      setArtifacts(artifactRecords);
+      await selectArtifact(response.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+    }
+  }
+
   return (
     <div className="dashboard">
       <header className="dashboard-header">
         <div>
           <p className="section-label">YTCreate V2</p>
-          <h1>ScriptDraft Writing</h1>
+          <h1>SceneScript Units</h1>
         </div>
         <p>
-          Create a project, run ScriptBrief, map the NarrativeArc, then generate a
-          deterministic narration draft.
+          Create a project, run the deterministic script stages, then package scene_01
+          as an independent scene artifact.
         </p>
       </header>
 
@@ -235,6 +254,7 @@ export function ProjectListPage() {
           onRunScriptBrief={handleRunScriptBrief}
           onRunNarrativeArc={handleRunNarrativeArc}
           onRunScriptDraft={handleRunScriptDraft}
+          onRunSceneScript={handleRunSceneScript}
           isRunningStage={isRunningStage}
         />
       </div>

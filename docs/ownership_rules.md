@@ -178,3 +178,38 @@ Not allowed yet:
 - rendering
 
 `ScriptDraft` owns narration only. It must not create semantic roles, visual events, component props, timing spans, or render instructions.
+
+## Phase 6 Boundary
+
+Phase 6 implements the deterministic `SceneScript` stage.
+
+Allowed:
+
+- transform a valid `ScriptBrief`, valid `NarrativeArc`, and valid `ScriptDraft` into one `SceneScript`
+- package `scene_01` as an independent scene unit
+- copy the scene mechanism from `ScriptBrief`
+- copy scene function label from `ScriptBrief`
+- copy arc phases and narrative purpose from `NarrativeArc`
+- copy scene narration from `ScriptDraft`
+- store `story_state.recurring_example`
+- store the `scene_script` artifact with parent role map:
+
+```json
+{
+  "script_brief": "artifact_123",
+  "narrative_arc": "artifact_456",
+  "script_draft": "artifact_789"
+}
+```
+
+Not allowed yet:
+
+- semantic entity extraction
+- semantic relationships
+- numeric truth ownership
+- visual event creation
+- visual component selection
+- timing
+- rendering
+
+`SceneScript` owns the independent scene unit only. It must not infer mechanism from narration, create semantic roles, choose visuals, or create render instructions.

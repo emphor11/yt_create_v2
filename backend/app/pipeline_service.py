@@ -2,11 +2,14 @@ from artifact_store.models import ArtifactRecord, is_advanceable_status
 from artifact_store.sqlite_store import ArtifactStore
 from domain.narrative_arc import NarrativeArc
 from domain.script_brief import ScriptBrief
+from domain.script_draft import ScriptDraft
 from domain.topic_request import TopicRequest
 from domain.validators.narrative_arc_validator import NarrativeArcValidator
+from domain.validators.scene_script_validator import SceneScriptValidator
 from domain.validators.script_brief_validator import ScriptBriefValidator
 from domain.validators.script_draft_validator import ScriptDraftValidator
 from engines.narrative_arc_engine import NarrativeArcEngine
+from engines.scene_script_engine import SceneScriptEngine
 from engines.script_brief_engine import ScriptBriefEngine
 from engines.script_draft_engine import ScriptDraftEngine
 from registries.finance_domain_registry import FinanceDomainRegistry
@@ -28,6 +31,8 @@ class PipelineService:
         narrative_arc_validator: NarrativeArcValidator,
         script_draft_engine: ScriptDraftEngine,
         script_draft_validator: ScriptDraftValidator,
+        scene_script_engine: SceneScriptEngine,
+        scene_script_validator: SceneScriptValidator,
     ):
         self.store = store
         self.finance_registry = finance_registry
@@ -37,6 +42,8 @@ class PipelineService:
         self.narrative_arc_validator = narrative_arc_validator
         self.script_draft_engine = script_draft_engine
         self.script_draft_validator = script_draft_validator
+        self.scene_script_engine = scene_script_engine
+        self.scene_script_validator = scene_script_validator
 
     def run_script_brief(self, project_id: str, run_id: str) -> ArtifactRecord:
         existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "script_brief")
@@ -160,6 +167,76 @@ class PipelineService:
             validation_json=validation,
         )
 
+    def run_scene_script(self, project_id: str, run_id: str) -> ArtifactRecord:
+        existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "scene_script")
+        if existing_artifact is not None:
+            return existing_artifact
+
+        script_brief_artifact = self.store.find_artifact_by_type(
+            project_id,
+            run_id,
+            "script_brief",
+        )
+        if script_brief_artifact is None:
+            raise PipelineServiceError("Cannot run scene_script without a script_brief artifact.")
+        if not is_advanceable_status(script_brief_artifact.status):
+            raise PipelineServiceError(
+                "Cannot run scene_script because the script_brief artifact is not advanceable."
+            )
+
+        narrative_arc_artifact = self.store.find_artifact_by_type(
+            project_id,
+            run_id,
+            "narrative_arc",
+        )
+        if narrative_arc_artifact is None:
+            raise PipelineServiceError("Cannot run scene_script without a narrative_arc artifact.")
+        if not is_advanceable_status(narrative_arc_artifact.status):
+            raise PipelineServiceError(
+                "Cannot run scene_script because the narrative_arc artifact is not advanceable."
+            )
+
+        script_draft_artifact = self.store.find_artifact_by_type(
+            project_id,
+            run_id,
+            "script_draft",
+        )
+        if script_draft_artifact is None:
+            raise PipelineServiceError("Cannot run scene_script without a script_draft artifact.")
+        if not is_advanceable_status(script_draft_artifact.status):
+            raise PipelineServiceError(
+                "Cannot run scene_script because the script_draft artifact is not advanceable."
+            )
+
+        script_brief = ScriptBrief.model_validate(script_brief_artifact.payload_json)
+        narrative_arc = NarrativeArc.model_validate(narrative_arc_artifact.payload_json)
+        script_draft = ScriptDraft.model_validate(script_draft_artifact.payload_json)
+        scene_script = self.scene_script_engine.run(
+            script_brief=script_brief,
+            narrative_arc=narrative_arc,
+            script_draft=script_draft,
+        )
+        validation = self.scene_script_validator.validate(
+            scene_script,
+            script_brief=script_brief,
+            narrative_arc=narrative_arc,
+            script_draft=script_draft,
+        )
+
+        return self.store.save_artifact(
+            project_id=project_id,
+            run_id=run_id,
+            artifact_type="scene_script",
+            schema_version=scene_script.schema_version,
+            payload_json=scene_script.model_dump(),
+            parent_artifact_roles_json={
+                "script_brief": script_brief_artifact.id,
+                "narrative_arc": narrative_arc_artifact.id,
+                "script_draft": script_draft_artifact.id,
+            },
+            validation_json=validation,
+        )
+
 
 def build_pipeline_service(store: ArtifactStore) -> PipelineService:
     finance_registry = FinanceDomainRegistry()
@@ -172,4 +249,6 @@ def build_pipeline_service(store: ArtifactStore) -> PipelineService:
         narrative_arc_validator=NarrativeArcValidator(),
         script_draft_engine=ScriptDraftEngine(),
         script_draft_validator=ScriptDraftValidator(),
+        scene_script_engine=SceneScriptEngine(),
+        scene_script_validator=SceneScriptValidator(),
     )

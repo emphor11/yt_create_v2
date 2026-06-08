@@ -52,4 +52,13 @@ Phase 5 adds deterministic narration drafting:
 - `PipelineService` support for `script_draft`
 - `POST /projects/{project_id}/runs/{run_id}/run/script_draft`
 
-Scene scripts, semantic parsing, visual planning, and rendering logic are intentionally not implemented yet.
+Phase 6 adds independent scene units:
+
+- `SceneScript`
+- `SceneStoryState`
+- pure `SceneScriptEngine`
+- `SceneScriptValidator`
+- `PipelineService` support for `scene_script`
+- `POST /projects/{project_id}/runs/{run_id}/run/scene_script`
+
+Semantic parsing, visual planning, and rendering logic are intentionally not implemented yet.
