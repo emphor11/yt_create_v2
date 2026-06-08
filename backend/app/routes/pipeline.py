@@ -38,6 +38,8 @@ def run_stage(
             artifact = pipeline_service.run_scene_script(project_id, run_id)
         elif stage == "semantic_scene":
             artifact = pipeline_service.run_semantic_scene(project_id, run_id)
+        elif stage == "visual_event_sequence":
+            artifact = pipeline_service.run_visual_event_sequence(project_id, run_id)
         else:
             raise HTTPException(status_code=404, detail=f"Stage {stage} is not implemented.")
     except RecordNotFoundError as error:

@@ -72,4 +72,14 @@ Phase 7 adds semantic scene parsing:
 - `PipelineService` support for `semantic_scene`
 - `POST /projects/{project_id}/runs/{run_id}/run/semantic_scene`
 
-Visual event sequencing, visual planning, timing, and rendering logic are intentionally not implemented yet.
+Phase 8 adds visual event sequencing:
+
+- `VisualEventSequence`
+- `VisualEvent`
+- pure `VisualEventSequenceEngine`
+- `VisualEventSequenceValidator`
+- semantic role to event primitive mapping
+- `PipelineService` support for `visual_event_sequence`
+- `POST /projects/{project_id}/runs/{run_id}/run/visual_event_sequence`
+
+Visual planning, timing, and rendering logic are intentionally not implemented yet.

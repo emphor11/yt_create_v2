@@ -7,7 +7,10 @@ const projectListSource = await readFile(
 );
 const htmlSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
-if (!appSource.includes("ProjectListPage") || !projectListSource.includes("runSemanticScene")) {
+if (
+  !appSource.includes("ProjectListPage") ||
+  !projectListSource.includes("runVisualEventSequence")
+) {
   throw new Error("Frontend shell does not render the product name.");
 }
 

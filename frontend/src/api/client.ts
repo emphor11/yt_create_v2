@@ -131,6 +131,18 @@ export function runSemanticScene(
   });
 }
 
+export function runVisualEventSequence(
+  projectId: string,
+  runId: string
+): Promise<RunStageResponse> {
+  return request<RunStageResponse>(
+    `/projects/${projectId}/runs/${runId}/run/visual_event_sequence`,
+    {
+      method: "POST",
+    }
+  );
+}
+
 export function listArtifactParents(
   artifactId: string
 ): Promise<{ artifact_id: string; parents: Record<string, ArtifactRecord> }> {

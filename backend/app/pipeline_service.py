@@ -5,16 +5,19 @@ from domain.scene_script import SceneScript
 from domain.script_brief import ScriptBrief
 from domain.script_draft import ScriptDraft
 from domain.topic_request import TopicRequest
+from domain.semantic_scene import SemanticScene
 from domain.validators.narrative_arc_validator import NarrativeArcValidator
 from domain.validators.scene_script_validator import SceneScriptValidator
 from domain.validators.semantic_scene_validator import SemanticSceneValidator
 from domain.validators.script_brief_validator import ScriptBriefValidator
 from domain.validators.script_draft_validator import ScriptDraftValidator
+from domain.validators.visual_event_sequence_validator import VisualEventSequenceValidator
 from engines.narrative_arc_engine import NarrativeArcEngine
 from engines.scene_script_engine import SceneScriptEngine
 from engines.semantic_scene_engine import SemanticSceneEngine
 from engines.script_brief_engine import ScriptBriefEngine
 from engines.script_draft_engine import ScriptDraftEngine
+from engines.visual_event_sequence_engine import VisualEventSequenceEngine
 from registries.finance_domain_registry import FinanceDomainRegistry
 
 
@@ -38,6 +41,8 @@ class PipelineService:
         scene_script_validator: SceneScriptValidator,
         semantic_scene_engine: SemanticSceneEngine,
         semantic_scene_validator: SemanticSceneValidator,
+        visual_event_sequence_engine: VisualEventSequenceEngine,
+        visual_event_sequence_validator: VisualEventSequenceValidator,
     ):
         self.store = store
         self.finance_registry = finance_registry
@@ -51,6 +56,8 @@ class PipelineService:
         self.scene_script_validator = scene_script_validator
         self.semantic_scene_engine = semantic_scene_engine
         self.semantic_scene_validator = semantic_scene_validator
+        self.visual_event_sequence_engine = visual_event_sequence_engine
+        self.visual_event_sequence_validator = visual_event_sequence_validator
 
     def run_script_brief(self, project_id: str, run_id: str) -> ArtifactRecord:
         existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "script_brief")
@@ -278,6 +285,46 @@ class PipelineService:
             validation_json=validation,
         )
 
+    def run_visual_event_sequence(self, project_id: str, run_id: str) -> ArtifactRecord:
+        existing_artifact = self.store.find_artifact_by_type(
+            project_id,
+            run_id,
+            "visual_event_sequence",
+        )
+        if existing_artifact is not None:
+            return existing_artifact
+
+        semantic_scene_artifact = self.store.find_artifact_by_type(
+            project_id,
+            run_id,
+            "semantic_scene",
+        )
+        if semantic_scene_artifact is None:
+            raise PipelineServiceError(
+                "Cannot run visual_event_sequence without a semantic_scene artifact."
+            )
+        if not is_advanceable_status(semantic_scene_artifact.status):
+            raise PipelineServiceError(
+                "Cannot run visual_event_sequence because the semantic_scene artifact is not advanceable."
+            )
+
+        semantic_scene = SemanticScene.model_validate(semantic_scene_artifact.payload_json)
+        visual_event_sequence = self.visual_event_sequence_engine.run(semantic_scene)
+        validation = self.visual_event_sequence_validator.validate(
+            visual_event_sequence,
+            semantic_scene=semantic_scene,
+        )
+
+        return self.store.save_artifact(
+            project_id=project_id,
+            run_id=run_id,
+            artifact_type="visual_event_sequence",
+            schema_version=visual_event_sequence.schema_version,
+            payload_json=visual_event_sequence.model_dump(),
+            parent_artifact_roles_json={"semantic_scene": semantic_scene_artifact.id},
+            validation_json=validation,
+        )
+
 
 def build_pipeline_service(store: ArtifactStore) -> PipelineService:
     finance_registry = FinanceDomainRegistry()
@@ -294,4 +341,6 @@ def build_pipeline_service(store: ArtifactStore) -> PipelineService:
         scene_script_validator=SceneScriptValidator(),
         semantic_scene_engine=SemanticSceneEngine(finance_registry),
         semantic_scene_validator=SemanticSceneValidator(finance_registry),
+        visual_event_sequence_engine=VisualEventSequenceEngine(),
+        visual_event_sequence_validator=VisualEventSequenceValidator(),
     )

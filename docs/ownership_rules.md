@@ -248,3 +248,33 @@ Not allowed yet:
 - rendering
 
 `SemanticScene` owns meaning and numeric truth. It must not choose visual primitives, component props, timing spans, or render instructions.
+
+## Phase 8 Boundary
+
+Phase 8 implements the deterministic `VisualEventSequence` stage.
+
+Allowed:
+
+- transform a valid `SemanticScene` into one `VisualEventSequence`
+- create visual events only from semantic entities and relationships
+- map `product_price` to `reveal_full_price`
+- map `monthly_payment` to `reveal_monthly_payment`
+- map `reframes` to `attention_shift`
+- link every event back to a semantic entity id or relationship type
+- store the `visual_event_sequence` artifact with parent role map:
+
+```json
+{
+  "semantic_scene": "artifact_123"
+}
+```
+
+Not allowed yet:
+
+- visual component selection
+- component props
+- timing spans
+- render specs
+- rendering
+
+`VisualEventSequence` owns viewer-facing event order only. It must not invent numbers, choose components, create layout props, assign timing, or create render instructions.
