@@ -61,4 +61,15 @@ Phase 6 adds independent scene units:
 - `PipelineService` support for `scene_script`
 - `POST /projects/{project_id}/runs/{run_id}/run/scene_script`
 
-Semantic parsing, visual planning, and rendering logic are intentionally not implemented yet.
+Phase 7 adds semantic scene parsing:
+
+- `SemanticScene`
+- `SemanticEntity`
+- `SemanticRelationship`
+- deterministic INR parser and role assignment
+- pure `SemanticSceneEngine`
+- `SemanticSceneValidator`
+- `PipelineService` support for `semantic_scene`
+- `POST /projects/{project_id}/runs/{run_id}/run/semantic_scene`
+
+Visual event sequencing, visual planning, timing, and rendering logic are intentionally not implemented yet.

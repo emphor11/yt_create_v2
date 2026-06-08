@@ -213,3 +213,38 @@ Not allowed yet:
 - rendering
 
 `SceneScript` owns the independent scene unit only. It must not infer mechanism from narration, create semantic roles, choose visuals, or create render instructions.
+
+## Phase 7 Boundary
+
+Phase 7 implements the deterministic `SemanticScene` stage.
+
+Allowed:
+
+- transform a valid `SceneScript` into one `SemanticScene`
+- parse INR money amounts from scene narration
+- assign semantic roles:
+  - `product_price`
+  - `monthly_payment`
+  - `unknown_money`
+- attach every entity to source text
+- create the `reframes` relationship when product price and monthly payment both exist
+- calculate confidence
+- store warnings
+- store blocked semantic artifacts for debugging
+- store the `semantic_scene` artifact with parent role map:
+
+```json
+{
+  "scene_script": "artifact_123"
+}
+```
+
+Not allowed yet:
+
+- visual event creation
+- visual component selection
+- timing
+- render props
+- rendering
+
+`SemanticScene` owns meaning and numeric truth. It must not choose visual primitives, component props, timing spans, or render instructions.

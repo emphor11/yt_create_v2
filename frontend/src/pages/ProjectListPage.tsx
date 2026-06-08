@@ -8,6 +8,7 @@ import {
   listRuns,
   runNarrativeArc,
   runSceneScript,
+  runSemanticScene,
   runScriptBrief,
   runScriptDraft,
   type ArtifactRecord,
@@ -189,16 +190,34 @@ export function ProjectListPage() {
     }
   }
 
+  async function handleRunSemanticScene() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      const response = await runSemanticScene(selectedProject.id, selectedRun.id);
+      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
+      setArtifacts(artifactRecords);
+      await selectArtifact(response.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+    }
+  }
+
   return (
     <div className="dashboard">
       <header className="dashboard-header">
         <div>
           <p className="section-label">YTCreate V2</p>
-          <h1>SceneScript Units</h1>
+          <h1>SemanticScene Parsing</h1>
         </div>
         <p>
-          Create a project, run the deterministic script stages, then package scene_01
-          as an independent scene artifact.
+          Create the scene artifact, then extract money roles, relationships, confidence,
+          and warnings from scene_01.
         </p>
       </header>
 
@@ -255,6 +274,7 @@ export function ProjectListPage() {
           onRunNarrativeArc={handleRunNarrativeArc}
           onRunScriptDraft={handleRunScriptDraft}
           onRunSceneScript={handleRunSceneScript}
+          onRunSemanticScene={handleRunSemanticScene}
           isRunningStage={isRunningStage}
         />
       </div>

@@ -122,6 +122,15 @@ export function runSceneScript(
   });
 }
 
+export function runSemanticScene(
+  projectId: string,
+  runId: string
+): Promise<RunStageResponse> {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/semantic_scene`, {
+    method: "POST",
+  });
+}
+
 export function listArtifactParents(
   artifactId: string
 ): Promise<{ artifact_id: string; parents: Record<string, ArtifactRecord> }> {

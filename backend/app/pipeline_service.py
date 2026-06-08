@@ -1,15 +1,18 @@
 from artifact_store.models import ArtifactRecord, is_advanceable_status
 from artifact_store.sqlite_store import ArtifactStore
 from domain.narrative_arc import NarrativeArc
+from domain.scene_script import SceneScript
 from domain.script_brief import ScriptBrief
 from domain.script_draft import ScriptDraft
 from domain.topic_request import TopicRequest
 from domain.validators.narrative_arc_validator import NarrativeArcValidator
 from domain.validators.scene_script_validator import SceneScriptValidator
+from domain.validators.semantic_scene_validator import SemanticSceneValidator
 from domain.validators.script_brief_validator import ScriptBriefValidator
 from domain.validators.script_draft_validator import ScriptDraftValidator
 from engines.narrative_arc_engine import NarrativeArcEngine
 from engines.scene_script_engine import SceneScriptEngine
+from engines.semantic_scene_engine import SemanticSceneEngine
 from engines.script_brief_engine import ScriptBriefEngine
 from engines.script_draft_engine import ScriptDraftEngine
 from registries.finance_domain_registry import FinanceDomainRegistry
@@ -33,6 +36,8 @@ class PipelineService:
         script_draft_validator: ScriptDraftValidator,
         scene_script_engine: SceneScriptEngine,
         scene_script_validator: SceneScriptValidator,
+        semantic_scene_engine: SemanticSceneEngine,
+        semantic_scene_validator: SemanticSceneValidator,
     ):
         self.store = store
         self.finance_registry = finance_registry
@@ -44,6 +49,8 @@ class PipelineService:
         self.script_draft_validator = script_draft_validator
         self.scene_script_engine = scene_script_engine
         self.scene_script_validator = scene_script_validator
+        self.semantic_scene_engine = semantic_scene_engine
+        self.semantic_scene_validator = semantic_scene_validator
 
     def run_script_brief(self, project_id: str, run_id: str) -> ArtifactRecord:
         existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "script_brief")
@@ -237,6 +244,40 @@ class PipelineService:
             validation_json=validation,
         )
 
+    def run_semantic_scene(self, project_id: str, run_id: str) -> ArtifactRecord:
+        existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "semantic_scene")
+        if existing_artifact is not None:
+            return existing_artifact
+
+        scene_script_artifact = self.store.find_artifact_by_type(
+            project_id,
+            run_id,
+            "scene_script",
+        )
+        if scene_script_artifact is None:
+            raise PipelineServiceError("Cannot run semantic_scene without a scene_script artifact.")
+        if not is_advanceable_status(scene_script_artifact.status):
+            raise PipelineServiceError(
+                "Cannot run semantic_scene because the scene_script artifact is not advanceable."
+            )
+
+        scene_script = SceneScript.model_validate(scene_script_artifact.payload_json)
+        semantic_scene = self.semantic_scene_engine.run(scene_script)
+        validation = self.semantic_scene_validator.validate(
+            semantic_scene,
+            scene_script=scene_script,
+        )
+
+        return self.store.save_artifact(
+            project_id=project_id,
+            run_id=run_id,
+            artifact_type="semantic_scene",
+            schema_version=semantic_scene.schema_version,
+            payload_json=semantic_scene.model_dump(),
+            parent_artifact_roles_json={"scene_script": scene_script_artifact.id},
+            validation_json=validation,
+        )
+
 
 def build_pipeline_service(store: ArtifactStore) -> PipelineService:
     finance_registry = FinanceDomainRegistry()
@@ -251,4 +292,6 @@ def build_pipeline_service(store: ArtifactStore) -> PipelineService:
         script_draft_validator=ScriptDraftValidator(),
         scene_script_engine=SceneScriptEngine(),
         scene_script_validator=SceneScriptValidator(),
+        semantic_scene_engine=SemanticSceneEngine(finance_registry),
+        semantic_scene_validator=SemanticSceneValidator(finance_registry),
     )
