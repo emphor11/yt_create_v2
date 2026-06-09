@@ -19,6 +19,7 @@ type ProjectPipelinePageProps = {
   onRunSemanticScene: () => void;
   onRunVisualEventSequence: () => void;
   onRunVisualPlan: () => void;
+  onRunTiming: () => void;
   isRunningStage: boolean;
 };
 
@@ -39,6 +40,7 @@ export function ProjectPipelinePage({
   onRunSemanticScene,
   onRunVisualEventSequence,
   onRunVisualPlan,
+  onRunTiming,
   isRunningStage,
 }: ProjectPipelinePageProps) {
   if (!project) {
@@ -149,6 +151,14 @@ export function ProjectPipelinePage({
             type="button"
           >
             Run VisualPlan
+          </button>
+          <button
+            className="primary-button secondary"
+            disabled={!selectedRun || isRunningStage}
+            onClick={onRunTiming}
+            type="button"
+          >
+            Run Timing
           </button>
         </div>
         {artifacts.length > 0 ? (

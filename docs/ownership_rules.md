@@ -309,3 +309,34 @@ Not allowed yet:
 - rendering
 
 `VisualPlan` owns component choice and component props only. It must not invent numbers, assign timing, convert seconds to frames, or create render instructions.
+
+## Phase 10 Boundary
+
+Phase 10 implements the deterministic `TimedScenePlan` stage.
+
+Allowed:
+
+- transform a valid `VisualPlan` and valid `VisualEventSequence` into one `TimedScenePlan`
+- assign a fixed 8-second duration for the MVP scene
+- store 30 FPS as planning metadata
+- create one `TimedSpan` for every visual event
+- preserve the visual event order from `VisualEventSequence`
+- cover the full scene duration without gaps or overlaps
+- store the `timed_scene_plan` artifact with parent role map:
+
+```json
+{
+  "visual_plan": "artifact_123",
+  "visual_event_sequence": "artifact_456"
+}
+```
+
+Not allowed yet:
+
+- frame conversion
+- Remotion composition instructions
+- render specs
+- output storage keys
+- video rendering
+
+`TimedScenePlan` owns timing in seconds only. It must not choose components, change component props, convert seconds into frames, create animation details, or create render instructions.

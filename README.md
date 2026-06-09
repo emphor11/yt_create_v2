@@ -93,4 +93,16 @@ Phase 9 adds visual planning:
 - `PipelineService` support for `visual_plan`
 - `POST /projects/{project_id}/runs/{run_id}/run/visual_plan`
 
-Timing, render specs, and rendering logic are intentionally not implemented yet.
+Phase 10 adds visual timing:
+
+- `TimedScenePlan`
+- `TimedSpan`
+- pure `TimingEngine`
+- `TimedScenePlanValidator`
+- fixed 8-second scene duration
+- 30 FPS planning metadata
+- one timed span per visual event
+- `PipelineService` support for `timing`
+- `POST /projects/{project_id}/runs/{run_id}/run/timing`
+
+Render specs and rendering logic are intentionally not implemented yet.

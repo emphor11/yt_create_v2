@@ -11,6 +11,7 @@ import {
   runSemanticScene,
   runScriptBrief,
   runScriptDraft,
+  runTiming,
   runVisualEventSequence,
   runVisualPlan,
   type ArtifactRecord,
@@ -246,15 +247,33 @@ export function ProjectListPage() {
     }
   }
 
+  async function handleRunTiming() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      const response = await runTiming(selectedProject.id, selectedRun.id);
+      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
+      setArtifacts(artifactRecords);
+      await selectArtifact(response.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+    }
+  }
+
   return (
     <div className="dashboard">
       <header className="dashboard-header">
         <div>
           <p className="section-label">YTCreate V2</p>
-          <h1>VisualPlan</h1>
+          <h1>TimedScenePlan</h1>
         </div>
         <p>
-          Choose SplitComparison and map semantic numbers into traceable component props.
+          Assign timing spans to the selected visual plan without creating render specs.
         </p>
       </header>
 
@@ -314,6 +333,7 @@ export function ProjectListPage() {
           onRunSemanticScene={handleRunSemanticScene}
           onRunVisualEventSequence={handleRunVisualEventSequence}
           onRunVisualPlan={handleRunVisualPlan}
+          onRunTiming={handleRunTiming}
           isRunningStage={isRunningStage}
         />
       </div>
