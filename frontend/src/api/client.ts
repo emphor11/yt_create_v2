@@ -161,6 +161,15 @@ export function runTiming(
   });
 }
 
+export function runRenderSpec(
+  projectId: string,
+  runId: string
+): Promise<RunStageResponse> {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/render_spec`, {
+    method: "POST",
+  });
+}
+
 export function listArtifactParents(
   artifactId: string
 ): Promise<{ artifact_id: string; parents: Record<string, ArtifactRecord> }> {

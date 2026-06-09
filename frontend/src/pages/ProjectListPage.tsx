@@ -7,6 +7,7 @@ import {
   listRunArtifacts,
   listRuns,
   runNarrativeArc,
+  runRenderSpec,
   runSceneScript,
   runSemanticScene,
   runScriptBrief,
@@ -265,15 +266,33 @@ export function ProjectListPage() {
     }
   }
 
+  async function handleRunRenderSpec() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      const response = await runRenderSpec(selectedProject.id, selectedRun.id);
+      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
+      setArtifacts(artifactRecords);
+      await selectArtifact(response.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+    }
+  }
+
   return (
     <div className="dashboard">
       <header className="dashboard-header">
         <div>
           <p className="section-label">YTCreate V2</p>
-          <h1>TimedScenePlan</h1>
+          <h1>RenderSpec</h1>
         </div>
         <p>
-          Assign timing spans to the selected visual plan without creating render specs.
+          Convert visual plan timing into exact renderer instructions without rendering video.
         </p>
       </header>
 
@@ -334,6 +353,7 @@ export function ProjectListPage() {
           onRunVisualEventSequence={handleRunVisualEventSequence}
           onRunVisualPlan={handleRunVisualPlan}
           onRunTiming={handleRunTiming}
+          onRunRenderSpec={handleRunRenderSpec}
           isRunningStage={isRunningStage}
         />
       </div>

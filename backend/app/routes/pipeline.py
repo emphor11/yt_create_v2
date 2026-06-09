@@ -44,6 +44,8 @@ def run_stage(
             artifact = pipeline_service.run_visual_plan(project_id, run_id)
         elif stage == "timing":
             artifact = pipeline_service.run_timing(project_id, run_id)
+        elif stage == "render_spec":
+            artifact = pipeline_service.run_render_spec(project_id, run_id)
         else:
             raise HTTPException(status_code=404, detail=f"Stage {stage} is not implemented.")
     except RecordNotFoundError as error:

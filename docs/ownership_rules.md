@@ -340,3 +340,34 @@ Not allowed yet:
 - video rendering
 
 `TimedScenePlan` owns timing in seconds only. It must not choose components, change component props, convert seconds into frames, create animation details, or create render instructions.
+
+## Phase 11 Boundary
+
+Phase 11 implements the deterministic `RenderSpec` stage.
+
+Allowed:
+
+- transform a valid `VisualPlan` and valid `TimedScenePlan` into one `RenderSpec`
+- copy the Remotion composition name from `VisualPlan.component`
+- copy component props from `VisualPlan.props`
+- copy FPS from `TimedScenePlan`
+- convert timed spans from seconds into frame spans
+- calculate total `duration_frames`
+- store the `render_spec` artifact with parent role map:
+
+```json
+{
+  "visual_plan": "artifact_123",
+  "timed_scene_plan": "artifact_456"
+}
+```
+
+Not allowed yet:
+
+- running Remotion
+- writing video files
+- output storage keys
+- render status tracking
+- video artifact creation
+
+`RenderSpec` owns renderer instructions only. It must not choose components, reinterpret semantic meaning, change visual props, create media files, or store render output paths.

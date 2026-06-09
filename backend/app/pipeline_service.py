@@ -4,11 +4,13 @@ from domain.narrative_arc import NarrativeArc
 from domain.scene_script import SceneScript
 from domain.script_brief import ScriptBrief
 from domain.script_draft import ScriptDraft
+from domain.timed_scene_plan import TimedScenePlan
 from domain.topic_request import TopicRequest
 from domain.semantic_scene import SemanticScene
 from domain.visual_event_sequence import VisualEventSequence
 from domain.visual_plan import VisualPlan
 from domain.validators.narrative_arc_validator import NarrativeArcValidator
+from domain.validators.render_spec_validator import RenderSpecValidator
 from domain.validators.scene_script_validator import SceneScriptValidator
 from domain.validators.semantic_scene_validator import SemanticSceneValidator
 from domain.validators.script_brief_validator import ScriptBriefValidator
@@ -17,6 +19,7 @@ from domain.validators.timed_scene_plan_validator import TimedScenePlanValidator
 from domain.validators.visual_event_sequence_validator import VisualEventSequenceValidator
 from domain.validators.visual_plan_validator import VisualPlanValidator
 from engines.narrative_arc_engine import NarrativeArcEngine
+from engines.render_spec_engine import RenderSpecEngine
 from engines.scene_script_engine import SceneScriptEngine
 from engines.semantic_scene_engine import SemanticSceneEngine
 from engines.script_brief_engine import ScriptBriefEngine
@@ -54,6 +57,8 @@ class PipelineService:
         visual_plan_validator: VisualPlanValidator,
         timing_engine: TimingEngine,
         timed_scene_plan_validator: TimedScenePlanValidator,
+        render_spec_engine: RenderSpecEngine,
+        render_spec_validator: RenderSpecValidator,
     ):
         self.store = store
         self.finance_registry = finance_registry
@@ -73,6 +78,8 @@ class PipelineService:
         self.visual_plan_validator = visual_plan_validator
         self.timing_engine = timing_engine
         self.timed_scene_plan_validator = timed_scene_plan_validator
+        self.render_spec_engine = render_spec_engine
+        self.render_spec_validator = render_spec_validator
 
     def run_script_brief(self, project_id: str, run_id: str) -> ArtifactRecord:
         existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "script_brief")
@@ -460,6 +467,68 @@ class PipelineService:
             validation_json=validation,
         )
 
+    def run_render_spec(self, project_id: str, run_id: str) -> ArtifactRecord:
+        existing_artifact = self.store.find_artifact_by_type(
+            project_id,
+            run_id,
+            "render_spec",
+        )
+        if existing_artifact is not None:
+            return existing_artifact
+
+        visual_plan_artifact = self.store.find_artifact_by_type(
+            project_id,
+            run_id,
+            "visual_plan",
+        )
+        if visual_plan_artifact is None:
+            raise PipelineServiceError("Cannot run render_spec without a visual_plan artifact.")
+        if not is_advanceable_status(visual_plan_artifact.status):
+            raise PipelineServiceError(
+                "Cannot run render_spec because the visual_plan artifact is not advanceable."
+            )
+
+        timed_scene_plan_artifact = self.store.find_artifact_by_type(
+            project_id,
+            run_id,
+            "timed_scene_plan",
+        )
+        if timed_scene_plan_artifact is None:
+            raise PipelineServiceError(
+                "Cannot run render_spec without a timed_scene_plan artifact."
+            )
+        if not is_advanceable_status(timed_scene_plan_artifact.status):
+            raise PipelineServiceError(
+                "Cannot run render_spec because the timed_scene_plan artifact is not advanceable."
+            )
+
+        visual_plan = VisualPlan.model_validate(visual_plan_artifact.payload_json)
+        timed_scene_plan = TimedScenePlan.model_validate(
+            timed_scene_plan_artifact.payload_json
+        )
+        render_spec = self.render_spec_engine.run(
+            visual_plan=visual_plan,
+            timed_scene_plan=timed_scene_plan,
+        )
+        validation = self.render_spec_validator.validate(
+            render_spec,
+            visual_plan=visual_plan,
+            timed_scene_plan=timed_scene_plan,
+        )
+
+        return self.store.save_artifact(
+            project_id=project_id,
+            run_id=run_id,
+            artifact_type="render_spec",
+            schema_version=render_spec.schema_version,
+            payload_json=render_spec.model_dump(),
+            parent_artifact_roles_json={
+                "visual_plan": visual_plan_artifact.id,
+                "timed_scene_plan": timed_scene_plan_artifact.id,
+            },
+            validation_json=validation,
+        )
+
 
 def build_pipeline_service(store: ArtifactStore) -> PipelineService:
     finance_registry = FinanceDomainRegistry()
@@ -483,4 +552,6 @@ def build_pipeline_service(store: ArtifactStore) -> PipelineService:
         visual_plan_validator=VisualPlanValidator(component_registry),
         timing_engine=TimingEngine(),
         timed_scene_plan_validator=TimedScenePlanValidator(),
+        render_spec_engine=RenderSpecEngine(),
+        render_spec_validator=RenderSpecValidator(),
     )

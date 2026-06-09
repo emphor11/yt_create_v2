@@ -9,7 +9,7 @@ const htmlSource = await readFile(new URL("../index.html", import.meta.url), "ut
 
 if (
   !appSource.includes("ProjectListPage") ||
-  !projectListSource.includes("runTiming")
+  !projectListSource.includes("runRenderSpec")
 ) {
   throw new Error("Frontend shell does not render the product name.");
 }

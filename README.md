@@ -105,4 +105,16 @@ Phase 10 adds visual timing:
 - `PipelineService` support for `timing`
 - `POST /projects/{project_id}/runs/{run_id}/run/timing`
 
-Render specs and rendering logic are intentionally not implemented yet.
+Phase 11 adds renderer instructions:
+
+- `RenderSpec`
+- `RenderFrameSpan`
+- pure `RenderSpecEngine`
+- `RenderSpecValidator`
+- seconds-to-frames conversion
+- composition copied from `VisualPlan`
+- props copied from `VisualPlan`
+- `PipelineService` support for `render_spec`
+- `POST /projects/{project_id}/runs/{run_id}/run/render_spec`
+
+Video rendering logic is intentionally not implemented yet.
