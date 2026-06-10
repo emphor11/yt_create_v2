@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes import artifacts, pipeline, projects
+from app.routes import artifacts, media, pipeline, projects
 
 
 def create_app() -> FastAPI:
@@ -21,6 +21,7 @@ def create_app() -> FastAPI:
     app.include_router(projects.router)
     app.include_router(artifacts.router)
     app.include_router(pipeline.router)
+    app.include_router(media.router)
 
     return app
 

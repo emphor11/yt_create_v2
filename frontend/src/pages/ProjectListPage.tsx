@@ -7,6 +7,7 @@ import {
   listRunArtifacts,
   listRuns,
   runNarrativeArc,
+  runRender,
   runRenderSpec,
   runSceneScript,
   runSemanticScene,
@@ -284,15 +285,33 @@ export function ProjectListPage() {
     }
   }
 
+  async function handleRunRender() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      const response = await runRender(selectedProject.id, selectedRun.id);
+      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
+      setArtifacts(artifactRecords);
+      await selectArtifact(response.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+    }
+  }
+
   return (
     <div className="dashboard">
       <header className="dashboard-header">
         <div>
           <p className="section-label">YTCreate V2</p>
-          <h1>RenderSpec</h1>
+          <h1>Video Rendering</h1>
         </div>
         <p>
-          Convert visual plan timing into exact renderer instructions without rendering video.
+          Render the frozen SplitComparison spec into scene_01.mp4 and inspect the output artifact.
         </p>
       </header>
 
@@ -354,6 +373,7 @@ export function ProjectListPage() {
           onRunVisualPlan={handleRunVisualPlan}
           onRunTiming={handleRunTiming}
           onRunRenderSpec={handleRunRenderSpec}
+          onRunRender={handleRunRender}
           isRunningStage={isRunningStage}
         />
       </div>

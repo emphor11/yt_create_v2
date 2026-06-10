@@ -117,4 +117,19 @@ Phase 11 adds renderer instructions:
 - `PipelineService` support for `render_spec`
 - `POST /projects/{project_id}/runs/{run_id}/run/render_spec`
 
-Video rendering logic is intentionally not implemented yet.
+Phase 12 adds video rendering:
+
+- `Video`
+- `RenderEngine`
+- `VideoValidator`
+- `RemotionProvider`
+- `LocalMediaStorage`
+- Remotion `SplitComparison`
+- `scene_01.mp4` local render output
+- storage-key based video artifacts
+- media serving API
+- frontend render output preview
+- `PipelineService` support for `render`
+- `POST /projects/{project_id}/runs/{run_id}/run/render`
+
+Regeneration, quality hardening, voice, publishing, and AI are intentionally not implemented yet.

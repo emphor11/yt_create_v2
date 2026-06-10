@@ -91,8 +91,8 @@ def test_unimplemented_stage_returns_404(tmp_path) -> None:
     created = create_valid_project(client)
 
     response = client.post(
-        f"/projects/{created['project']['id']}/runs/{created['run']['id']}/run/render"
+        f"/projects/{created['project']['id']}/runs/{created['run']['id']}/run/publish"
     )
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "Stage render is not implemented."
+    assert response.json()["detail"] == "Stage publish is not implemented."

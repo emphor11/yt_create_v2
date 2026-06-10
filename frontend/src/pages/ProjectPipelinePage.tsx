@@ -1,6 +1,7 @@
 import type { ArtifactRecord, PipelineRunRecord, ProjectRecord } from "../api/client";
 import { ArtifactViewerPage } from "./ArtifactViewerPage";
 import { LineageViewerPage } from "./LineageViewerPage";
+import { RenderOutputPage } from "./RenderOutputPage";
 
 type ProjectPipelinePageProps = {
   project: ProjectRecord | null;
@@ -21,6 +22,7 @@ type ProjectPipelinePageProps = {
   onRunVisualPlan: () => void;
   onRunTiming: () => void;
   onRunRenderSpec: () => void;
+  onRunRender: () => void;
   isRunningStage: boolean;
 };
 
@@ -43,6 +45,7 @@ export function ProjectPipelinePage({
   onRunVisualPlan,
   onRunTiming,
   onRunRenderSpec,
+  onRunRender,
   isRunningStage,
 }: ProjectPipelinePageProps) {
   if (!project) {
@@ -170,6 +173,14 @@ export function ProjectPipelinePage({
           >
             Run RenderSpec
           </button>
+          <button
+            className="primary-button secondary"
+            disabled={!selectedRun || isRunningStage}
+            onClick={onRunRender}
+            type="button"
+          >
+            Run Render
+          </button>
         </div>
         {artifacts.length > 0 ? (
           <div className="button-list">
@@ -192,6 +203,7 @@ export function ProjectPipelinePage({
         )}
       </section>
 
+      <RenderOutputPage artifact={selectedArtifact} />
       <ArtifactViewerPage artifact={selectedArtifact} />
       <LineageViewerPage parents={parents} children={children} />
     </div>

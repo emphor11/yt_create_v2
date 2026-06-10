@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from artifact_store.models import ArtifactRecord, is_advanceable_status
 from artifact_store.sqlite_store import ArtifactStore
 from domain.narrative_arc import NarrativeArc
@@ -9,6 +11,7 @@ from domain.topic_request import TopicRequest
 from domain.semantic_scene import SemanticScene
 from domain.visual_event_sequence import VisualEventSequence
 from domain.visual_plan import VisualPlan
+from domain.render_spec import RenderSpec
 from domain.validators.narrative_arc_validator import NarrativeArcValidator
 from domain.validators.render_spec_validator import RenderSpecValidator
 from domain.validators.scene_script_validator import SceneScriptValidator
@@ -16,9 +19,11 @@ from domain.validators.semantic_scene_validator import SemanticSceneValidator
 from domain.validators.script_brief_validator import ScriptBriefValidator
 from domain.validators.script_draft_validator import ScriptDraftValidator
 from domain.validators.timed_scene_plan_validator import TimedScenePlanValidator
+from domain.validators.video_validator import VideoValidator
 from domain.validators.visual_event_sequence_validator import VisualEventSequenceValidator
 from domain.validators.visual_plan_validator import VisualPlanValidator
 from engines.narrative_arc_engine import NarrativeArcEngine
+from engines.render_engine import RenderEngine
 from engines.render_spec_engine import RenderSpecEngine
 from engines.scene_script_engine import SceneScriptEngine
 from engines.semantic_scene_engine import SemanticSceneEngine
@@ -27,6 +32,8 @@ from engines.script_draft_engine import ScriptDraftEngine
 from engines.timing_engine import TimingEngine
 from engines.visual_event_sequence_engine import VisualEventSequenceEngine
 from engines.visual_plan_engine import VisualPlanEngine
+from providers.media_storage import LocalMediaStorage
+from providers.remotion_provider import RemotionProvider
 from registries.component_registry import ComponentRegistry
 from registries.finance_domain_registry import FinanceDomainRegistry
 
@@ -59,6 +66,8 @@ class PipelineService:
         timed_scene_plan_validator: TimedScenePlanValidator,
         render_spec_engine: RenderSpecEngine,
         render_spec_validator: RenderSpecValidator,
+        render_engine: RenderEngine,
+        video_validator: VideoValidator,
     ):
         self.store = store
         self.finance_registry = finance_registry
@@ -80,6 +89,8 @@ class PipelineService:
         self.timed_scene_plan_validator = timed_scene_plan_validator
         self.render_spec_engine = render_spec_engine
         self.render_spec_validator = render_spec_validator
+        self.render_engine = render_engine
+        self.video_validator = video_validator
 
     def run_script_brief(self, project_id: str, run_id: str) -> ArtifactRecord:
         existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "script_brief")
@@ -529,10 +540,55 @@ class PipelineService:
             validation_json=validation,
         )
 
+    def run_render(self, project_id: str, run_id: str) -> ArtifactRecord:
+        existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "video")
+        if existing_artifact is not None:
+            return existing_artifact
 
-def build_pipeline_service(store: ArtifactStore) -> PipelineService:
+        render_spec_artifact = self.store.find_artifact_by_type(
+            project_id,
+            run_id,
+            "render_spec",
+        )
+        if render_spec_artifact is None:
+            raise PipelineServiceError("Cannot run render without a render_spec artifact.")
+        if not is_advanceable_status(render_spec_artifact.status):
+            raise PipelineServiceError(
+                "Cannot run render because the render_spec artifact is not advanceable."
+            )
+
+        render_spec = RenderSpec.model_validate(render_spec_artifact.payload_json)
+        video = self.render_engine.run(
+            render_spec=render_spec,
+            project_id=project_id,
+            run_id=run_id,
+        )
+        validation = self.video_validator.validate(video, render_spec=render_spec)
+
+        return self.store.save_artifact(
+            project_id=project_id,
+            run_id=run_id,
+            artifact_type="video",
+            schema_version=video.schema_version,
+            payload_json=video.model_dump(),
+            parent_artifact_roles_json={"render_spec": render_spec_artifact.id},
+            validation_json=validation,
+        )
+
+
+def build_pipeline_service(
+    store: ArtifactStore,
+    *,
+    render_engine: RenderEngine | None = None,
+) -> PipelineService:
     finance_registry = FinanceDomainRegistry()
     component_registry = ComponentRegistry()
+    if render_engine is None:
+        repo_root = Path(__file__).resolve().parents[2]
+        render_engine = RenderEngine(
+            media_storage=LocalMediaStorage(repo_root / "backend" / ".data" / "media"),
+            remotion_provider=RemotionProvider(repo_root / "renderer" / "remotion"),
+        )
     return PipelineService(
         store=store,
         finance_registry=finance_registry,
@@ -554,4 +610,6 @@ def build_pipeline_service(store: ArtifactStore) -> PipelineService:
         timed_scene_plan_validator=TimedScenePlanValidator(),
         render_spec_engine=RenderSpecEngine(),
         render_spec_validator=RenderSpecValidator(),
+        render_engine=render_engine,
+        video_validator=VideoValidator(),
     )

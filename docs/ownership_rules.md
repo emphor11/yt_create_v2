@@ -371,3 +371,33 @@ Not allowed yet:
 - video artifact creation
 
 `RenderSpec` owns renderer instructions only. It must not choose components, reinterpret semantic meaning, change visual props, create media files, or store render output paths.
+
+## Phase 12 Boundary
+
+Phase 12 implements the deterministic `Video` render stage.
+
+Allowed:
+
+- transform a valid `RenderSpec` into one `Video` artifact
+- render the Remotion `SplitComparison` composition
+- write `scene_01.mp4` to local media storage
+- store a portable storage key instead of an absolute file path
+- serve the rendered MP4 through the backend media route
+- store failed render attempts as failed artifacts
+- store the `video` artifact with parent role map:
+
+```json
+{
+  "render_spec": "artifact_123"
+}
+```
+
+Not allowed yet:
+
+- regeneration behavior
+- quality dashboards
+- voice/audio
+- publishing
+- AI
+
+`Video` owns render output only. It must not reinterpret semantic meaning, choose components, rewrite props, change timing, or store machine-specific absolute paths.

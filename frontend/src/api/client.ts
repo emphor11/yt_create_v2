@@ -170,6 +170,19 @@ export function runRenderSpec(
   });
 }
 
+export function runRender(
+  projectId: string,
+  runId: string
+): Promise<RunStageResponse> {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/render`, {
+    method: "POST",
+  });
+}
+
+export function mediaUrl(storageKey: string): string {
+  return `${API_BASE_URL}/media/${storageKey}`;
+}
+
 export function listArtifactParents(
   artifactId: string
 ): Promise<{ artifact_id: string; parents: Record<string, ArtifactRecord> }> {
