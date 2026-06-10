@@ -1,6 +1,8 @@
 from pathlib import Path
+from typing import Any
 
 from artifact_store.models import ArtifactRecord, is_advanceable_status
+from artifact_store.lineage import get_artifact_descendants
 from artifact_store.sqlite_store import ArtifactStore
 from domain.narrative_arc import NarrativeArc
 from domain.scene_script import SceneScript
@@ -40,6 +42,36 @@ from registries.finance_domain_registry import FinanceDomainRegistry
 
 class PipelineServiceError(Exception):
     """Raised when a pipeline stage cannot run."""
+
+
+PIPELINE_STAGE_DEFINITIONS = [
+    ("topic_request", "topic_request"),
+    ("script_brief", "script_brief"),
+    ("narrative_arc", "narrative_arc"),
+    ("script_draft", "script_draft"),
+    ("scene_script", "scene_script"),
+    ("semantic_scene", "semantic_scene"),
+    ("visual_event_sequence", "visual_event_sequence"),
+    ("visual_plan", "visual_plan"),
+    ("timing", "timed_scene_plan"),
+    ("render_spec", "render_spec"),
+    ("render", "video"),
+]
+
+
+NEXT_STAGE_BY_ARTIFACT_TYPE = {
+    "topic_request": "script_brief",
+    "script_brief": "narrative_arc",
+    "narrative_arc": "script_draft",
+    "script_draft": "scene_script",
+    "scene_script": "semantic_scene",
+    "semantic_scene": "visual_event_sequence",
+    "visual_event_sequence": "visual_plan",
+    "visual_plan": "timing",
+    "timed_scene_plan": "render_spec",
+    "render_spec": "render",
+    "video": None,
+}
 
 
 class PipelineService:
@@ -573,6 +605,47 @@ class PipelineService:
             payload_json=video.model_dump(),
             parent_artifact_roles_json={"render_spec": render_spec_artifact.id},
             validation_json=validation,
+        )
+
+    def get_run_status(self, project_id: str, run_id: str) -> list[dict[str, Any]]:
+        self.store.get_run(project_id, run_id)
+        summaries: list[dict[str, Any]] = []
+        for stage, artifact_type in PIPELINE_STAGE_DEFINITIONS:
+            artifact = self.store.find_artifact_by_type(project_id, run_id, artifact_type)
+            validation = artifact.validation_json if artifact is not None else None
+            summaries.append(
+                {
+                    "stage": stage,
+                    "artifact_type": artifact_type,
+                    "artifact_id": artifact.id if artifact is not None else None,
+                    "status": artifact.status if artifact is not None else "missing",
+                    "error_count": len(validation.errors) if validation is not None else 0,
+                    "warning_count": len(validation.warnings) if validation is not None else 0,
+                    "errors": validation.errors if validation is not None else [],
+                    "warnings": validation.warnings if validation is not None else [],
+                }
+            )
+        return summaries
+
+    def regenerate_descendants(
+        self,
+        project_id: str,
+        run_id: str,
+        artifact_id: str,
+    ) -> tuple[list[ArtifactRecord], str | None]:
+        target_artifact = self.store.get_artifact(artifact_id)
+        if target_artifact.project_id != project_id or target_artifact.run_id != run_id:
+            raise PipelineServiceError(
+                f"Artifact {artifact_id} does not belong to project {project_id} and run {run_id}."
+            )
+
+        descendants = get_artifact_descendants(self.store, artifact_id)
+        deleted_artifacts = self.store.delete_artifacts(
+            [artifact.id for artifact in descendants]
+        )
+        return (
+            deleted_artifacts,
+            NEXT_STAGE_BY_ARTIFACT_TYPE.get(target_artifact.artifact_type),
         )
 
 

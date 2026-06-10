@@ -1,4 +1,9 @@
-import type { ArtifactRecord, PipelineRunRecord, ProjectRecord } from "../api/client";
+import type {
+  ArtifactRecord,
+  PipelineRunRecord,
+  PipelineStageSummary,
+  ProjectRecord,
+} from "../api/client";
 import { ArtifactViewerPage } from "./ArtifactViewerPage";
 import { LineageViewerPage } from "./LineageViewerPage";
 import { RenderOutputPage } from "./RenderOutputPage";
@@ -8,6 +13,7 @@ type ProjectPipelinePageProps = {
   runs: PipelineRunRecord[];
   selectedRun: PipelineRunRecord | null;
   artifacts: ArtifactRecord[];
+  stageSummaries: PipelineStageSummary[];
   selectedArtifact: ArtifactRecord | null;
   parents: Record<string, ArtifactRecord>;
   children: ArtifactRecord[];
@@ -23,6 +29,7 @@ type ProjectPipelinePageProps = {
   onRunTiming: () => void;
   onRunRenderSpec: () => void;
   onRunRender: () => void;
+  onRegenerateDescendants: () => void;
   isRunningStage: boolean;
 };
 
@@ -31,6 +38,7 @@ export function ProjectPipelinePage({
   runs,
   selectedRun,
   artifacts,
+  stageSummaries,
   selectedArtifact,
   parents,
   children,
@@ -46,6 +54,7 @@ export function ProjectPipelinePage({
   onRunTiming,
   onRunRenderSpec,
   onRunRender,
+  onRegenerateDescendants,
   isRunningStage,
 }: ProjectPipelinePageProps) {
   if (!project) {
@@ -92,6 +101,30 @@ export function ProjectPipelinePage({
           </div>
         ) : (
           <p className="empty-state">No runs found.</p>
+        )}
+      </section>
+
+      <section className="panel">
+        <div>
+          <p className="section-label">Status</p>
+          <h2>Validation Summary</h2>
+        </div>
+        {stageSummaries.length > 0 ? (
+          <div className="stage-summary">
+            {stageSummaries.map((summary) => (
+              <div className="stage-summary-row" key={summary.stage}>
+                <span>{summary.stage}</span>
+                <code className={`status-pill status-pill--${summary.status}`}>
+                  {summary.status}
+                </code>
+                <code>
+                  {summary.error_count} errors / {summary.warning_count} warnings
+                </code>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="empty-state">No status summary available.</p>
         )}
       </section>
 
@@ -180,6 +213,14 @@ export function ProjectPipelinePage({
             type="button"
           >
             Run Render
+          </button>
+          <button
+            className="primary-button secondary"
+            disabled={!selectedArtifact || isRunningStage}
+            onClick={onRegenerateDescendants}
+            type="button"
+          >
+            Clear Descendants
           </button>
         </div>
         {artifacts.length > 0 ? (

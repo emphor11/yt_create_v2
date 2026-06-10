@@ -132,4 +132,16 @@ Phase 12 adds video rendering:
 - `PipelineService` support for `render`
 - `POST /projects/{project_id}/runs/{run_id}/run/render`
 
-Regeneration, quality hardening, voice, publishing, and AI are intentionally not implemented yet.
+Phase 13 adds MVP hardening:
+
+- recursive artifact trace
+- run validation summary
+- descendant clearing for regeneration
+- full monthly-payment golden pipeline tests
+- video-to-semantic trace coverage
+- frontend validation summary panel
+- `GET /projects/{project_id}/runs/{run_id}/status`
+- `GET /artifacts/{artifact_id}/trace`
+- `POST /projects/{project_id}/runs/{run_id}/artifacts/{artifact_id}/regenerate-descendants`
+
+Voice, publishing, and AI are intentionally not implemented yet.

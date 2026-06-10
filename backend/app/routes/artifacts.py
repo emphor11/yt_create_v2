@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.dependencies import get_artifact_store
-from artifact_store.lineage import get_artifact_lineage
-from artifact_store.models import ArtifactRecord
+from artifact_store.lineage import get_artifact_lineage, get_artifact_trace
+from artifact_store.models import ArtifactRecord, ArtifactTrace
 from artifact_store.sqlite_store import ArtifactStore, RecordNotFoundError
 
 
@@ -80,3 +80,13 @@ def get_artifact_children(
         raise HTTPException(status_code=404, detail=str(error)) from error
     return ArtifactChildrenResponse(artifact_id=artifact_id, children=lineage.children)
 
+
+@router.get("/artifacts/{artifact_id}/trace", response_model=ArtifactTrace)
+def get_artifact_trace_route(
+    artifact_id: str,
+    store: ArtifactStore = Depends(get_artifact_store),
+) -> ArtifactTrace:
+    try:
+        return get_artifact_trace(store, artifact_id)
+    except RecordNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error

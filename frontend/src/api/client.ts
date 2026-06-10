@@ -1,4 +1,5 @@
 export type ArtifactStatus = "valid" | "warning" | "blocked" | "failed";
+export type StageStatus = ArtifactStatus | "missing";
 
 export type ValidationResult = {
   status: ArtifactStatus;
@@ -44,6 +45,43 @@ export type RunStageResponse = {
   validation: ValidationResult;
 };
 
+export type PipelineStageSummary = {
+  stage: string;
+  artifact_type: string;
+  artifact_id: string | null;
+  status: StageStatus;
+  error_count: number;
+  warning_count: number;
+  errors: string[];
+  warnings: string[];
+};
+
+export type RunStatusResponse = {
+  project_id: string;
+  run_id: string;
+  stages: PipelineStageSummary[];
+};
+
+export type ArtifactTraceNode = {
+  artifact_id: string;
+  artifact_type: string;
+  status: ArtifactStatus;
+  role_path: string;
+  depth: number;
+};
+
+export type ArtifactTrace = {
+  artifact_id: string;
+  ancestors: ArtifactTraceNode[];
+  descendants: ArtifactTraceNode[];
+};
+
+export type RegenerateDescendantsResponse = {
+  artifact_id: string;
+  deleted_artifacts: ArtifactRecord[];
+  next_stage: string | null;
+};
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -84,6 +122,13 @@ export function listRunArtifacts(
   runId: string
 ): Promise<ArtifactRecord[]> {
   return request<ArtifactRecord[]>(`/projects/${projectId}/runs/${runId}/artifacts`);
+}
+
+export function getRunStatus(
+  projectId: string,
+  runId: string
+): Promise<RunStatusResponse> {
+  return request<RunStatusResponse>(`/projects/${projectId}/runs/${runId}/status`);
 }
 
 export function runScriptBrief(
@@ -196,5 +241,22 @@ export function listArtifactChildren(
 ): Promise<{ artifact_id: string; children: ArtifactRecord[] }> {
   return request<{ artifact_id: string; children: ArtifactRecord[] }>(
     `/artifacts/${artifactId}/children`
+  );
+}
+
+export function getArtifactTrace(artifactId: string): Promise<ArtifactTrace> {
+  return request<ArtifactTrace>(`/artifacts/${artifactId}/trace`);
+}
+
+export function regenerateDescendants(
+  projectId: string,
+  runId: string,
+  artifactId: string
+): Promise<RegenerateDescendantsResponse> {
+  return request<RegenerateDescendantsResponse>(
+    `/projects/${projectId}/runs/${runId}/artifacts/${artifactId}/regenerate-descendants`,
+    {
+      method: "POST",
+    }
   );
 }

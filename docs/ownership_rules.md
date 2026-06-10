@@ -401,3 +401,27 @@ Not allowed yet:
 - AI
 
 `Video` owns render output only. It must not reinterpret semantic meaning, choose components, rewrite props, change timing, or store machine-specific absolute paths.
+
+## Phase 13 Boundary
+
+Phase 13 implements MVP hardening and inspection tools.
+
+Allowed:
+
+- summarize validation status for each run stage
+- trace an artifact recursively to upstream ancestors and downstream descendants
+- clear descendant artifacts so downstream stages can be regenerated
+- prove the full monthly-payment MVP through a golden pipeline test
+- prove a rendered video can be traced back to the `SemanticScene` that owns the numbers
+- add small frontend status and validation summary UI
+
+Not allowed yet:
+
+- AI
+- voice/audio
+- publishing
+- quality scoring loops
+- automatic creative repair
+- multi-run fork editing
+
+Phase 13 must not create a large debug engine. It should use simple lineage, validation, and status tools that preserve the existing artifact ownership model.

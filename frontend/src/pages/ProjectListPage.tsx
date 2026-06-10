@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import {
   createProject,
+  getRunStatus,
   listArtifactChildren,
   listArtifactParents,
   listProjects,
   listRunArtifacts,
   listRuns,
+  regenerateDescendants,
   runNarrativeArc,
   runRender,
   runRenderSpec,
@@ -17,6 +19,7 @@ import {
   runVisualEventSequence,
   runVisualPlan,
   type ArtifactRecord,
+  type PipelineStageSummary,
   type PipelineRunRecord,
   type ProjectRecord,
 } from "../api/client";
@@ -29,6 +32,7 @@ export function ProjectListPage() {
   const [runs, setRuns] = useState<PipelineRunRecord[]>([]);
   const [selectedRun, setSelectedRun] = useState<PipelineRunRecord | null>(null);
   const [artifacts, setArtifacts] = useState<ArtifactRecord[]>([]);
+  const [stageSummaries, setStageSummaries] = useState<PipelineStageSummary[]>([]);
   const [selectedArtifact, setSelectedArtifact] = useState<ArtifactRecord | null>(null);
   const [parents, setParents] = useState<Record<string, ArtifactRecord>>({});
   const [children, setChildren] = useState<ArtifactRecord[]>([]);
@@ -50,6 +54,16 @@ export function ProjectListPage() {
     } catch (requestError) {
       setError((requestError as Error).message);
     }
+  }
+
+  async function refreshRunArtifacts(projectId: string, runId: string) {
+    const [artifactRecords, statusResponse] = await Promise.all([
+      listRunArtifacts(projectId, runId),
+      getRunStatus(projectId, runId),
+    ]);
+    setArtifacts(artifactRecords);
+    setStageSummaries(statusResponse.stages);
+    return artifactRecords;
   }
 
   async function handleCreateProject() {
@@ -81,10 +95,10 @@ export function ProjectListPage() {
       const firstRun = runRecords[0] ?? null;
       setSelectedRun(firstRun);
       if (firstRun) {
-        const artifactRecords = await listRunArtifacts(project.id, firstRun.id);
-        setArtifacts(artifactRecords);
+        await refreshRunArtifacts(project.id, firstRun.id);
       } else {
         setArtifacts([]);
+        setStageSummaries([]);
       }
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -101,8 +115,7 @@ export function ProjectListPage() {
     setChildren([]);
     setError(null);
     try {
-      const artifactRecords = await listRunArtifacts(selectedProject.id, run.id);
-      setArtifacts(artifactRecords);
+      await refreshRunArtifacts(selectedProject.id, run.id);
     } catch (requestError) {
       setError((requestError as Error).message);
     }
@@ -131,8 +144,7 @@ export function ProjectListPage() {
     setError(null);
     try {
       const response = await runScriptBrief(selectedProject.id, selectedRun.id);
-      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
-      setArtifacts(artifactRecords);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -149,8 +161,7 @@ export function ProjectListPage() {
     setError(null);
     try {
       const response = await runNarrativeArc(selectedProject.id, selectedRun.id);
-      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
-      setArtifacts(artifactRecords);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -167,8 +178,7 @@ export function ProjectListPage() {
     setError(null);
     try {
       const response = await runScriptDraft(selectedProject.id, selectedRun.id);
-      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
-      setArtifacts(artifactRecords);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -185,8 +195,7 @@ export function ProjectListPage() {
     setError(null);
     try {
       const response = await runSceneScript(selectedProject.id, selectedRun.id);
-      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
-      setArtifacts(artifactRecords);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -203,8 +212,7 @@ export function ProjectListPage() {
     setError(null);
     try {
       const response = await runSemanticScene(selectedProject.id, selectedRun.id);
-      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
-      setArtifacts(artifactRecords);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -221,8 +229,7 @@ export function ProjectListPage() {
     setError(null);
     try {
       const response = await runVisualEventSequence(selectedProject.id, selectedRun.id);
-      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
-      setArtifacts(artifactRecords);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -239,8 +246,7 @@ export function ProjectListPage() {
     setError(null);
     try {
       const response = await runVisualPlan(selectedProject.id, selectedRun.id);
-      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
-      setArtifacts(artifactRecords);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -257,8 +263,7 @@ export function ProjectListPage() {
     setError(null);
     try {
       const response = await runTiming(selectedProject.id, selectedRun.id);
-      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
-      setArtifacts(artifactRecords);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -275,8 +280,7 @@ export function ProjectListPage() {
     setError(null);
     try {
       const response = await runRenderSpec(selectedProject.id, selectedRun.id);
-      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
-      setArtifacts(artifactRecords);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -293,9 +297,35 @@ export function ProjectListPage() {
     setError(null);
     try {
       const response = await runRender(selectedProject.id, selectedRun.id);
-      const artifactRecords = await listRunArtifacts(selectedProject.id, selectedRun.id);
-      setArtifacts(artifactRecords);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+    }
+  }
+
+  async function handleRegenerateDescendants() {
+    if (!selectedProject || !selectedRun || !selectedArtifact) {
+      return;
+    }
+    const shouldClear = window.confirm(
+      "Clear downstream artifacts for the selected artifact?"
+    );
+    if (!shouldClear) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      await regenerateDescendants(
+        selectedProject.id,
+        selectedRun.id,
+        selectedArtifact.id,
+      );
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
+      await selectArtifact(selectedArtifact);
     } catch (requestError) {
       setError((requestError as Error).message);
     } finally {
@@ -359,6 +389,7 @@ export function ProjectListPage() {
           runs={runs}
           selectedRun={selectedRun}
           artifacts={artifacts}
+          stageSummaries={stageSummaries}
           selectedArtifact={selectedArtifact}
           parents={parents}
           children={children}
@@ -374,6 +405,7 @@ export function ProjectListPage() {
           onRunTiming={handleRunTiming}
           onRunRenderSpec={handleRunRenderSpec}
           onRunRender={handleRunRender}
+          onRegenerateDescendants={handleRegenerateDescendants}
           isRunningStage={isRunningStage}
         />
       </div>

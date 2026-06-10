@@ -239,6 +239,52 @@ code {
   padding: 10px;
 }
 
+.stage-summary {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.stage-summary-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) max-content max-content;
+  gap: 10px;
+  align-items: center;
+  border-bottom: 1px solid #edf1f5;
+  padding: 8px 0;
+}
+
+.stage-summary-row:last-child {
+  border-bottom: 0;
+}
+
+.status-pill {
+  border-radius: 999px;
+  padding: 4px 8px;
+  text-align: center;
+}
+
+.status-pill--valid {
+  background: #e9f5f3;
+  color: #166663;
+}
+
+.status-pill--warning {
+  background: #fff7e6;
+  color: #87620f;
+}
+
+.status-pill--blocked,
+.status-pill--failed {
+  background: #fff1f1;
+  color: #8b2323;
+}
+
+.status-pill--missing {
+  background: #edf1f5;
+  color: #52616f;
+}
+
 .error-banner {
   border: 1px solid #f1b7b7;
   border-radius: 8px;
@@ -250,7 +296,8 @@ code {
 @media (max-width: 860px) {
   .dashboard-header,
   .dashboard-grid,
-  .lineage-grid {
+  .lineage-grid,
+  .stage-summary-row {
     grid-template-columns: 1fr;
   }
 }

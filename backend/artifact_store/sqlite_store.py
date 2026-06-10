@@ -289,6 +289,18 @@ class ArtifactStore:
             if artifact_id in candidate.parent_artifact_roles_json.values()
         ]
 
+    def delete_artifacts(self, artifact_ids: list[str]) -> list[ArtifactRecord]:
+        if not artifact_ids:
+            return []
+
+        records = [self.get_artifact(artifact_id) for artifact_id in artifact_ids]
+        with self._connect() as connection:
+            connection.executemany(
+                "DELETE FROM artifacts WHERE id = ?",
+                [(artifact_id,) for artifact_id in artifact_ids],
+            )
+        return records
+
     def _validate_parent_roles(
         self,
         project_id: str,

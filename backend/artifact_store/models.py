@@ -45,3 +45,16 @@ class ArtifactLineage(BaseModel):
     parents: dict[str, ArtifactRecord]
     children: list[ArtifactRecord]
 
+
+class ArtifactTraceNode(BaseModel):
+    artifact_id: str
+    artifact_type: str
+    status: ArtifactStatus
+    role_path: str
+    depth: int
+
+
+class ArtifactTrace(BaseModel):
+    artifact_id: str
+    ancestors: list[ArtifactTraceNode]
+    descendants: list[ArtifactTraceNode]
