@@ -107,24 +107,22 @@ class ScriptBriefAIEngineError(Exception):
         self.provider_metadata = provider_metadata
 
 
+from app.assets import load_prompt
+
+
 class ScriptBriefAIEngine:
     def __init__(self, llm_provider: LLMProvider):
         self.llm_provider = llm_provider
 
     def run(self, topic_request: TopicRequest) -> ScriptBriefAIResult:
+        system_content = load_prompt("script_brief_system.txt")
         request = LLMJsonRequest(
             schema_name="ScriptBrief",
             response_schema=SCRIPT_BRIEF_RESPONSE_SCHEMA,
             messages=[
                 LLMMessage(
                     role="system",
-                    content=(
-                        "Return strict JSON only. Create a ScriptBrief for YTCreate V2. "
-                        "The JSON must contain schema_version, topic, angle, thesis, "
-                        "primary_mechanisms, recurring_example, and scene_functions. "
-                        "For the MVP, use only supported mechanisms and keep the recurring "
-                        "example exactly as ₹80,000 phone."
-                    ),
+                    content=system_content,
                 ),
                 LLMMessage(
                     role="user",

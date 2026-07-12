@@ -19,6 +19,7 @@ from domain.pipeline_stage import PipelineStage
 from app.pipeline_router import PipelineRouter
 from app.stage_logger import StageLogger
 from app.stage_handlers.script_brief_handler import ScriptBriefHandler
+from app.stage_handlers.research_handler import ResearchHandler
 from app.stage_handlers.narrative_arc_handler import NarrativeArcHandler
 from app.stage_handlers.script_draft_handler import ScriptDraftHandler
 from app.stage_handlers.scene_script_handler import SceneScriptHandler
@@ -30,6 +31,7 @@ from app.stage_handlers.render_spec_handler import RenderSpecHandler
 from app.stage_handlers.render_handler import RenderHandler
 
 from engines.render_engine import RenderEngine
+from engines.research_engine import ResearchEngine
 from engines.narrative_arc_engine import NarrativeArcEngine
 from engines.render_spec_engine import RenderSpecEngine
 from engines.scene_script_engine import SceneScriptEngine
@@ -42,6 +44,7 @@ from engines.visual_event_sequence_engine import VisualEventSequenceEngine
 from engines.visual_plan_engine import VisualPlanEngine
 
 from domain.validators.narrative_arc_validator import NarrativeArcValidator
+from domain.validators.research_packet_validator import ResearchPacketValidator
 from domain.validators.render_spec_validator import RenderSpecValidator
 from domain.validators.scene_script_validator import SceneScriptValidator
 from domain.validators.script_brief_validator import ScriptBriefValidator
@@ -64,7 +67,7 @@ class PipelineServiceError(Exception):
 
 
 # Order and mapping definition
-PIPELINE_STAGE_DEFINITIONS: list[tuple[str, str]] = [
+DETERMINISTIC_STAGE_DEFINITIONS: list[tuple[str, str]] = [
     ("topic_request",           "topic_request"),
     ("script_brief",            "script_brief"),
     ("narrative_arc",           "narrative_arc"),
@@ -78,8 +81,15 @@ PIPELINE_STAGE_DEFINITIONS: list[tuple[str, str]] = [
     ("render",                  "video"),
 ]
 
+AI_STAGE_DEFINITIONS: list[tuple[str, str]] = [
+    ("generate_video_request",  "generate_video_request"),
+    ("research",                "research_packet"),
+]
+
 NEXT_STAGE_BY_ARTIFACT_TYPE: dict[str, str | None] = {
     "topic_request":          "script_brief",
+    "generate_video_request": "research",
+    "research_packet":        None, # Stage 2 ends here for now until Stage 3 is ready
     "script_brief":           "narrative_arc",
     "narrative_arc":          "script_draft",
     "script_draft":           "scene_script",
@@ -157,9 +167,12 @@ class PipelineService:
         return artifact
 
     def get_run_status(self, project_id: str, run_id: str) -> list[dict[str, Any]]:
-        self.store.get_run(project_id, run_id)
+        run = self.store.get_run(project_id, run_id)
+        stage_definitions = (
+            AI_STAGE_DEFINITIONS if run.mode == "ai" else DETERMINISTIC_STAGE_DEFINITIONS
+        )
         summaries: list[dict[str, Any]] = []
-        for stage, artifact_type in PIPELINE_STAGE_DEFINITIONS:
+        for stage, artifact_type in stage_definitions:
             artifact = self.store.find_artifact_by_type(project_id, run_id, artifact_type)
             validation = artifact.validation_json if artifact is not None else None
             summaries.append(
@@ -198,6 +211,9 @@ class PipelineService:
         )
 
     # Legacy method aliases for backward-compatible tests
+    def run_research(self, project_id: str, run_id: str) -> ArtifactRecord:
+        return self.run_stage(PipelineStage.RESEARCH.value, project_id, run_id)
+
     def run_script_brief(self, project_id: str, run_id: str) -> ArtifactRecord:
         return self.run_stage(PipelineStage.SCRIPT_BRIEF.value, project_id, run_id)
 
@@ -249,6 +265,12 @@ def build_pipeline_service(
         )
 
     handlers = {
+        PipelineStage.RESEARCH: ResearchHandler(
+            store=store,
+            research_engine=ResearchEngine(llm_provider) if llm_provider is not None else None,
+            research_packet_validator=ResearchPacketValidator(),
+            stage_logger=stage_logger,
+        ),
         PipelineStage.SCRIPT_BRIEF: ScriptBriefHandler(
             store=store,
             script_brief_engine=ScriptBriefEngine(),

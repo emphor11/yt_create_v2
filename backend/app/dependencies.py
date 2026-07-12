@@ -6,6 +6,7 @@ from artifact_store.sqlite_store import ArtifactStore
 from app.pipeline_service import PipelineService, build_pipeline_service
 from engines.render_engine import RenderEngine
 from providers.gemini_provider import GeminiProvider
+from providers.grok_provider import GrokProvider
 from providers.llm_provider import LLMProvider
 from providers.media_storage import LocalMediaStorage
 from providers.remotion_provider import RemotionProvider
@@ -71,6 +72,11 @@ def _default_gemini_model() -> str:
     return os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
 
+def _default_grok_model() -> str:
+    _load_backend_dotenv()
+    return os.getenv("GROK_MODEL", "grok-2-1212")
+
+
 @lru_cache
 def get_artifact_store() -> ArtifactStore:
     store = ArtifactStore(_default_database_path())
@@ -86,16 +92,25 @@ def get_media_storage() -> LocalMediaStorage:
 @lru_cache
 def get_llm_provider() -> LLMProvider | None:
     _load_backend_dotenv()
-    api_key = (
+    
+    grok_api_key = os.getenv("GROK_API_KEY", "").strip()
+    if grok_api_key:
+        return GrokProvider(
+            api_key=grok_api_key,
+            model=_default_grok_model(),
+        )
+
+    gemini_api_key = (
         os.getenv("GEMINI_API_KEY", "").strip()
         or os.getenv("GOOGLE_API_KEY", "").strip()
     )
-    if not api_key:
-        return None
-    return GeminiProvider(
-        api_key=api_key,
-        model=_default_gemini_model(),
-    )
+    if gemini_api_key:
+        return GeminiProvider(
+            api_key=gemini_api_key,
+            model=_default_gemini_model(),
+        )
+
+    return None
 
 
 def get_pipeline_service() -> PipelineService:

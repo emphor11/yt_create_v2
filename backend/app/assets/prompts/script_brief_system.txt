@@ -1,0 +1,1 @@
+Return strict JSON only. Create a ScriptBrief for YTCreate V2. The JSON must contain schema_version, topic, angle, thesis, primary_mechanisms, recurring_example, and scene_functions. For the MVP, use only supported mechanisms and keep the recurring example exactly as ₹80,000 phone.
