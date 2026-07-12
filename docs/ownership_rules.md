@@ -425,3 +425,36 @@ Not allowed yet:
 - multi-run fork editing
 
 Phase 13 must not create a large debug engine. It should use simple lineage, validation, and status tools that preserve the existing artifact ownership model.
+
+## Phase 14 Foundation Boundary
+
+Phase 14 foundation currently implements the LLM provider interface, AI run mode, and the first AI-backed stage for `ScriptBrief`.
+
+Allowed:
+
+- define `LLMProvider`
+- define structured JSON request and response objects
+- define provider/model metadata shape
+- integrate `GeminiProvider` as the first real LLM adapter
+- load Gemini configuration from environment variables
+- load local development secrets from ignored `backend/.env`
+- keep only `backend/.env.example` committed
+- store runs as `deterministic` or `ai`
+- create AI-mode runs for future AI engine work
+- run `ScriptBriefAIEngine` for AI-mode `script_brief` when an LLM provider is configured
+- store AI provider metadata inside AI-generated `script_brief` artifact payloads
+- store blocked AI ScriptBrief artifacts when the normal validator rejects the output
+- store failed AI ScriptBrief artifacts when the LLM output does not match the ScriptBrief shape
+- block later deterministic stage runners when a run is in AI mode
+
+Not allowed yet:
+
+- hardcoded API keys
+- LLM calls outside provider adapters
+- non-Gemini AI providers
+- AI-backed engines after ScriptBrief
+- frontend AI provider or prompt controls
+- LLM calls from routes
+- LLM calls that bypass validators
+
+Future AI adapters must return structured JSON. That JSON must still pass normal domain model validation and stage validators before it can advance through the pipeline.

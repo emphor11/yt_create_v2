@@ -121,4 +121,4 @@ def test_timing_requires_visual_plan(tmp_path) -> None:
     )
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "Cannot run timing without a visual_plan artifact."
+    assert response.json()["detail"] == "Cannot run 'timing': required 'visual_plan' artifact is missing."

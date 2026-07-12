@@ -122,7 +122,7 @@ def test_render_spec_requires_visual_plan(tmp_path) -> None:
     )
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "Cannot run render_spec without a visual_plan artifact."
+    assert response.json()["detail"] == "Cannot run 'render_spec': required 'visual_plan' artifact is missing."
 
 
 def test_render_spec_requires_timed_scene_plan(tmp_path) -> None:
@@ -136,5 +136,5 @@ def test_render_spec_requires_timed_scene_plan(tmp_path) -> None:
 
     assert response.status_code == 409
     assert response.json()["detail"] == (
-        "Cannot run render_spec without a timed_scene_plan artifact."
+        "Cannot run 'render_spec': required 'timed_scene_plan' artifact is missing."
     )

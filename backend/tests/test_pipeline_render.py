@@ -131,7 +131,7 @@ def test_render_requires_render_spec(tmp_path) -> None:
     )
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "Cannot run render without a render_spec artifact."
+    assert response.json()["detail"] == "Cannot run 'render': required 'render_spec' artifact is missing."
 
 
 def test_render_failure_is_stored_as_failed_video_artifact(tmp_path) -> None:

@@ -52,33 +52,22 @@ def run_stage(
     stage: str,
     pipeline_service: PipelineService = Depends(get_pipeline_service),
 ) -> RunStageResponse:
+    """Dispatch a stage name to its pipeline handler.
+
+    The route itself has no knowledge of which stages exist — that registry
+    lives entirely in PipelineService.  Adding a new stage never requires
+    editing this file.
+    """
     try:
-        if stage == "script_brief":
-            artifact = pipeline_service.run_script_brief(project_id, run_id)
-        elif stage == "narrative_arc":
-            artifact = pipeline_service.run_narrative_arc(project_id, run_id)
-        elif stage == "script_draft":
-            artifact = pipeline_service.run_script_draft(project_id, run_id)
-        elif stage == "scene_script":
-            artifact = pipeline_service.run_scene_script(project_id, run_id)
-        elif stage == "semantic_scene":
-            artifact = pipeline_service.run_semantic_scene(project_id, run_id)
-        elif stage == "visual_event_sequence":
-            artifact = pipeline_service.run_visual_event_sequence(project_id, run_id)
-        elif stage == "visual_plan":
-            artifact = pipeline_service.run_visual_plan(project_id, run_id)
-        elif stage == "timing":
-            artifact = pipeline_service.run_timing(project_id, run_id)
-        elif stage == "render_spec":
-            artifact = pipeline_service.run_render_spec(project_id, run_id)
-        elif stage == "render":
-            artifact = pipeline_service.run_render(project_id, run_id)
-        else:
-            raise HTTPException(status_code=404, detail=f"Stage {stage} is not implemented.")
+        artifact = pipeline_service.run_stage(stage, project_id, run_id)
     except RecordNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except PipelineServiceError as error:
-        raise HTTPException(status_code=409, detail=str(error)) from error
+        # Unknown stage names produce "Stage '...' is not implemented." → 404.
+        # All other business rule violations (missing artifact, wrong mode) → 409.
+        detail = str(error)
+        status_code = 404 if detail.startswith("Stage '") and "is not implemented" in detail else 409
+        raise HTTPException(status_code=status_code, detail=detail) from error
 
     return RunStageResponse(
         artifact_id=artifact.id,

@@ -144,4 +144,21 @@ Phase 13 adds MVP hardening:
 - `GET /artifacts/{artifact_id}/trace`
 - `POST /projects/{project_id}/runs/{run_id}/artifacts/{artifact_id}/regenerate-descendants`
 
-Voice, publishing, and AI are intentionally not implemented yet.
+Phase 14 foundation adds the first controlled AI boundary:
+
+- `LLMProvider` interface
+- structured JSON request and response objects
+- provider/model metadata shape
+- real `GeminiProvider` adapter
+- `GEMINI_API_KEY` and `GEMINI_MODEL` environment wiring
+- automatic `backend/.env` loading
+- committed `backend/.env.example` template
+- structured output requests to Gemini `generateContent`
+- `deterministic` and `ai` run modes
+- `ScriptBriefAIEngine` for AI-mode `script_brief`
+- provider metadata stored inside AI-generated ScriptBrief artifacts
+- AI-mode guards that keep later stages blocked until their AI engines exist
+
+Real Gemini API calls are available when `GEMINI_API_KEY` is configured.
+
+Voice, publishing, non-Gemini AI providers, and AI-backed stages after ScriptBrief are intentionally not implemented yet.

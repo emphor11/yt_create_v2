@@ -1,39 +1,58 @@
-from pathlib import Path
+"""Top-level pipeline service and stage router coordination.
+
+Responsibilities
+----------------
+1. Orchestration: coordinates run lifecycle state machine transitions
+   (pending -> running -> completed/failed) during execution.
+2. Delegation: parses string stage names into PipelineStage enum values
+   and dispatches execution to PipelineRouter.
+3. Status summary & Descendant regeneration: core database coordination tasks.
+"""
+from __future__ import annotations
+
 from typing import Any
 
-from artifact_store.models import ArtifactRecord, is_advanceable_status
 from artifact_store.lineage import get_artifact_descendants
+from artifact_store.models import ArtifactRecord
 from artifact_store.sqlite_store import ArtifactStore
-from domain.narrative_arc import NarrativeArc
-from domain.scene_script import SceneScript
-from domain.script_brief import ScriptBrief
-from domain.script_draft import ScriptDraft
-from domain.timed_scene_plan import TimedScenePlan
-from domain.topic_request import TopicRequest
-from domain.semantic_scene import SemanticScene
-from domain.visual_event_sequence import VisualEventSequence
-from domain.visual_plan import VisualPlan
-from domain.render_spec import RenderSpec
-from domain.validators.narrative_arc_validator import NarrativeArcValidator
-from domain.validators.render_spec_validator import RenderSpecValidator
-from domain.validators.scene_script_validator import SceneScriptValidator
-from domain.validators.semantic_scene_validator import SemanticSceneValidator
-from domain.validators.script_brief_validator import ScriptBriefValidator
-from domain.validators.script_draft_validator import ScriptDraftValidator
-from domain.validators.timed_scene_plan_validator import TimedScenePlanValidator
-from domain.validators.video_validator import VideoValidator
-from domain.validators.visual_event_sequence_validator import VisualEventSequenceValidator
-from domain.validators.visual_plan_validator import VisualPlanValidator
-from engines.narrative_arc_engine import NarrativeArcEngine
+from domain.pipeline_stage import PipelineStage
+from app.pipeline_router import PipelineRouter
+from app.stage_logger import StageLogger
+from app.stage_handlers.script_brief_handler import ScriptBriefHandler
+from app.stage_handlers.narrative_arc_handler import NarrativeArcHandler
+from app.stage_handlers.script_draft_handler import ScriptDraftHandler
+from app.stage_handlers.scene_script_handler import SceneScriptHandler
+from app.stage_handlers.semantic_scene_handler import SemanticSceneHandler
+from app.stage_handlers.visual_event_sequence_handler import VisualEventSequenceHandler
+from app.stage_handlers.visual_plan_handler import VisualPlanHandler
+from app.stage_handlers.timing_handler import TimingHandler
+from app.stage_handlers.render_spec_handler import RenderSpecHandler
+from app.stage_handlers.render_handler import RenderHandler
+
 from engines.render_engine import RenderEngine
+from engines.narrative_arc_engine import NarrativeArcEngine
 from engines.render_spec_engine import RenderSpecEngine
 from engines.scene_script_engine import SceneScriptEngine
+from engines.script_brief_ai_engine import ScriptBriefAIEngine
 from engines.semantic_scene_engine import SemanticSceneEngine
 from engines.script_brief_engine import ScriptBriefEngine
 from engines.script_draft_engine import ScriptDraftEngine
 from engines.timing_engine import TimingEngine
 from engines.visual_event_sequence_engine import VisualEventSequenceEngine
 from engines.visual_plan_engine import VisualPlanEngine
+
+from domain.validators.narrative_arc_validator import NarrativeArcValidator
+from domain.validators.render_spec_validator import RenderSpecValidator
+from domain.validators.scene_script_validator import SceneScriptValidator
+from domain.validators.script_brief_validator import ScriptBriefValidator
+from domain.validators.script_draft_validator import ScriptDraftValidator
+from domain.validators.semantic_scene_validator import SemanticSceneValidator
+from domain.validators.timed_scene_plan_validator import TimedScenePlanValidator
+from domain.validators.video_validator import VideoValidator
+from domain.validators.visual_event_sequence_validator import VisualEventSequenceValidator
+from domain.validators.visual_plan_validator import VisualPlanValidator
+
+from providers.llm_provider import LLMProvider
 from providers.media_storage import LocalMediaStorage
 from providers.remotion_provider import RemotionProvider
 from registries.component_registry import ComponentRegistry
@@ -41,36 +60,36 @@ from registries.finance_domain_registry import FinanceDomainRegistry
 
 
 class PipelineServiceError(Exception):
-    """Raised when a pipeline stage cannot run."""
+    """Raised when a pipeline stage cannot run due to a business rule violation."""
 
 
-PIPELINE_STAGE_DEFINITIONS = [
-    ("topic_request", "topic_request"),
-    ("script_brief", "script_brief"),
-    ("narrative_arc", "narrative_arc"),
-    ("script_draft", "script_draft"),
-    ("scene_script", "scene_script"),
-    ("semantic_scene", "semantic_scene"),
-    ("visual_event_sequence", "visual_event_sequence"),
-    ("visual_plan", "visual_plan"),
-    ("timing", "timed_scene_plan"),
-    ("render_spec", "render_spec"),
-    ("render", "video"),
+# Order and mapping definition
+PIPELINE_STAGE_DEFINITIONS: list[tuple[str, str]] = [
+    ("topic_request",           "topic_request"),
+    ("script_brief",            "script_brief"),
+    ("narrative_arc",           "narrative_arc"),
+    ("script_draft",            "script_draft"),
+    ("scene_script",            "scene_script"),
+    ("semantic_scene",          "semantic_scene"),
+    ("visual_event_sequence",   "visual_event_sequence"),
+    ("visual_plan",             "visual_plan"),
+    ("timing",                  "timed_scene_plan"),
+    ("render_spec",             "render_spec"),
+    ("render",                  "video"),
 ]
 
-
-NEXT_STAGE_BY_ARTIFACT_TYPE = {
-    "topic_request": "script_brief",
-    "script_brief": "narrative_arc",
-    "narrative_arc": "script_draft",
-    "script_draft": "scene_script",
-    "scene_script": "semantic_scene",
-    "semantic_scene": "visual_event_sequence",
-    "visual_event_sequence": "visual_plan",
-    "visual_plan": "timing",
-    "timed_scene_plan": "render_spec",
-    "render_spec": "render",
-    "video": None,
+NEXT_STAGE_BY_ARTIFACT_TYPE: dict[str, str | None] = {
+    "topic_request":          "script_brief",
+    "script_brief":           "narrative_arc",
+    "narrative_arc":          "script_draft",
+    "script_draft":           "scene_script",
+    "scene_script":           "semantic_scene",
+    "semantic_scene":         "visual_event_sequence",
+    "visual_event_sequence":  "visual_plan",
+    "visual_plan":            "timing",
+    "timed_scene_plan":       "render_spec",
+    "render_spec":            "render",
+    "video":                  None,
 }
 
 
@@ -79,533 +98,63 @@ class PipelineService:
         self,
         *,
         store: ArtifactStore,
-        finance_registry: FinanceDomainRegistry,
-        script_brief_engine: ScriptBriefEngine,
-        script_brief_validator: ScriptBriefValidator,
-        narrative_arc_engine: NarrativeArcEngine,
-        narrative_arc_validator: NarrativeArcValidator,
-        script_draft_engine: ScriptDraftEngine,
-        script_draft_validator: ScriptDraftValidator,
-        scene_script_engine: SceneScriptEngine,
-        scene_script_validator: SceneScriptValidator,
-        semantic_scene_engine: SemanticSceneEngine,
-        semantic_scene_validator: SemanticSceneValidator,
-        visual_event_sequence_engine: VisualEventSequenceEngine,
-        visual_event_sequence_validator: VisualEventSequenceValidator,
-        visual_plan_engine: VisualPlanEngine,
-        visual_plan_validator: VisualPlanValidator,
-        timing_engine: TimingEngine,
-        timed_scene_plan_validator: TimedScenePlanValidator,
-        render_spec_engine: RenderSpecEngine,
-        render_spec_validator: RenderSpecValidator,
-        render_engine: RenderEngine,
-        video_validator: VideoValidator,
-    ):
+        router: PipelineRouter,
+        stage_logger: StageLogger,
+    ) -> None:
         self.store = store
-        self.finance_registry = finance_registry
-        self.script_brief_engine = script_brief_engine
-        self.script_brief_validator = script_brief_validator
-        self.narrative_arc_engine = narrative_arc_engine
-        self.narrative_arc_validator = narrative_arc_validator
-        self.script_draft_engine = script_draft_engine
-        self.script_draft_validator = script_draft_validator
-        self.scene_script_engine = scene_script_engine
-        self.scene_script_validator = scene_script_validator
-        self.semantic_scene_engine = semantic_scene_engine
-        self.semantic_scene_validator = semantic_scene_validator
-        self.visual_event_sequence_engine = visual_event_sequence_engine
-        self.visual_event_sequence_validator = visual_event_sequence_validator
-        self.visual_plan_engine = visual_plan_engine
-        self.visual_plan_validator = visual_plan_validator
-        self.timing_engine = timing_engine
-        self.timed_scene_plan_validator = timed_scene_plan_validator
-        self.render_spec_engine = render_spec_engine
-        self.render_spec_validator = render_spec_validator
-        self.render_engine = render_engine
-        self.video_validator = video_validator
+        self.router = router
+        self.stage_logger = stage_logger
 
-    def run_script_brief(self, project_id: str, run_id: str) -> ArtifactRecord:
-        existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "script_brief")
-        if existing_artifact is not None:
-            return existing_artifact
+    def run_stage(self, stage: str, project_id: str, run_id: str) -> ArtifactRecord:
+        try:
+            stage_enum = PipelineStage(stage)
+        except ValueError as exc:
+            raise PipelineServiceError(f"Stage '{stage}' is not implemented.") from exc
 
-        topic_request_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "topic_request",
-        )
-        if topic_request_artifact is None:
-            raise PipelineServiceError("Cannot run script_brief without a topic_request artifact.")
-        if not is_advanceable_status(topic_request_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run script_brief because the topic_request artifact is not advanceable."
-            )
-
-        topic_request = TopicRequest.model_validate(topic_request_artifact.payload_json)
-        script_brief = self.script_brief_engine.run(topic_request)
-        validation = self.script_brief_validator.validate(
-            script_brief,
-            topic_request=topic_request,
-        )
-
-        return self.store.save_artifact(
+        # Update run state to 'running'
+        self.store.update_run_state(
             project_id=project_id,
             run_id=run_id,
-            artifact_type="script_brief",
-            schema_version=script_brief.schema_version,
-            payload_json=script_brief.model_dump(),
-            parent_artifact_roles_json={"topic_request": topic_request_artifact.id},
-            validation_json=validation,
+            state="running",
+            current_stage=stage_enum.value,
         )
 
-    def run_narrative_arc(self, project_id: str, run_id: str) -> ArtifactRecord:
-        existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "narrative_arc")
-        if existing_artifact is not None:
-            return existing_artifact
+        try:
+            artifact = self.router.execute(stage_enum, project_id, run_id)
+        except Exception as exc:
+            # Transition to 'failed' state on exception
+            self.store.update_run_state(
+                project_id=project_id,
+                run_id=run_id,
+                state="failed",
+                current_stage=stage_enum.value,
+                error_message=str(exc),
+            )
+            raise
 
-        script_brief_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "script_brief",
-        )
-        if script_brief_artifact is None:
-            raise PipelineServiceError("Cannot run narrative_arc without a script_brief artifact.")
-        if not is_advanceable_status(script_brief_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run narrative_arc because the script_brief artifact is not advanceable."
+        from artifact_store.models import is_advanceable_status
+
+        if not is_advanceable_status(artifact.status):
+            # If the artifact is not advanceable (failed/blocked), the run has failed
+            self.store.update_run_state(
+                project_id=project_id,
+                run_id=run_id,
+                state="failed",
+                current_stage=stage_enum.value,
+                error_message=f"Stage '{stage}' resulted in a non-advanceable status '{artifact.status}'."
+            )
+        else:
+            # Check if this is the final stage
+            next_stage = NEXT_STAGE_BY_ARTIFACT_TYPE.get(artifact.artifact_type)
+            new_state = "completed" if next_stage is None else "running"
+            self.store.update_run_state(
+                project_id=project_id,
+                run_id=run_id,
+                state=new_state,
+                current_stage=stage_enum.value,
             )
 
-        script_brief = ScriptBrief.model_validate(script_brief_artifact.payload_json)
-        narrative_arc = self.narrative_arc_engine.run(script_brief)
-        validation = self.narrative_arc_validator.validate(
-            narrative_arc,
-            script_brief=script_brief,
-        )
-
-        return self.store.save_artifact(
-            project_id=project_id,
-            run_id=run_id,
-            artifact_type="narrative_arc",
-            schema_version=narrative_arc.schema_version,
-            payload_json=narrative_arc.model_dump(),
-            parent_artifact_roles_json={"script_brief": script_brief_artifact.id},
-            validation_json=validation,
-        )
-
-    def run_script_draft(self, project_id: str, run_id: str) -> ArtifactRecord:
-        existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "script_draft")
-        if existing_artifact is not None:
-            return existing_artifact
-
-        script_brief_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "script_brief",
-        )
-        if script_brief_artifact is None:
-            raise PipelineServiceError("Cannot run script_draft without a script_brief artifact.")
-        if not is_advanceable_status(script_brief_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run script_draft because the script_brief artifact is not advanceable."
-            )
-
-        narrative_arc_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "narrative_arc",
-        )
-        if narrative_arc_artifact is None:
-            raise PipelineServiceError("Cannot run script_draft without a narrative_arc artifact.")
-        if not is_advanceable_status(narrative_arc_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run script_draft because the narrative_arc artifact is not advanceable."
-            )
-
-        script_brief = ScriptBrief.model_validate(script_brief_artifact.payload_json)
-        narrative_arc = NarrativeArc.model_validate(narrative_arc_artifact.payload_json)
-        script_draft = self.script_draft_engine.run(
-            script_brief=script_brief,
-            narrative_arc=narrative_arc,
-        )
-        validation = self.script_draft_validator.validate(
-            script_draft,
-            script_brief=script_brief,
-            narrative_arc=narrative_arc,
-        )
-
-        return self.store.save_artifact(
-            project_id=project_id,
-            run_id=run_id,
-            artifact_type="script_draft",
-            schema_version=script_draft.schema_version,
-            payload_json=script_draft.model_dump(),
-            parent_artifact_roles_json={
-                "script_brief": script_brief_artifact.id,
-                "narrative_arc": narrative_arc_artifact.id,
-            },
-            validation_json=validation,
-        )
-
-    def run_scene_script(self, project_id: str, run_id: str) -> ArtifactRecord:
-        existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "scene_script")
-        if existing_artifact is not None:
-            return existing_artifact
-
-        script_brief_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "script_brief",
-        )
-        if script_brief_artifact is None:
-            raise PipelineServiceError("Cannot run scene_script without a script_brief artifact.")
-        if not is_advanceable_status(script_brief_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run scene_script because the script_brief artifact is not advanceable."
-            )
-
-        narrative_arc_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "narrative_arc",
-        )
-        if narrative_arc_artifact is None:
-            raise PipelineServiceError("Cannot run scene_script without a narrative_arc artifact.")
-        if not is_advanceable_status(narrative_arc_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run scene_script because the narrative_arc artifact is not advanceable."
-            )
-
-        script_draft_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "script_draft",
-        )
-        if script_draft_artifact is None:
-            raise PipelineServiceError("Cannot run scene_script without a script_draft artifact.")
-        if not is_advanceable_status(script_draft_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run scene_script because the script_draft artifact is not advanceable."
-            )
-
-        script_brief = ScriptBrief.model_validate(script_brief_artifact.payload_json)
-        narrative_arc = NarrativeArc.model_validate(narrative_arc_artifact.payload_json)
-        script_draft = ScriptDraft.model_validate(script_draft_artifact.payload_json)
-        scene_script = self.scene_script_engine.run(
-            script_brief=script_brief,
-            narrative_arc=narrative_arc,
-            script_draft=script_draft,
-        )
-        validation = self.scene_script_validator.validate(
-            scene_script,
-            script_brief=script_brief,
-            narrative_arc=narrative_arc,
-            script_draft=script_draft,
-        )
-
-        return self.store.save_artifact(
-            project_id=project_id,
-            run_id=run_id,
-            artifact_type="scene_script",
-            schema_version=scene_script.schema_version,
-            payload_json=scene_script.model_dump(),
-            parent_artifact_roles_json={
-                "script_brief": script_brief_artifact.id,
-                "narrative_arc": narrative_arc_artifact.id,
-                "script_draft": script_draft_artifact.id,
-            },
-            validation_json=validation,
-        )
-
-    def run_semantic_scene(self, project_id: str, run_id: str) -> ArtifactRecord:
-        existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "semantic_scene")
-        if existing_artifact is not None:
-            return existing_artifact
-
-        scene_script_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "scene_script",
-        )
-        if scene_script_artifact is None:
-            raise PipelineServiceError("Cannot run semantic_scene without a scene_script artifact.")
-        if not is_advanceable_status(scene_script_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run semantic_scene because the scene_script artifact is not advanceable."
-            )
-
-        scene_script = SceneScript.model_validate(scene_script_artifact.payload_json)
-        semantic_scene = self.semantic_scene_engine.run(scene_script)
-        validation = self.semantic_scene_validator.validate(
-            semantic_scene,
-            scene_script=scene_script,
-        )
-
-        return self.store.save_artifact(
-            project_id=project_id,
-            run_id=run_id,
-            artifact_type="semantic_scene",
-            schema_version=semantic_scene.schema_version,
-            payload_json=semantic_scene.model_dump(),
-            parent_artifact_roles_json={"scene_script": scene_script_artifact.id},
-            validation_json=validation,
-        )
-
-    def run_visual_event_sequence(self, project_id: str, run_id: str) -> ArtifactRecord:
-        existing_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "visual_event_sequence",
-        )
-        if existing_artifact is not None:
-            return existing_artifact
-
-        semantic_scene_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "semantic_scene",
-        )
-        if semantic_scene_artifact is None:
-            raise PipelineServiceError(
-                "Cannot run visual_event_sequence without a semantic_scene artifact."
-            )
-        if not is_advanceable_status(semantic_scene_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run visual_event_sequence because the semantic_scene artifact is not advanceable."
-            )
-
-        semantic_scene = SemanticScene.model_validate(semantic_scene_artifact.payload_json)
-        visual_event_sequence = self.visual_event_sequence_engine.run(semantic_scene)
-        validation = self.visual_event_sequence_validator.validate(
-            visual_event_sequence,
-            semantic_scene=semantic_scene,
-        )
-
-        return self.store.save_artifact(
-            project_id=project_id,
-            run_id=run_id,
-            artifact_type="visual_event_sequence",
-            schema_version=visual_event_sequence.schema_version,
-            payload_json=visual_event_sequence.model_dump(),
-            parent_artifact_roles_json={"semantic_scene": semantic_scene_artifact.id},
-            validation_json=validation,
-        )
-
-    def run_visual_plan(self, project_id: str, run_id: str) -> ArtifactRecord:
-        existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "visual_plan")
-        if existing_artifact is not None:
-            return existing_artifact
-
-        semantic_scene_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "semantic_scene",
-        )
-        if semantic_scene_artifact is None:
-            raise PipelineServiceError("Cannot run visual_plan without a semantic_scene artifact.")
-        if not is_advanceable_status(semantic_scene_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run visual_plan because the semantic_scene artifact is not advanceable."
-            )
-
-        visual_event_sequence_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "visual_event_sequence",
-        )
-        if visual_event_sequence_artifact is None:
-            raise PipelineServiceError(
-                "Cannot run visual_plan without a visual_event_sequence artifact."
-            )
-        if not is_advanceable_status(visual_event_sequence_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run visual_plan because the visual_event_sequence artifact is not advanceable."
-            )
-
-        semantic_scene = SemanticScene.model_validate(semantic_scene_artifact.payload_json)
-        visual_event_sequence = VisualEventSequence.model_validate(
-            visual_event_sequence_artifact.payload_json
-        )
-        visual_plan = self.visual_plan_engine.run(
-            semantic_scene=semantic_scene,
-            visual_event_sequence=visual_event_sequence,
-        )
-        validation = self.visual_plan_validator.validate(
-            visual_plan,
-            semantic_scene=semantic_scene,
-            visual_event_sequence=visual_event_sequence,
-        )
-
-        return self.store.save_artifact(
-            project_id=project_id,
-            run_id=run_id,
-            artifact_type="visual_plan",
-            schema_version=visual_plan.schema_version,
-            payload_json=visual_plan.model_dump(),
-            parent_artifact_roles_json={
-                "semantic_scene": semantic_scene_artifact.id,
-                "visual_event_sequence": visual_event_sequence_artifact.id,
-            },
-            validation_json=validation,
-        )
-
-    def run_timing(self, project_id: str, run_id: str) -> ArtifactRecord:
-        existing_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "timed_scene_plan",
-        )
-        if existing_artifact is not None:
-            return existing_artifact
-
-        visual_plan_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "visual_plan",
-        )
-        if visual_plan_artifact is None:
-            raise PipelineServiceError("Cannot run timing without a visual_plan artifact.")
-        if not is_advanceable_status(visual_plan_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run timing because the visual_plan artifact is not advanceable."
-            )
-
-        visual_event_sequence_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "visual_event_sequence",
-        )
-        if visual_event_sequence_artifact is None:
-            raise PipelineServiceError(
-                "Cannot run timing without a visual_event_sequence artifact."
-            )
-        if not is_advanceable_status(visual_event_sequence_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run timing because the visual_event_sequence artifact is not advanceable."
-            )
-
-        visual_plan = VisualPlan.model_validate(visual_plan_artifact.payload_json)
-        visual_event_sequence = VisualEventSequence.model_validate(
-            visual_event_sequence_artifact.payload_json
-        )
-        timed_scene_plan = self.timing_engine.run(
-            visual_plan=visual_plan,
-            visual_event_sequence=visual_event_sequence,
-        )
-        validation = self.timed_scene_plan_validator.validate(
-            timed_scene_plan,
-            visual_plan=visual_plan,
-            visual_event_sequence=visual_event_sequence,
-        )
-
-        return self.store.save_artifact(
-            project_id=project_id,
-            run_id=run_id,
-            artifact_type="timed_scene_plan",
-            schema_version=timed_scene_plan.schema_version,
-            payload_json=timed_scene_plan.model_dump(),
-            parent_artifact_roles_json={
-                "visual_plan": visual_plan_artifact.id,
-                "visual_event_sequence": visual_event_sequence_artifact.id,
-            },
-            validation_json=validation,
-        )
-
-    def run_render_spec(self, project_id: str, run_id: str) -> ArtifactRecord:
-        existing_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "render_spec",
-        )
-        if existing_artifact is not None:
-            return existing_artifact
-
-        visual_plan_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "visual_plan",
-        )
-        if visual_plan_artifact is None:
-            raise PipelineServiceError("Cannot run render_spec without a visual_plan artifact.")
-        if not is_advanceable_status(visual_plan_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run render_spec because the visual_plan artifact is not advanceable."
-            )
-
-        timed_scene_plan_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "timed_scene_plan",
-        )
-        if timed_scene_plan_artifact is None:
-            raise PipelineServiceError(
-                "Cannot run render_spec without a timed_scene_plan artifact."
-            )
-        if not is_advanceable_status(timed_scene_plan_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run render_spec because the timed_scene_plan artifact is not advanceable."
-            )
-
-        visual_plan = VisualPlan.model_validate(visual_plan_artifact.payload_json)
-        timed_scene_plan = TimedScenePlan.model_validate(
-            timed_scene_plan_artifact.payload_json
-        )
-        render_spec = self.render_spec_engine.run(
-            visual_plan=visual_plan,
-            timed_scene_plan=timed_scene_plan,
-        )
-        validation = self.render_spec_validator.validate(
-            render_spec,
-            visual_plan=visual_plan,
-            timed_scene_plan=timed_scene_plan,
-        )
-
-        return self.store.save_artifact(
-            project_id=project_id,
-            run_id=run_id,
-            artifact_type="render_spec",
-            schema_version=render_spec.schema_version,
-            payload_json=render_spec.model_dump(),
-            parent_artifact_roles_json={
-                "visual_plan": visual_plan_artifact.id,
-                "timed_scene_plan": timed_scene_plan_artifact.id,
-            },
-            validation_json=validation,
-        )
-
-    def run_render(self, project_id: str, run_id: str) -> ArtifactRecord:
-        existing_artifact = self.store.find_artifact_by_type(project_id, run_id, "video")
-        if existing_artifact is not None:
-            return existing_artifact
-
-        render_spec_artifact = self.store.find_artifact_by_type(
-            project_id,
-            run_id,
-            "render_spec",
-        )
-        if render_spec_artifact is None:
-            raise PipelineServiceError("Cannot run render without a render_spec artifact.")
-        if not is_advanceable_status(render_spec_artifact.status):
-            raise PipelineServiceError(
-                "Cannot run render because the render_spec artifact is not advanceable."
-            )
-
-        render_spec = RenderSpec.model_validate(render_spec_artifact.payload_json)
-        video = self.render_engine.run(
-            render_spec=render_spec,
-            project_id=project_id,
-            run_id=run_id,
-        )
-        validation = self.video_validator.validate(video, render_spec=render_spec)
-
-        return self.store.save_artifact(
-            project_id=project_id,
-            run_id=run_id,
-            artifact_type="video",
-            schema_version=video.schema_version,
-            payload_json=video.model_dump(),
-            parent_artifact_roles_json={"render_spec": render_spec_artifact.id},
-            validation_json=validation,
-        )
+        return artifact
 
     def get_run_status(self, project_id: str, run_id: str) -> list[dict[str, Any]]:
         self.store.get_run(project_id, run_id)
@@ -636,9 +185,9 @@ class PipelineService:
         target_artifact = self.store.get_artifact(artifact_id)
         if target_artifact.project_id != project_id or target_artifact.run_id != run_id:
             raise PipelineServiceError(
-                f"Artifact {artifact_id} does not belong to project {project_id} and run {run_id}."
+                f"Artifact {artifact_id} does not belong to project {project_id} "
+                f"and run {run_id}."
             )
-
         descendants = get_artifact_descendants(self.store, artifact_id)
         deleted_artifacts = self.store.delete_artifacts(
             [artifact.id for artifact in descendants]
@@ -648,41 +197,127 @@ class PipelineService:
             NEXT_STAGE_BY_ARTIFACT_TYPE.get(target_artifact.artifact_type),
         )
 
+    # Legacy method aliases for backward-compatible tests
+    def run_script_brief(self, project_id: str, run_id: str) -> ArtifactRecord:
+        return self.run_stage(PipelineStage.SCRIPT_BRIEF.value, project_id, run_id)
+
+    def run_narrative_arc(self, project_id: str, run_id: str) -> ArtifactRecord:
+        return self.run_stage(PipelineStage.NARRATIVE_ARC.value, project_id, run_id)
+
+    def run_script_draft(self, project_id: str, run_id: str) -> ArtifactRecord:
+        return self.run_stage(PipelineStage.SCRIPT_DRAFT.value, project_id, run_id)
+
+    def run_scene_script(self, project_id: str, run_id: str) -> ArtifactRecord:
+        return self.run_stage(PipelineStage.SCENE_SCRIPT.value, project_id, run_id)
+
+    def run_semantic_scene(self, project_id: str, run_id: str) -> ArtifactRecord:
+        return self.run_stage(PipelineStage.SEMANTIC_SCENE.value, project_id, run_id)
+
+    def run_visual_event_sequence(self, project_id: str, run_id: str) -> ArtifactRecord:
+        return self.run_stage(PipelineStage.VISUAL_EVENT_SEQUENCE.value, project_id, run_id)
+
+    def run_visual_plan(self, project_id: str, run_id: str) -> ArtifactRecord:
+        return self.run_stage(PipelineStage.VISUAL_PLAN.value, project_id, run_id)
+
+    def run_timing(self, project_id: str, run_id: str) -> ArtifactRecord:
+        return self.run_stage(PipelineStage.TIMING.value, project_id, run_id)
+
+    def run_render_spec(self, project_id: str, run_id: str) -> ArtifactRecord:
+        return self.run_stage(PipelineStage.RENDER_SPEC.value, project_id, run_id)
+
+    def run_render(self, project_id: str, run_id: str) -> ArtifactRecord:
+        return self.run_stage(PipelineStage.RENDER.value, project_id, run_id)
+
 
 def build_pipeline_service(
     store: ArtifactStore,
     *,
     render_engine: RenderEngine | None = None,
+    llm_provider: LLMProvider | None = None,
 ) -> PipelineService:
+    from pathlib import Path
+
     finance_registry = FinanceDomainRegistry()
     component_registry = ComponentRegistry()
+    stage_logger = StageLogger()
+
     if render_engine is None:
         repo_root = Path(__file__).resolve().parents[2]
         render_engine = RenderEngine(
             media_storage=LocalMediaStorage(repo_root / "backend" / ".data" / "media"),
             remotion_provider=RemotionProvider(repo_root / "renderer" / "remotion"),
         )
+
+    handlers = {
+        PipelineStage.SCRIPT_BRIEF: ScriptBriefHandler(
+            store=store,
+            script_brief_engine=ScriptBriefEngine(),
+            script_brief_ai_engine=(
+                ScriptBriefAIEngine(llm_provider) if llm_provider is not None else None
+            ),
+            script_brief_validator=ScriptBriefValidator(finance_registry),
+            stage_logger=stage_logger,
+        ),
+        PipelineStage.NARRATIVE_ARC: NarrativeArcHandler(
+            store=store,
+            narrative_arc_engine=NarrativeArcEngine(),
+            narrative_arc_validator=NarrativeArcValidator(),
+            stage_logger=stage_logger,
+        ),
+        PipelineStage.SCRIPT_DRAFT: ScriptDraftHandler(
+            store=store,
+            script_draft_engine=ScriptDraftEngine(),
+            script_draft_validator=ScriptDraftValidator(),
+            stage_logger=stage_logger,
+        ),
+        PipelineStage.SCENE_SCRIPT: SceneScriptHandler(
+            store=store,
+            scene_script_engine=SceneScriptEngine(),
+            scene_script_validator=SceneScriptValidator(),
+            stage_logger=stage_logger,
+        ),
+        PipelineStage.SEMANTIC_SCENE: SemanticSceneHandler(
+            store=store,
+            semantic_scene_engine=SemanticSceneEngine(finance_registry),
+            semantic_scene_validator=SemanticSceneValidator(finance_registry),
+            stage_logger=stage_logger,
+        ),
+        PipelineStage.VISUAL_EVENT_SEQUENCE: VisualEventSequenceHandler(
+            store=store,
+            visual_event_sequence_engine=VisualEventSequenceEngine(),
+            visual_event_sequence_validator=VisualEventSequenceValidator(),
+            stage_logger=stage_logger,
+        ),
+        PipelineStage.VISUAL_PLAN: VisualPlanHandler(
+            store=store,
+            visual_plan_engine=VisualPlanEngine(component_registry),
+            visual_plan_validator=VisualPlanValidator(component_registry),
+            stage_logger=stage_logger,
+        ),
+        PipelineStage.TIMING: TimingHandler(
+            store=store,
+            timing_engine=TimingEngine(),
+            timed_scene_plan_validator=TimedScenePlanValidator(),
+            stage_logger=stage_logger,
+        ),
+        PipelineStage.RENDER_SPEC: RenderSpecHandler(
+            store=store,
+            render_spec_engine=RenderSpecEngine(),
+            render_spec_validator=RenderSpecValidator(),
+            stage_logger=stage_logger,
+        ),
+        PipelineStage.RENDER: RenderHandler(
+            store=store,
+            render_engine=render_engine,
+            video_validator=VideoValidator(),
+            stage_logger=stage_logger,
+        ),
+    }
+
+    router = PipelineRouter(handlers)
+
     return PipelineService(
         store=store,
-        finance_registry=finance_registry,
-        script_brief_engine=ScriptBriefEngine(),
-        script_brief_validator=ScriptBriefValidator(finance_registry),
-        narrative_arc_engine=NarrativeArcEngine(),
-        narrative_arc_validator=NarrativeArcValidator(),
-        script_draft_engine=ScriptDraftEngine(),
-        script_draft_validator=ScriptDraftValidator(),
-        scene_script_engine=SceneScriptEngine(),
-        scene_script_validator=SceneScriptValidator(),
-        semantic_scene_engine=SemanticSceneEngine(finance_registry),
-        semantic_scene_validator=SemanticSceneValidator(finance_registry),
-        visual_event_sequence_engine=VisualEventSequenceEngine(),
-        visual_event_sequence_validator=VisualEventSequenceValidator(),
-        visual_plan_engine=VisualPlanEngine(component_registry),
-        visual_plan_validator=VisualPlanValidator(component_registry),
-        timing_engine=TimingEngine(),
-        timed_scene_plan_validator=TimedScenePlanValidator(),
-        render_spec_engine=RenderSpecEngine(),
-        render_spec_validator=RenderSpecValidator(),
-        render_engine=render_engine,
-        video_validator=VideoValidator(),
+        router=router,
+        stage_logger=stage_logger,
     )

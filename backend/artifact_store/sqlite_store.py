@@ -7,7 +7,14 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from artifact_store.models import ArtifactRecord, PipelineRunRecord, ProjectRecord, RunMode
+from artifact_store.models import (
+    ArtifactRecord,
+    PipelineRunRecord,
+    ProjectRecord,
+    RunMode,
+    RunState,
+    VALID_RUN_MODES,
+)
 from domain.validation import ValidationResult
 
 
@@ -43,6 +50,11 @@ class ArtifactStore:
                   project_id TEXT NOT NULL,
                   created_at TEXT NOT NULL,
                   mode TEXT NOT NULL,
+                  state TEXT NOT NULL DEFAULT 'pending',
+                  current_stage TEXT,
+                  started_at TEXT,
+                  completed_at TEXT,
+                  error_message TEXT,
                   FOREIGN KEY(project_id) REFERENCES projects(id)
                 );
 
@@ -62,6 +74,31 @@ class ArtifactStore:
                 );
                 """
             )
+            # Safe migrations for existing databases that predate these columns.
+            self._migrate_run_state_columns(connection)
+
+    def _migrate_run_state_columns(self, connection: sqlite3.Connection) -> None:
+        """Add run state columns to pipeline_runs if they do not yet exist.
+
+        SQLite does not support IF NOT EXISTS on ALTER TABLE, so we check the
+        column list first and add only the columns that are missing.
+        """
+        existing = {
+            row["name"]
+            for row in connection.execute(
+                "PRAGMA table_info(pipeline_runs)"
+            ).fetchall()
+        }
+        migrations = [
+            ("state",         "ALTER TABLE pipeline_runs ADD COLUMN state TEXT NOT NULL DEFAULT 'pending'"),
+            ("current_stage", "ALTER TABLE pipeline_runs ADD COLUMN current_stage TEXT"),
+            ("started_at",    "ALTER TABLE pipeline_runs ADD COLUMN started_at TEXT"),
+            ("completed_at",  "ALTER TABLE pipeline_runs ADD COLUMN completed_at TEXT"),
+            ("error_message", "ALTER TABLE pipeline_runs ADD COLUMN error_message TEXT"),
+        ]
+        for column, sql in migrations:
+            if column not in existing:
+                connection.execute(sql)
 
     def create_project(self, title: str) -> ProjectRecord:
         normalized_title = title.strip()
@@ -99,28 +136,97 @@ class ArtifactStore:
 
     def create_run(self, project_id: str, mode: RunMode = "deterministic") -> PipelineRunRecord:
         self.get_project(project_id)
+        if mode not in VALID_RUN_MODES:
+            raise ValueError(f"Run mode must be one of: {', '.join(sorted(VALID_RUN_MODES))}.")
         record = PipelineRunRecord(
             id=self._new_id("run"),
             project_id=project_id,
             created_at=self._now(),
             mode=mode,
+            state="pending",
         )
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO pipeline_runs (id, project_id, created_at, mode)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO pipeline_runs
+                  (id, project_id, created_at, mode, state)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (record.id, record.project_id, record.created_at, record.mode),
+                (record.id, record.project_id, record.created_at, record.mode, record.state),
             )
         return record
+
+    def update_run_state(
+        self,
+        project_id: str,
+        run_id: str,
+        *,
+        state: RunState,
+        current_stage: str | None = None,
+        error_message: str | None = None,
+    ) -> PipelineRunRecord:
+        """Transition a run to a new state and record the current stage.
+
+        Sets started_at on the first transition to 'running' and
+        completed_at on transitions to 'completed' or 'failed'.
+        """
+        run = self.get_run(project_id, run_id)
+        now = self._now()
+        started_at = run.started_at
+        completed_at = run.completed_at
+
+        if state == "running" and started_at is None:
+            started_at = now
+        if state in ("completed", "failed"):
+            completed_at = now
+
+        with self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE pipeline_runs
+                SET state = ?, current_stage = ?, started_at = ?,
+                    completed_at = ?, error_message = ?
+                WHERE id = ?
+                """,
+                (state, current_stage, started_at, completed_at, error_message, run_id),
+            )
+        return self.get_run(project_id, run_id)
+
+    def require_artifact(
+        self,
+        project_id: str,
+        run_id: str,
+        artifact_type: str,
+        *,
+        for_stage: str,
+    ) -> ArtifactRecord:
+        """Return a prerequisite artifact or raise a descriptive error.
+
+        Centralises the repeated None-check + advanceable-status-check pattern
+        that would otherwise be duplicated across every pipeline stage.
+        """
+        from artifact_store.models import is_advanceable_status
+        from app.pipeline_service import PipelineServiceError
+
+        artifact = self.find_artifact_by_type(project_id, run_id, artifact_type)
+        if artifact is None:
+            raise PipelineServiceError(
+                f"Cannot run '{for_stage}': required '{artifact_type}' artifact is missing."
+            )
+        if not is_advanceable_status(artifact.status):
+            raise PipelineServiceError(
+                f"Cannot run '{for_stage}': '{artifact_type}' artifact "
+                f"has status '{artifact.status}' and cannot be advanced."
+            )
+        return artifact
 
     def list_runs(self, project_id: str) -> list[PipelineRunRecord]:
         self.get_project(project_id)
         with self._connect() as connection:
             rows = connection.execute(
                 """
-                SELECT id, project_id, created_at, mode
+                SELECT id, project_id, created_at, mode,
+                       state, current_stage, started_at, completed_at, error_message
                 FROM pipeline_runs
                 WHERE project_id = ?
                 ORDER BY created_at DESC
@@ -133,7 +239,8 @@ class ArtifactStore:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT id, project_id, created_at, mode
+                SELECT id, project_id, created_at, mode,
+                       state, current_stage, started_at, completed_at, error_message
                 FROM pipeline_runs
                 WHERE project_id = ? AND id = ?
                 """,
@@ -345,6 +452,11 @@ class ArtifactStore:
             project_id=row["project_id"],
             created_at=row["created_at"],
             mode=row["mode"],
+            state=row["state"] or "pending",
+            current_stage=row["current_stage"],
+            started_at=row["started_at"],
+            completed_at=row["completed_at"],
+            error_message=row["error_message"],
         )
 
     @staticmethod

@@ -111,5 +111,5 @@ def test_visual_event_sequence_requires_semantic_scene(tmp_path) -> None:
 
     assert response.status_code == 409
     assert response.json()["detail"] == (
-        "Cannot run visual_event_sequence without a semantic_scene artifact."
+        "Cannot run 'visual_event_sequence': required 'semantic_scene' artifact is missing."
     )

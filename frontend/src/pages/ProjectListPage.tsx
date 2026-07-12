@@ -22,6 +22,7 @@ import {
   type PipelineStageSummary,
   type PipelineRunRecord,
   type ProjectRecord,
+  type RunMode,
 } from "../api/client";
 import { CreateProjectPage } from "./CreateProjectPage";
 import { ProjectPipelinePage } from "./ProjectPipelinePage";
@@ -38,6 +39,7 @@ export function ProjectListPage() {
   const [children, setChildren] = useState<ArtifactRecord[]>([]);
   const [topic, setTopic] = useState("");
   const [angle, setAngle] = useState("");
+  const [runMode, setRunMode] = useState<RunMode>("deterministic");
   const [isBusy, setIsBusy] = useState(false);
   const [isRunningStage, setIsRunningStage] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,11 +72,12 @@ export function ProjectListPage() {
     setIsBusy(true);
     setError(null);
     try {
-      const created = await createProject(topic, angle);
+      const created = await createProject(topic, angle, runMode);
       const nextProjects = await listProjects();
       setProjects(nextProjects);
       setTopic("");
       setAngle("");
+      setRunMode("deterministic");
       await selectProject(created.project);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -352,9 +355,11 @@ export function ProjectListPage() {
           <CreateProjectPage
             topic={topic}
             angle={angle}
+            runMode={runMode}
             isBusy={isBusy}
             onTopicChange={setTopic}
             onAngleChange={setAngle}
+            onRunModeChange={setRunMode}
             onSubmit={handleCreateProject}
           />
           <section className="panel">

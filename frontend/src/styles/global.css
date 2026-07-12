@@ -135,6 +135,39 @@ button:disabled {
   color: #172026;
 }
 
+.mode-field {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.mode-field legend {
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.mode-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mode-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #cbd5df;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #172026;
+  cursor: pointer;
+}
+
+.mode-option.active {
+  border-color: #166663;
+  background: #e9f5f3;
+}
+
 .primary-button,
 .list-button {
   border: 1px solid #cbd5df;

@@ -1,5 +1,6 @@
 export type ArtifactStatus = "valid" | "warning" | "blocked" | "failed";
 export type StageStatus = ArtifactStatus | "missing";
+export type RunMode = "deterministic" | "ai";
 
 export type ValidationResult = {
   status: ArtifactStatus;
@@ -17,7 +18,7 @@ export type PipelineRunRecord = {
   id: string;
   project_id: string;
   created_at: string;
-  mode: "deterministic";
+  mode: RunMode;
 };
 
 export type ArtifactRecord = {
@@ -106,10 +107,14 @@ export function listProjects(): Promise<ProjectRecord[]> {
   return request<ProjectRecord[]>("/projects");
 }
 
-export function createProject(topic: string, angle: string): Promise<CreateProjectResponse> {
+export function createProject(
+  topic: string,
+  angle: string,
+  mode: RunMode = "deterministic"
+): Promise<CreateProjectResponse> {
   return request<CreateProjectResponse>("/projects", {
     method: "POST",
-    body: JSON.stringify({ topic, angle }),
+    body: JSON.stringify({ topic, angle, mode }),
   });
 }
 

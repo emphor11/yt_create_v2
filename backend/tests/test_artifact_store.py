@@ -35,6 +35,24 @@ def test_store_saves_and_reads_run_scoped_artifact(tmp_path) -> None:
     assert retrieved.status == "valid"
 
 
+def test_store_creates_ai_mode_runs(tmp_path) -> None:
+    store = make_store(tmp_path)
+    project = store.create_project("Monthly Payments")
+
+    run = store.create_run(project.id, mode="ai")
+
+    assert run.mode == "ai"
+    assert store.get_run(project.id, run.id).mode == "ai"
+
+
+def test_store_rejects_unknown_run_mode(tmp_path) -> None:
+    store = make_store(tmp_path)
+    project = store.create_project("Monthly Payments")
+
+    with pytest.raises(ValueError, match="Run mode must be one of"):
+        store.create_run(project.id, mode="manual")
+
+
 def test_parent_child_lookup_uses_role_map(tmp_path) -> None:
     store = make_store(tmp_path)
     project = store.create_project("Monthly Payments")
@@ -122,4 +140,3 @@ def test_parent_artifact_must_belong_to_same_run(tmp_path) -> None:
             parent_artifact_roles_json={"wrong_run_parent": parent.id},
             validation_json=ValidationResult(status="valid"),
         )
-

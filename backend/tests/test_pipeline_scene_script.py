@@ -108,7 +108,7 @@ def test_scene_script_requires_script_brief(tmp_path) -> None:
 
     assert response.status_code == 409
     assert response.json()["detail"] == (
-        "Cannot run scene_script without a script_brief artifact."
+        "Cannot run 'scene_script': required 'script_brief' artifact is missing."
     )
 
 
@@ -123,7 +123,7 @@ def test_scene_script_requires_narrative_arc(tmp_path) -> None:
 
     assert response.status_code == 409
     assert response.json()["detail"] == (
-        "Cannot run scene_script without a narrative_arc artifact."
+        "Cannot run 'scene_script': required 'narrative_arc' artifact is missing."
     )
 
 
@@ -139,5 +139,5 @@ def test_scene_script_requires_script_draft(tmp_path) -> None:
 
     assert response.status_code == 409
     assert response.json()["detail"] == (
-        "Cannot run scene_script without a script_draft artifact."
+        "Cannot run 'scene_script': required 'script_draft' artifact is missing."
     )

@@ -5,7 +5,11 @@ from pydantic import BaseModel, Field
 from domain.validation import ArtifactStatus, ValidationResult
 
 
-RunMode = Literal["deterministic"]
+RunMode = Literal["deterministic", "ai"]
+VALID_RUN_MODES: set[RunMode] = {"deterministic", "ai"}
+
+RunState = Literal["pending", "running", "failed", "completed"]
+VALID_RUN_STATES: set[RunState] = {"pending", "running", "failed", "completed"}
 
 ADVANCEABLE_STATUSES: set[ArtifactStatus] = {"valid", "warning"}
 
@@ -25,6 +29,11 @@ class PipelineRunRecord(BaseModel):
     project_id: str
     created_at: str
     mode: RunMode
+    state: RunState = "pending"
+    current_stage: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+    error_message: str | None = None
 
 
 class ArtifactRecord(BaseModel):

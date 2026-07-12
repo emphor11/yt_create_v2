@@ -54,6 +54,52 @@ def test_create_project_creates_deterministic_run_and_topic_request(tmp_path) ->
     assert artifacts_response.json()[0]["artifact_type"] == "topic_request"
 
 
+def test_create_project_can_create_ai_mode_run(tmp_path) -> None:
+    client, _store = make_client(tmp_path)
+
+    response = client.post(
+        "/projects",
+        json={
+            "topic": "Why Monthly Payments Feel Cheap",
+            "mode": "ai",
+            "audience": "retail investors",
+            "language": "English",
+            "style": "educational",
+            "channel": "FinanceChannel",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["run"]["mode"] == "ai"
+    assert body["run"]["state"] == "pending"
+    assert body["generate_video_request_artifact"]["artifact_type"] == "generate_video_request"
+    assert body["generate_video_request_artifact"]["status"] == "valid"
+    assert body["generate_video_request_artifact"]["payload_json"] == {
+        "schema_version": "1",
+        "topic": "Why Monthly Payments Feel Cheap",
+        "audience": "retail investors",
+        "language": "English",
+        "style": "educational",
+        "channel": "FinanceChannel",
+    }
+
+
+def test_create_project_rejects_unknown_run_mode(tmp_path) -> None:
+    client, _store = make_client(tmp_path)
+
+    response = client.post(
+        "/projects",
+        json={
+            "topic": "Why Monthly Payments Feel Cheap",
+            "angle": "How EMIs hide total cost",
+            "mode": "manual",
+        },
+    )
+
+    assert response.status_code == 422
+
+
 def test_empty_topic_creates_blocked_topic_request(tmp_path) -> None:
     client, _store = make_client(tmp_path)
 

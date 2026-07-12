@@ -99,5 +99,5 @@ def test_semantic_scene_requires_scene_script(tmp_path) -> None:
 
     assert response.status_code == 409
     assert response.json()["detail"] == (
-        "Cannot run semantic_scene without a scene_script artifact."
+        "Cannot run 'semantic_scene': required 'scene_script' artifact is missing."
     )
