@@ -4,6 +4,7 @@ from enum import Enum
 class PipelineStage(str, Enum):
     TOPIC_REQUEST = "topic_request"
     RESEARCH = "research"
+    NARRATIVE_PLAN = "narrative_plan"
     SCRIPT_BRIEF = "script_brief"
     NARRATIVE_ARC = "narrative_arc"
     SCRIPT_DRAFT = "script_draft"

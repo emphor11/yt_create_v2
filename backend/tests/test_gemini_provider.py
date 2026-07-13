@@ -51,17 +51,13 @@ def test_gemini_provider_builds_structured_output_payload() -> None:
     assert payload["generationConfig"] == {
         "temperature": 0.1,
         "maxOutputTokens": 500,
-        "responseFormat": {
-            "text": {
-                "mimeType": "application/json",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "thesis": {"type": "string"},
-                    },
-                    "required": ["thesis"],
-                },
-            }
+        "responseMimeType": "application/json",
+        "responseSchema": {
+            "type": "object",
+            "properties": {
+                "thesis": {"type": "string"},
+            },
+            "required": ["thesis"],
         },
     }
 

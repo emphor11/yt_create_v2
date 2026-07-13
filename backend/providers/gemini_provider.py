@@ -33,11 +33,18 @@ class GeminiProvider:
     def generate_json(self, llm_request: LLMJsonRequest) -> LLMJsonResponse:
         payload = self._build_payload(llm_request)
         raw_response = self._post_generate_content(payload)
-        text = self._extract_text(raw_response)
+        text = self._extract_text(raw_response).strip()
+        
+        # Clean markdown code block wrapping if present
+        if text.startswith("```json"):
+            text = text.removeprefix("```json").removesuffix("```").strip()
+        elif text.startswith("```"):
+            text = text.removeprefix("```").removesuffix("```").strip()
+
         try:
             parsed_payload = json.loads(text)
         except json.JSONDecodeError as error:
-            raise LLMProviderError("Gemini returned non-JSON text.") from error
+            raise LLMProviderError(f"Gemini returned non-JSON text. Raw content: {text}") from error
 
         return LLMJsonResponse(
             payload=parsed_payload,
@@ -61,13 +68,12 @@ class GeminiProvider:
         generation_config: dict[str, Any] = {
             "temperature": llm_request.temperature,
             "maxOutputTokens": llm_request.max_tokens,
-            "responseFormat": {
-                "text": {
-                    "mimeType": "application/json",
-                    "schema": llm_request.response_schema or {"type": "object"},
-                }
-            },
+            "responseMimeType": "application/json",
         }
+        if llm_request.response_schema:
+            generation_config["responseSchema"] = self._clean_schema_for_gemini(
+                llm_request.response_schema
+            )
 
         payload: dict[str, Any] = {
             "contents": contents,
@@ -76,6 +82,27 @@ class GeminiProvider:
         if system_instruction is not None:
             payload["system_instruction"] = system_instruction
         return payload
+
+    @staticmethod
+    def _clean_schema_for_gemini(schema: dict[str, Any]) -> dict[str, Any]:
+        """Recursively remove 'additionalProperties' from JSON schema since
+
+        Gemini API v1beta does not support it.
+        """
+        if not isinstance(schema, dict):
+            return schema
+        cleaned = {k: v for k, v in schema.items() if k != "additionalProperties"}
+        for k, v in cleaned.items():
+            if isinstance(v, dict):
+                cleaned[k] = GeminiProvider._clean_schema_for_gemini(v)
+            elif isinstance(v, list):
+                cleaned[k] = [
+                    GeminiProvider._clean_schema_for_gemini(item)
+                    if isinstance(item, dict)
+                    else item
+                    for item in v
+                ]
+        return cleaned
 
     def _post_generate_content(self, payload: dict[str, Any]) -> dict[str, Any]:
         url = f"{self.api_base_url}/models/{self.model}:generateContent"

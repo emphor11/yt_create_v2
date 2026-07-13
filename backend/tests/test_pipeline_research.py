@@ -100,9 +100,9 @@ def test_research_runs_successfully_and_updates_run_state(tmp_path) -> None:
     assert artifact["status"] == "valid"
     assert artifact["payload_json"]["verified_facts"] == ["Fact 1", "Fact 2", "Fact 3"]
 
-    # Verify run state machine transitioned to 'completed' (as it's currently the last stage in NEXT_STAGE_BY_ARTIFACT_TYPE)
+    # Verify run state machine transitioned to 'running' (since next stage 'narrative_plan' is now registered)
     run = store.get_run(project_id, run_id)
-    assert run.state == "completed"
+    assert run.state == "running"
     assert run.current_stage == "research"
     assert run.error_message is None
 
