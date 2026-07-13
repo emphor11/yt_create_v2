@@ -5,7 +5,8 @@ description = "Backend skeleton for YTCreate V2"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1.0",
-  "uvicorn[standard]>=0.30,<1.0"
+  "uvicorn[standard]>=0.30,<1.0",
+  "boto3>=1.34,<2.0"
 ]
 
 [project.optional-dependencies]
