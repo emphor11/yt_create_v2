@@ -23,6 +23,7 @@ from app.stage_handlers.research_handler import ResearchHandler
 from app.stage_handlers.narrative_plan_handler import NarrativePlanHandler
 from app.stage_handlers.hook_handler import HookHandler
 from app.stage_handlers.script_visual_strategy_handler import ScriptVisualStrategyHandler
+from app.stage_handlers.quality_review_handler import QualityReviewHandler
 from app.stage_handlers.narrative_arc_handler import NarrativeArcHandler
 from app.stage_handlers.script_draft_handler import ScriptDraftHandler
 from app.stage_handlers.scene_script_handler import SceneScriptHandler
@@ -54,6 +55,7 @@ from domain.validators.research_packet_validator import ResearchPacketValidator
 from domain.validators.narrative_plan_validator import NarrativePlanValidator
 from domain.validators.hook_validator import HookValidator
 from domain.validators.script_visual_strategy_validator import ScriptVisualStrategyValidator
+from domain.validators.review_result_validator import ReviewResultValidator
 from domain.validators.render_spec_validator import RenderSpecValidator
 from domain.validators.scene_script_validator import SceneScriptValidator
 from domain.validators.script_brief_validator import ScriptBriefValidator
@@ -96,6 +98,7 @@ AI_STAGE_DEFINITIONS: list[tuple[str, str]] = [
     ("narrative_plan",          "narrative_plan"),
     ("hook",                    "hook"),
     ("script_visual_strategy",  "script_visual_strategy"),
+    ("quality_review",          "review_result"),
 ]
 
 NEXT_STAGE_BY_ARTIFACT_TYPE: dict[str, str | None] = {
@@ -104,7 +107,8 @@ NEXT_STAGE_BY_ARTIFACT_TYPE: dict[str, str | None] = {
     "research_packet":        "narrative_plan",
     "narrative_plan":         "hook",
     "hook":                   "script_visual_strategy",
-    "script_visual_strategy": "timing",
+    "script_visual_strategy": "quality_review",
+    "review_result":          "timing",
     "script_brief":           "narrative_arc",
     "narrative_arc":          "script_draft",
     "script_draft":           "scene_script",
@@ -238,6 +242,9 @@ class PipelineService:
     def run_script_visual_strategy(self, project_id: str, run_id: str) -> ArtifactRecord:
         return self.run_stage(PipelineStage.SCRIPT_VISUAL_STRATEGY.value, project_id, run_id)
 
+    def run_quality_review(self, project_id: str, run_id: str) -> ArtifactRecord:
+        return self.run_stage(PipelineStage.QUALITY_REVIEW.value, project_id, run_id)
+
     def run_script_brief(self, project_id: str, run_id: str) -> ArtifactRecord:
         return self.run_stage(PipelineStage.SCRIPT_BRIEF.value, project_id, run_id)
 
@@ -313,6 +320,11 @@ def build_pipeline_service(
             strategy_validator=ScriptVisualStrategyValidator(),
             stage_logger=stage_logger,
             component_registry=component_registry,
+        ),
+        PipelineStage.QUALITY_REVIEW: QualityReviewHandler(
+            store=store,
+            review_validator=ReviewResultValidator(),
+            stage_logger=stage_logger,
         ),
         PipelineStage.SCRIPT_BRIEF: ScriptBriefHandler(
             store=store,
