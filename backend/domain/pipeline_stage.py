@@ -6,6 +6,7 @@ class PipelineStage(str, Enum):
     RESEARCH = "research"
     NARRATIVE_PLAN = "narrative_plan"
     HOOK = "hook"
+    SCRIPT_VISUAL_STRATEGY = "script_visual_strategy"
     SCRIPT_BRIEF = "script_brief"
     NARRATIVE_ARC = "narrative_arc"
     SCRIPT_DRAFT = "script_draft"

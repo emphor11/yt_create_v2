@@ -1,7 +1,14 @@
 import { Composition } from "remotion";
 import { SplitComparison, type SplitComparisonRenderSpec } from "./SplitComparison";
+import { Timeline } from "./Timeline";
+import { NumberCounter } from "./NumberCounter";
+import { Charts } from "./Charts";
+import { StockImage } from "./StockImage";
+import { StockVideo } from "./StockVideo";
+import { Typography } from "./Typography";
+import { IconAnimation } from "./IconAnimation";
 
-const defaultSplitComparisonProps: SplitComparisonRenderSpec = {
+const defaultProps: SplitComparisonRenderSpec = {
   scene_id: "scene_01",
   composition: "SplitComparison",
   fps: 30,
@@ -49,14 +56,79 @@ const defaultSplitComparisonProps: SplitComparisonRenderSpec = {
 
 export function RemotionRoot() {
   return (
-    <Composition
-      id="SplitComparison"
-      component={SplitComparison}
-      durationInFrames={240}
-      fps={30}
-      width={1920}
-      height={1080}
-      defaultProps={defaultSplitComparisonProps}
-    />
+    <>
+      <Composition
+        id="SplitComparison"
+        component={SplitComparison}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps}
+      />
+      <Composition
+        id="Timeline"
+        component={Timeline}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps}
+      />
+      <Composition
+        id="NumberCounter"
+        component={NumberCounter}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps}
+      />
+      <Composition
+        id="Charts"
+        component={Charts}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps}
+      />
+      <Composition
+        id="Stock Image"
+        component={StockImage}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps}
+      />
+      <Composition
+        id="Stock Video"
+        component={StockVideo}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps}
+      />
+      <Composition
+        id="Typography"
+        component={Typography}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps}
+      />
+      <Composition
+        id="Icon Animation"
+        component={IconAnimation}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps}
+      />
+    </>
   );
 }

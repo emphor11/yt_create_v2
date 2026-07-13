@@ -89,7 +89,16 @@ def test_component_registry_registers_only_split_comparison_for_mvp() -> None:
 
     component = registry.get_component("SplitComparison")
 
-    assert registry.available_components() == {"SplitComparison"}
+    assert registry.available_components() == {
+        "SplitComparison",
+        "Timeline",
+        "NumberCounter",
+        "Charts",
+        "Stock Image",
+        "Stock Video",
+        "Typography",
+        "Icon Animation",
+    }
     assert component.required_roles == ["product_price", "monthly_payment"]
     assert component.supported_events == [
         "reveal_full_price",

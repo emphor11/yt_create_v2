@@ -28,9 +28,7 @@ class RenderSpecHandler:
         if existing is not None:
             return existing
 
-        run = self.store.get_run(project_id, run_id)
-        if run.mode == "ai":
-            raise PipelineServiceError("AI mode is not implemented for render_spec yet.")
+        # Retrieve run details
 
         start = self.stage_logger.log_start(project_id, run_id, "render_spec")
         try:

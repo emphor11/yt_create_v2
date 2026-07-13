@@ -22,6 +22,7 @@ from app.stage_handlers.script_brief_handler import ScriptBriefHandler
 from app.stage_handlers.research_handler import ResearchHandler
 from app.stage_handlers.narrative_plan_handler import NarrativePlanHandler
 from app.stage_handlers.hook_handler import HookHandler
+from app.stage_handlers.script_visual_strategy_handler import ScriptVisualStrategyHandler
 from app.stage_handlers.narrative_arc_handler import NarrativeArcHandler
 from app.stage_handlers.script_draft_handler import ScriptDraftHandler
 from app.stage_handlers.scene_script_handler import SceneScriptHandler
@@ -36,6 +37,7 @@ from engines.render_engine import RenderEngine
 from engines.research_engine import ResearchEngine
 from engines.narrative_plan_engine import NarrativePlanEngine
 from engines.hook_engine import HookEngine
+from engines.script_visual_strategy_engine import ScriptVisualStrategyEngine
 from engines.narrative_arc_engine import NarrativeArcEngine
 from engines.render_spec_engine import RenderSpecEngine
 from engines.scene_script_engine import SceneScriptEngine
@@ -51,6 +53,7 @@ from domain.validators.narrative_arc_validator import NarrativeArcValidator
 from domain.validators.research_packet_validator import ResearchPacketValidator
 from domain.validators.narrative_plan_validator import NarrativePlanValidator
 from domain.validators.hook_validator import HookValidator
+from domain.validators.script_visual_strategy_validator import ScriptVisualStrategyValidator
 from domain.validators.render_spec_validator import RenderSpecValidator
 from domain.validators.scene_script_validator import SceneScriptValidator
 from domain.validators.script_brief_validator import ScriptBriefValidator
@@ -92,6 +95,7 @@ AI_STAGE_DEFINITIONS: list[tuple[str, str]] = [
     ("research",                "research_packet"),
     ("narrative_plan",          "narrative_plan"),
     ("hook",                    "hook"),
+    ("script_visual_strategy",  "script_visual_strategy"),
 ]
 
 NEXT_STAGE_BY_ARTIFACT_TYPE: dict[str, str | None] = {
@@ -99,7 +103,8 @@ NEXT_STAGE_BY_ARTIFACT_TYPE: dict[str, str | None] = {
     "generate_video_request": "research",
     "research_packet":        "narrative_plan",
     "narrative_plan":         "hook",
-    "hook":                   None, # Stage 4 ends here for now until Stage 5 is ready
+    "hook":                   "script_visual_strategy",
+    "script_visual_strategy": "timing",
     "script_brief":           "narrative_arc",
     "narrative_arc":          "script_draft",
     "script_draft":           "scene_script",
@@ -230,6 +235,9 @@ class PipelineService:
     def run_hook(self, project_id: str, run_id: str) -> ArtifactRecord:
         return self.run_stage(PipelineStage.HOOK.value, project_id, run_id)
 
+    def run_script_visual_strategy(self, project_id: str, run_id: str) -> ArtifactRecord:
+        return self.run_stage(PipelineStage.SCRIPT_VISUAL_STRATEGY.value, project_id, run_id)
+
     def run_script_brief(self, project_id: str, run_id: str) -> ArtifactRecord:
         return self.run_stage(PipelineStage.SCRIPT_BRIEF.value, project_id, run_id)
 
@@ -298,6 +306,13 @@ def build_pipeline_service(
             hook_engine=HookEngine(llm_provider) if llm_provider is not None else None,
             hook_validator=HookValidator(),
             stage_logger=stage_logger,
+        ),
+        PipelineStage.SCRIPT_VISUAL_STRATEGY: ScriptVisualStrategyHandler(
+            store=store,
+            strategy_engine=ScriptVisualStrategyEngine(llm_provider) if llm_provider is not None else None,
+            strategy_validator=ScriptVisualStrategyValidator(),
+            stage_logger=stage_logger,
+            component_registry=component_registry,
         ),
         PipelineStage.SCRIPT_BRIEF: ScriptBriefHandler(
             store=store,

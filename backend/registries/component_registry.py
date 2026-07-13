@@ -23,7 +23,49 @@ class ComponentRegistry:
                     "left_role": "product_price",
                     "right_role": "monthly_payment",
                 },
-            )
+            ),
+            "Timeline": ComponentDefinition(
+                component="Timeline",
+                required_roles=[],
+                supported_events=["attention_shift"],
+                constraints={},
+            ),
+            "NumberCounter": ComponentDefinition(
+                component="NumberCounter",
+                required_roles=[],
+                supported_events=["attention_shift"],
+                constraints={},
+            ),
+            "Charts": ComponentDefinition(
+                component="Charts",
+                required_roles=[],
+                supported_events=["attention_shift"],
+                constraints={},
+            ),
+            "Stock Image": ComponentDefinition(
+                component="Stock Image",
+                required_roles=[],
+                supported_events=["attention_shift"],
+                constraints={},
+            ),
+            "Stock Video": ComponentDefinition(
+                component="Stock Video",
+                required_roles=[],
+                supported_events=["attention_shift"],
+                constraints={},
+            ),
+            "Typography": ComponentDefinition(
+                component="Typography",
+                required_roles=[],
+                supported_events=["attention_shift"],
+                constraints={},
+            ),
+            "Icon Animation": ComponentDefinition(
+                component="Icon Animation",
+                required_roles=[],
+                supported_events=["attention_shift"],
+                constraints={},
+            ),
         }
 
     def has_component(self, component: str) -> bool:
