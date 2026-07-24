@@ -19,3 +19,4 @@ class PipelineStage(str, Enum):
     TIMING = "timing"
     RENDER_SPEC = "render_spec"
     RENDER = "render"
+    VIDEO_ASSEMBLY = "video_assembly"

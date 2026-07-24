@@ -95,46 +95,4 @@ class PollyVoiceProvider:
         return duration_seconds, word_timestamps
 
 
-class FallbackVoiceProvider:
-    """
-    A robust fallback provider that generates a mock MP3 structure and linear
-    timestamps, preventing API/AWS credential requirements from blocking local
-    runs and tests.
-    """
-    def __init__(self, voice_id: str = "FallbackVoice"):
-        self.voice_id = voice_id
 
-    def synthesize(self, text: str, output_path: Path) -> tuple[float, list[WordTimestamp]]:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Write a dummy valid MP3 header containing silence bytes
-        # 128 bytes of dummy mock data
-        dummy_mp3_bytes = b"\xFF\xFB\x90\x44" + b"\x00" * 124
-        output_path.write_bytes(dummy_mp3_bytes)
-
-        # Split text into words and generate linear 300ms intervals
-        words = [w.strip() for w in text.split() if w.strip()]
-        if not words:
-            words = ["Silence"]
-
-        word_timestamps: list[WordTimestamp] = []
-        current_ms = 0
-        for w in words:
-            # strip punctuation for word representation
-            clean_word = "".join(char for char in w if char.isalnum() or char in "'-")
-            if not clean_word:
-                clean_word = w
-            
-            # approximate reading speed of 320ms per word
-            duration_ms = max(150, len(clean_word) * 45 + 80)
-            word_timestamps.append(
-                WordTimestamp(
-                    word=clean_word,
-                    start_ms=current_ms,
-                    end_ms=current_ms + duration_ms
-                )
-            )
-            current_ms += duration_ms + 40 # 40ms silence gap between words
-
-        duration_seconds = current_ms / 1000.0
-        return duration_seconds, word_timestamps

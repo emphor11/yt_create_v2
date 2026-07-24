@@ -69,6 +69,13 @@ export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
     renderSpec,
     renderSpec.props.attention_shift_event_id
   );
+  const isClean = (renderSpec.props as any).leftLabel !== undefined;
+  const leftLabel = isClean ? (renderSpec.props as any).leftLabel : renderSpec.props.left?.label;
+  const leftRaw = isClean ? String((renderSpec.props as any).leftValue) : (renderSpec.props.left ? formatValue(renderSpec.props.left) : "");
+
+  const rightLabel = isClean ? (renderSpec.props as any).rightLabel : renderSpec.props.right?.label;
+  const rightRaw = isClean ? String((renderSpec.props as any).rightValue) : (renderSpec.props.right ? formatValue(renderSpec.props.right) : "");
+
   const leftProgress = progressForSpan(frame, fullPriceSpan);
   const rightProgress = progressForSpan(frame, monthlyPaymentSpan);
   const shiftProgress = progressForSpan(frame, attentionShiftSpan);
@@ -168,7 +175,7 @@ export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
                 textTransform: "uppercase",
               }}
             >
-              {renderSpec.props.left.label}
+              {leftLabel}
             </div>
             <div
               style={{
@@ -179,7 +186,7 @@ export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
                 marginTop: 58,
               }}
             >
-              {formatValue(renderSpec.props.left)}
+              {leftRaw}
             </div>
             <div
               style={{
@@ -215,7 +222,7 @@ export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
                 textTransform: "uppercase",
               }}
             >
-              {renderSpec.props.right.label}
+              {rightLabel}
             </div>
             <div
               style={{
@@ -226,7 +233,7 @@ export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
                 marginTop: 58,
               }}
             >
-              {formatValue(renderSpec.props.right)}
+              {rightRaw}
             </div>
             <div
               style={{

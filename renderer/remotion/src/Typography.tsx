@@ -11,6 +11,9 @@ export function Typography(renderSpec: SplitComparisonRenderSpec) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
+  const text = (renderSpec.props as any).text || renderSpec.props.left?.raw || renderSpec.props.left?.label || "";
+  const subtitle = (renderSpec.props as any).subtitle || renderSpec.props.right?.raw || "";
+
   const titleSpring = spring({
     frame,
     fps,
@@ -74,7 +77,7 @@ export function Typography(renderSpec: SplitComparisonRenderSpec) {
               opacity: titleSpring,
             }}
           >
-            {renderSpec.props.left.label}
+            {text}
           </div>
           <div
             style={{
@@ -88,7 +91,7 @@ export function Typography(renderSpec: SplitComparisonRenderSpec) {
               opacity: valueSpring,
             }}
           >
-            ➔ {renderSpec.props.right.raw}
+            ➔ {subtitle}
           </div>
         </main>
 

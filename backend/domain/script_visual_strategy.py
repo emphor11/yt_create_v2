@@ -8,6 +8,7 @@ class VisualStrategyBeat(BaseModel):
     visual_goal: str
     asset_query: str | None = None
     notes: str | None = None
+    trigger_word: str | None = None
     component_data: dict[str, Any] = Field(default_factory=dict)
 
 

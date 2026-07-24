@@ -146,6 +146,7 @@ def valid_strategy_response_payload() -> dict:
                         "beat_id": "beat_01",
                         "preferred_component": "SplitComparison",
                         "visual_goal": "Compare rent vs buying unrecoverable costs",
+                        "trigger_word": None,
                         "component_data": {
                             "left_role": "product_price",
                             "left_label": "Rent cost",
@@ -161,6 +162,7 @@ def valid_strategy_response_payload() -> dict:
                         "beat_id": "beat_02",
                         "preferred_component": "Typography",
                         "visual_goal": "Show text overlays",
+                        "trigger_word": "buying",
                     },
                 ],
             }
@@ -193,7 +195,7 @@ def test_strategy_requires_hook(tmp_path) -> None:
     assert "required 'hook' artifact is missing" in response.json()["detail"]
 
 
-def test_strategy_runs_successfully_and_compiles_legacy_artifacts(tmp_path) -> None:
+def test_strategy_runs_successfully(tmp_path) -> None:
     provider = ScriptedTestLLMProvider([valid_strategy_response_payload()])
     client, store = make_client(tmp_path, llm_provider=provider)
     _created, project_id, run_id = create_ai_project_with_hook(client, store)
@@ -206,24 +208,7 @@ def test_strategy_runs_successfully_and_compiles_legacy_artifacts(tmp_path) -> N
     assert artifact["artifact_type"] == "script_visual_strategy"
     assert artifact["status"] == "valid"
 
-    # Verify that the 4 legacy backward-compatible artifacts were compiled and saved in the database
-    scene_script = store.find_artifact_by_type(project_id, run_id, "scene_script")
-    assert scene_script is not None
-    assert scene_script.payload_json["narration"] == "Let's compare the unrecoverable cost of renting a $3000 apartment with buying a $750000 property."
-
-    semantic_scene = store.find_artifact_by_type(project_id, run_id, "semantic_scene")
-    assert semantic_scene is not None
-    assert len(semantic_scene.payload_json["entities"]) == 2
-
-    visual_event_seq = store.find_artifact_by_type(project_id, run_id, "visual_event_sequence")
-    assert visual_event_seq is not None
-    assert len(visual_event_seq.payload_json["events"]) == 3
-
-    visual_plan = store.find_artifact_by_type(project_id, run_id, "visual_plan")
-    assert visual_plan is not None
-    assert visual_plan.payload_json["props"]["left"]["value"] == 30000
-
-    # Verify run state machine transitioned to 'running' (since timing is the next stage in AI flow now)
+    # Verify run state machine transitioned to 'running' (since quality_review is the next stage in AI flow)
     run = store.get_run(project_id, run_id)
     assert run.state == "running"
     assert run.current_stage == "script_visual_strategy"

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from domain.visual_plan import SplitComparisonProps
+from domain.video_assembly_props import VideoAssemblyProps
 
 
 class RenderFrameSpan(BaseModel):
@@ -20,5 +20,5 @@ class RenderSpec(BaseModel):
     composition: str
     fps: int
     duration_frames: int
-    props: SplitComparisonProps
+    props: VideoAssemblyProps
     frame_spans: list[RenderFrameSpan]

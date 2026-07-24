@@ -181,14 +181,38 @@ def test_voice_generation_synthesizes_and_saves(tmp_path) -> None:
     client = TestClient(app)
     project_id, run_id = setup_project_ready_for_voice(store)
 
-    response = client.post(f"/projects/{project_id}/runs/{run_id}/run/voice_generation")
+    from unittest.mock import patch, MagicMock
+    
+    mock_client = MagicMock()
+    def mock_synthesize_speech(*args, **kwargs):
+        output_format = kwargs.get("OutputFormat")
+        if output_format == "mp3":
+            mock_stream = MagicMock()
+            mock_stream.read.return_value = b"\xFF\xFB\x90\x44" + b"\x00" * 124
+            return {"AudioStream": mock_stream}
+        elif output_format == "json":
+            mock_stream = MagicMock()
+            jsonlines = (
+                '{"time":60,"type":"word","start":0,"end":2,"value":"Is"}\n'
+                '{"time":120,"type":"word","start":3,"end":7,"value":"your"}\n'
+                '{"time":240,"type":"word","start":8,"end":15,"value":"monthly"}\n'
+                '{"time":510,"type":"word","start":16,"end":22,"value":"salary"}\n'
+            )
+            mock_stream.read.return_value = jsonlines.encode("utf-8")
+            return {"AudioStream": mock_stream}
+        return {}
+    mock_client.synthesize_speech.side_effect = mock_synthesize_speech
+
+    with patch("boto3.client", return_value=mock_client):
+        response = client.post(f"/projects/{project_id}/runs/{run_id}/run/voice_generation")
+        
     assert response.status_code == 200
     artifact = response.json()["artifact"]
     assert artifact["artifact_type"] == "voice_track"
     assert artifact["status"] == "valid"
     
     payload = artifact["payload_json"]
-    assert payload["voice_id"] == "FallbackVoice"
+    assert payload["voice_id"] == "Matthew"
     assert payload["audio_file_name"] == "narration.mp3"
     assert payload["duration_seconds"] > 0
     assert len(payload["word_timestamps"]) > 0

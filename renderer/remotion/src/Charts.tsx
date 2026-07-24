@@ -39,9 +39,18 @@ export function Charts(renderSpec: SplitComparisonRenderSpec) {
     config: { damping: 18, stiffness: 100 },
   });
 
-  const maxVal = Math.max(renderSpec.props.left.value, renderSpec.props.right.value, 1);
-  const leftPercent = (renderSpec.props.left.value / maxVal) * 80;
-  const rightPercent = (renderSpec.props.right.value / maxVal) * 80;
+  const isClean = (renderSpec.props as any).x !== undefined;
+  const leftLabel = isClean ? (renderSpec.props as any).x[0] : renderSpec.props.left?.label;
+  const leftVal = isClean ? (renderSpec.props as any).y[0] : (renderSpec.props.left?.value || 0);
+  const leftValText = isClean ? String(leftVal) : (renderSpec.props.left?.raw || "");
+
+  const rightLabel = isClean ? (renderSpec.props as any).x[1] : renderSpec.props.right?.label;
+  const rightVal = isClean ? (renderSpec.props as any).y[1] : (renderSpec.props.right?.value || 0);
+  const rightValText = isClean ? String(rightVal) : (renderSpec.props.right?.raw || "");
+
+  const maxVal = Math.max(leftVal, rightVal, 1);
+  const leftPercent = (leftVal / maxVal) * 80;
+  const rightPercent = (rightVal / maxVal) * 80;
 
   return (
     <AbsoluteFill
@@ -113,7 +122,7 @@ export function Charts(renderSpec: SplitComparisonRenderSpec) {
                 opacity: leftSpring,
               }}
             >
-              {renderSpec.props.left.raw}
+              {leftValText}
             </div>
             <div
               style={{
@@ -125,7 +134,7 @@ export function Charts(renderSpec: SplitComparisonRenderSpec) {
               }}
             />
             <div style={{ marginTop: 20, fontSize: 24, fontWeight: 700, color: "#9ca3af", textAlign: "center" }}>
-              {renderSpec.props.left.label}
+              {leftLabel}
             </div>
           </div>
 
@@ -147,7 +156,7 @@ export function Charts(renderSpec: SplitComparisonRenderSpec) {
                 opacity: rightSpring,
               }}
             >
-              {renderSpec.props.right.raw}
+              {rightValText}
             </div>
             <div
               style={{
@@ -159,7 +168,7 @@ export function Charts(renderSpec: SplitComparisonRenderSpec) {
               }}
             />
             <div style={{ marginTop: 20, fontSize: 24, fontWeight: 700, color: "#9ca3af", textAlign: "center" }}>
-              {renderSpec.props.right.label}
+              {rightLabel}
             </div>
           </div>
         </main>

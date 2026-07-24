@@ -53,6 +53,7 @@ def valid_strategy_payload() -> dict:
                         "beat_id": "beat_02",
                         "preferred_component": "Typography",
                         "visual_goal": "Show text overlays",
+                        "trigger_word": "actual",
                     },
                 ],
             }

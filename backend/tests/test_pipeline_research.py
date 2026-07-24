@@ -73,10 +73,14 @@ def valid_research_response_payload() -> dict:
 
 
 def test_research_requires_generate_video_request(tmp_path) -> None:
-    # Creating deterministic project has no generate_video_request (it has topic_request)
-    client, _store = make_client(tmp_path)
-    response = client.post("/projects", json={"topic": "A", "angle": "B"})
+    client, store = make_client(tmp_path)
+    response = client.post("/projects", json={"topic": "A"})
     created = response.json()
+
+    # Manually delete the generate_video_request artifact from the database
+    artifacts = store.list_project_artifacts(created["project"]["id"])
+    req_art = [a for a in artifacts if a.artifact_type == "generate_video_request"][0]
+    store.delete_artifacts([req_art.id])
 
     response = client.post(
         f"/projects/{created['project']['id']}/runs/{created['run']['id']}/run/research"

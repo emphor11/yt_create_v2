@@ -11,6 +11,12 @@ export function IconAnimation(renderSpec: SplitComparisonRenderSpec) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
+  const isClean = (renderSpec.props as any).text !== undefined;
+  const leftLabel = isClean ? "Visual Goal" : renderSpec.props.left?.label;
+  const leftRaw = isClean ? (renderSpec.props as any).text : renderSpec.props.left?.raw;
+  const rightLabel = isClean ? "Context" : renderSpec.props.right?.label;
+  const rightRaw = isClean ? (renderSpec.props as any).subtitle : renderSpec.props.right?.raw;
+
   const iconSpring = spring({
     frame,
     fps,
@@ -94,10 +100,10 @@ export function IconAnimation(renderSpec: SplitComparisonRenderSpec) {
               💼
             </div>
             <div style={{ marginTop: 24, fontSize: 28, fontWeight: 800, color: "#c084fc" }}>
-              {renderSpec.props.left.label}
+              {leftLabel}
             </div>
             <div style={{ fontSize: 34, fontWeight: 900, color: "#ffffff", marginTop: 8 }}>
-              {renderSpec.props.left.raw}
+              {leftRaw}
             </div>
           </div>
 
@@ -130,10 +136,10 @@ export function IconAnimation(renderSpec: SplitComparisonRenderSpec) {
               🏠
             </div>
             <div style={{ marginTop: 24, fontSize: 28, fontWeight: 800, color: "#c084fc" }}>
-              {renderSpec.props.right.label}
+              {rightLabel}
             </div>
             <div style={{ fontSize: 34, fontWeight: 900, color: "#ffffff", marginTop: 8 }}>
-              {renderSpec.props.right.raw}
+              {rightRaw}
             </div>
           </div>
         </main>

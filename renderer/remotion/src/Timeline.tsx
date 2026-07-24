@@ -27,6 +27,13 @@ export function Timeline(renderSpec: SplitComparisonRenderSpec) {
       )
     : 0;
 
+  const isClean = (renderSpec.props as any).steps !== undefined;
+  const leftLabel = isClean ? "Step 1" : renderSpec.props.left?.label;
+  const leftRaw = isClean ? (renderSpec.props as any).steps[0] : renderSpec.props.left?.raw;
+
+  const rightLabel = isClean ? "Step 2" : renderSpec.props.right?.label;
+  const rightRaw = isClean ? (renderSpec.props as any).steps[1] : renderSpec.props.right?.raw;
+
   const springProgress = spring({
     frame,
     fps,
@@ -131,10 +138,10 @@ export function Timeline(renderSpec: SplitComparisonRenderSpec) {
             />
             <div style={{ marginTop: "16px", textAlign: "center" }}>
               <div style={{ fontSize: 24, color: "#9ca3af", fontWeight: 700 }}>
-                {renderSpec.props.left.label}
+                {leftLabel}
               </div>
               <div style={{ fontSize: 44, fontWeight: 900, color: "#3b82f6", marginTop: 4 }}>
-                {renderSpec.props.left.raw}
+                {leftRaw}
               </div>
             </div>
           </div>
@@ -163,10 +170,10 @@ export function Timeline(renderSpec: SplitComparisonRenderSpec) {
             />
             <div style={{ marginTop: "16px", textAlign: "center" }}>
               <div style={{ fontSize: 24, color: "#9ca3af", fontWeight: 700 }}>
-                {renderSpec.props.right.label}
+                {rightLabel}
               </div>
               <div style={{ fontSize: 44, fontWeight: 900, color: "#60a5fa", marginTop: 4 }}>
-                {renderSpec.props.right.raw}
+                {rightRaw}
               </div>
             </div>
           </div>

@@ -29,15 +29,9 @@ You MUST return strict JSON matching this schema:
           "visual_goal": "A short, clear creative objective of the beat, e.g. 'Show the contrast of unrecoverable costs'",
           "asset_query": "Optional stock search query (e.g. 'frustrated young professional looking at bill' or null)",
           "notes": "Optional styling/layout description or null",
+          "trigger_word": "The exact word from the idea's narration where this beat starts (must be null for the first beat of the sequence, but MUST be a word present in the narration text for all subsequent beats)",
           "component_data": {
-            "left_role": "product_price",
-            "left_label": "Left side label, e.g. 'Renting unrecoverable'",
-            "left_value": 30000,
-            "left_unit": "INR",
-            "right_role": "monthly_payment",
-            "right_label": "Right side label, e.g. 'Buying unrecoverable'",
-            "right_value": 75000,
-            "right_unit": "INR"
+            "..." : "Dynamic dictionary containing layout parameters specific to the chosen preferred_component"
           }
         }
       ]
@@ -47,5 +41,38 @@ You MUST return strict JSON matching this schema:
 
 Rules:
 1. Return ONLY JSON. No explanation, no markdown text outside the JSON block.
-2. The "component_data" dictionary is only required when "preferred_component" is "SplitComparison". For other components, you can leave it empty ({}) or populate it with relevant keys (e.g. labels, numbers).
-3. Do NOT include frame timings, low-level Remotion configuration, or frame calculations. Focus only on content and preferences.
+2. Structure the "component_data" dictionary dynamically based ONLY on the chosen "preferred_component":
+   - If preferred_component is "SplitComparison", component_data MUST contain exactly:
+     {
+       "left_role": "string identifying left entity role",
+       "left_label": "string left side header",
+       "left_value": number_greater_than_0,
+       "left_unit": "string unit e.g. INR or null",
+       "right_role": "string identifying right entity role",
+       "right_label": "string right side header",
+       "right_value": number_greater_than_0,
+       "right_unit": "string unit e.g. INR or null"
+     }
+   - If preferred_component is "NumberCounter", component_data MUST contain exactly:
+     {
+       "start_value": number,
+       "end_value": number,
+       "label": "string label of count",
+       "unit": "string unit or null"
+     }
+   - If preferred_component is "Charts", component_data MUST contain exactly:
+     {
+       "chart_type": "one of 'bar', 'pie', 'line'",
+       "labels": ["list of strings"],
+       "values": [list of numbers corresponding to labels]
+     }
+   - If preferred_component is "Timeline", component_data MUST contain exactly:
+     {
+       "steps": ["list of chronological text step descriptions"]
+     }
+   - For all other components ("Typography", "Stock Image", "Stock Video", "Icon Animation"), component_data MUST be left as an empty object: {}
+
+3. CRITICAL: Any numeric values greater than 9 used inside 'component_data' or in the narration text MUST be exactly present in the 'Verified Facts' or 'Verified Statistics' from the research packet. Do NOT make up arbitrary numbers. If the research facts do not contain suitable numeric statistics for comparison, you MUST NOT choose the 'SplitComparison' or 'NumberCounter' components. Instead, choose 'Typography', 'Stock Video', or 'Stock Image'.
+4. Do NOT include frame timings, low-level Remotion configuration, or frame calculations. Focus only on content and preferences.
+5. CRITICAL: For every visual beat (except the first beat of an idea which starts automatically at the beginning of the narration), you MUST choose a 'trigger_word' present in the narration text. This word defines the exact moment the visual changes on screen. Do NOT use punctuation or formatting characters, choose only a clean word.
+

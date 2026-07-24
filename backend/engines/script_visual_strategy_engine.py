@@ -40,7 +40,20 @@ SCRIPT_VISUAL_STRATEGY_RESPONSE_SCHEMA: dict[str, Any] = {
                                 "visual_goal": {"type": "string"},
                                 "asset_query": {"type": "string"},
                                 "notes": {"type": "string"},
-                                "component_data": {"type": "object"},
+                                "trigger_word": {"type": "string"},
+                                "component_data": {
+                                    "type": "object",
+                                    "properties": {
+                                        "left_label": {"type": "string"},
+                                        "right_label": {"type": "string"},
+                                        "left_value": {"type": "number"},
+                                        "right_value": {"type": "number"},
+                                        "left_unit": {"type": "string"},
+                                        "right_unit": {"type": "string"},
+                                        "left_role": {"type": "string"},
+                                        "right_role": {"type": "string"}
+                                    }
+                                },
                             },
                             "required": ["beat_id", "preferred_component", "visual_goal"],
                         },
@@ -108,12 +121,21 @@ class ScriptVisualStrategyEngine:
                         f"Channel: {research_packet.channel}\n"
                         f"Thesis: {narrative_plan.thesis}\n"
                         f"Narrative Plan: {narrative_plan.model_dump()}\n"
-                        f"Hook: {hook.model_dump()}\n"
-                        "Generate a highly detailed body script and visual strategy."
+                        f"Hook: {hook.model_dump()}\n\n"
+                        f"--- STRICT RESEARCH CONTEXT & FACTS ---\n"
+                        f"Verified Concepts: {research_packet.concepts}\n"
+                        f"Verified Facts: {research_packet.verified_facts}\n"
+                        f"Verified Statistics: {research_packet.statistics}\n\n"
+                        f"CRITICAL INSTRUCTIONS:\n"
+                        f"1. For each idea's 'focus_concept', you MUST choose exactly one concept from the 'Verified Concepts' list above. Do NOT make up new concepts or use phrasing not present in that list.\n"
+                        f"2. Any numbers or statistics you mention in the narration text or SplitComparison values MUST be strictly verified and present in 'Verified Facts' or 'Verified Statistics'. Do NOT invent or use any other numbers (except common small numbers/indexes like 1, 2, 3, etc.).\n"
+                        f"3. You MUST generate exactly one output 'idea' in the 'ideas' array for every 'scene_beat' provided in the Narrative Plan. Maintain their exact chronological order, titles, focus concepts, and core teaching points, while filling in the 'narration' and 'visual_sequence' fields.\n"
+                        f"4. For every visual beat (except the first beat of a sequence which should have trigger_word set to null), you MUST choose a 'trigger_word' present in the narration text. This word defines the exact moment the visual changes on screen.\n"
+                        f"5. Generate a highly detailed body script and visual strategy conforming exactly to the response schema and these requirements."
                     ),
                 ),
             ],
-            temperature=0.2,
+            temperature=0.5,
             max_tokens=4000,
         )
 

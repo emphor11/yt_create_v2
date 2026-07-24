@@ -7,6 +7,7 @@ import { StockImage } from "./StockImage";
 import { StockVideo } from "./StockVideo";
 import { Typography } from "./Typography";
 import { IconAnimation } from "./IconAnimation";
+import { VideoAssembly } from "./VideoAssembly";
 
 const defaultProps: SplitComparisonRenderSpec = {
   scene_id: "scene_01",
@@ -94,7 +95,7 @@ export function RemotionRoot() {
         defaultProps={defaultProps}
       />
       <Composition
-        id="Stock Image"
+        id="StockImage"
         component={StockImage}
         durationInFrames={240}
         fps={30}
@@ -103,7 +104,7 @@ export function RemotionRoot() {
         defaultProps={defaultProps}
       />
       <Composition
-        id="Stock Video"
+        id="StockVideo"
         component={StockVideo}
         durationInFrames={240}
         fps={30}
@@ -121,7 +122,7 @@ export function RemotionRoot() {
         defaultProps={defaultProps}
       />
       <Composition
-        id="Icon Animation"
+        id="IconAnimation"
         component={IconAnimation}
         durationInFrames={240}
         fps={30}
@@ -129,6 +130,47 @@ export function RemotionRoot() {
         height={1080}
         defaultProps={defaultProps}
       />
+      <Composition
+        id="VideoAssembly"
+        component={VideoAssembly}
+        durationInFrames={1800}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultAssemblyProps as any}
+      />
     </>
   );
 }
+
+const defaultAssemblyProps = {
+  scene_id: "assembly_scene",
+  composition: "VideoAssembly",
+  fps: 30,
+  duration_frames: 240,
+  props: {
+    scenes: [
+      {
+        scene_id: "mock_scene_01",
+        start_frame: 0,
+        end_frame: 240,
+        duration_frames: 240,
+        component: {
+          component_id: "Typography",
+          props: {
+            left: { label: "Typography Mock", raw: "Mock Left" },
+            right: { label: "Key Idea", raw: "Mock Right" }
+          }
+        },
+        asset: null,
+        narration_text: "Mock text"
+      }
+    ],
+    audio: {
+      audio_file_name: "narration.mp3",
+      local_path: "",
+      duration_seconds: 8.0
+    }
+  },
+  frame_spans: []
+};

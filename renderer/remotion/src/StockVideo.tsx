@@ -11,6 +11,12 @@ export function StockVideo(renderSpec: SplitComparisonRenderSpec) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
+  const isClean = (renderSpec.props as any).text !== undefined;
+  const leftLabel = isClean ? "Visual Goal" : renderSpec.props.left?.label;
+  const leftRaw = isClean ? (renderSpec.props as any).text : renderSpec.props.left?.raw;
+  const rightLabel = isClean ? "Context" : renderSpec.props.right?.label;
+  const rightRaw = isClean ? (renderSpec.props as any).subtitle : renderSpec.props.right?.raw;
+
   const scaleSpring = spring({
     frame,
     fps,
@@ -101,10 +107,10 @@ export function StockVideo(renderSpec: SplitComparisonRenderSpec) {
             }}
           >
             <div style={{ color: "#a78bfa", fontSize: 24, fontWeight: 800, textTransform: "uppercase" }}>
-              {renderSpec.props.left.label}
+              {leftLabel}
             </div>
             <div style={{ fontSize: 64, fontWeight: 950, marginTop: 16 }}>
-              {renderSpec.props.left.raw}
+              {leftRaw}
             </div>
           </div>
 
@@ -120,10 +126,10 @@ export function StockVideo(renderSpec: SplitComparisonRenderSpec) {
             }}
           >
             <div style={{ color: "#c084fc", fontSize: 24, fontWeight: 800, textTransform: "uppercase" }}>
-              {renderSpec.props.right.label}
+              {rightLabel}
             </div>
             <div style={{ fontSize: 64, fontWeight: 950, color: "#a78bfa", marginTop: 16 }}>
-              {renderSpec.props.right.raw}
+              {rightRaw}
             </div>
           </div>
         </main>

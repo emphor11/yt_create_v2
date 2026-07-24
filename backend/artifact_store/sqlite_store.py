@@ -134,7 +134,7 @@ class ArtifactStore:
             raise RecordNotFoundError(f"Project {project_id} was not found.")
         return self._project_from_row(row)
 
-    def create_run(self, project_id: str, mode: RunMode = "deterministic") -> PipelineRunRecord:
+    def create_run(self, project_id: str, mode: RunMode = "ai") -> PipelineRunRecord:
         self.get_project(project_id)
         if mode not in VALID_RUN_MODES:
             raise ValueError(f"Run mode must be one of: {', '.join(sorted(VALID_RUN_MODES))}.")

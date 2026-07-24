@@ -42,7 +42,7 @@ await renderMedia({
   outputLocation: outputPath,
   inputProps: renderSpec,
   overwrite: true,
-  muted: true,
+  muted: false,
   concurrency: 2,
   logLevel: "warn",
 });

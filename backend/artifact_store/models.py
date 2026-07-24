@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field
 from domain.validation import ArtifactStatus, ValidationResult
 
 
-RunMode = Literal["deterministic", "ai"]
-VALID_RUN_MODES: set[RunMode] = {"deterministic", "ai"}
+RunMode = Literal["ai"]
+VALID_RUN_MODES: set[RunMode] = {"ai"}
 
 RunState = Literal["pending", "running", "failed", "completed"]
 VALID_RUN_STATES: set[RunState] = {"pending", "running", "failed", "completed"}

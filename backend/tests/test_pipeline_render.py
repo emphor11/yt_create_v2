@@ -9,6 +9,9 @@ from artifact_store.sqlite_store import ArtifactStore
 from engines.render_engine import RenderEngine
 from providers.media_storage import LocalMediaStorage
 from providers.remotion_provider import RemotionProviderError, RemotionRenderOutput
+from domain.render_spec import RenderSpec, RenderFrameSpan
+from domain.video_assembly_props import VideoAssemblyProps, SceneSpec, ComponentSpec, AudioSpec
+from domain.validation import ValidationResult
 
 
 class SuccessfulProvider:
@@ -46,40 +49,68 @@ def create_valid_project(client: TestClient) -> dict:
         "/projects",
         json={
             "topic": "Why Monthly Payments Feel Cheap",
-            "angle": "How EMIs hide total cost",
         },
     )
     assert response.status_code == 200
     return response.json()
 
 
-def run_stage(client: TestClient, created: dict, stage: str) -> dict:
-    response = client.post(
-        f"/projects/{created['project']['id']}/runs/{created['run']['id']}/run/{stage}"
+def save_mock_render_spec(store: ArtifactStore, project_id: str, run_id: str):
+    spec = RenderSpec(
+        scene_id="scene_01",
+        composition="VideoAssembly",
+        fps=30,
+        duration_frames=240,
+        props=VideoAssemblyProps(
+            scenes=[
+                SceneSpec(
+                    scene_id="scene_001",
+                    start_frame=0,
+                    end_frame=240,
+                    duration_frames=240,
+                    component=ComponentSpec(
+                        component_id="Typography",
+                        props={"text": "Hello"}
+                    ),
+                    asset=None,
+                    narration_text="Hello"
+                )
+            ],
+            audio=AudioSpec(
+                audio_file_name="narration.mp3",
+                local_path="narration.mp3",
+                duration_seconds=8.0
+            )
+        ),
+        frame_spans=[
+            RenderFrameSpan(
+                event_id="scene_001",
+                start_frame=0,
+                end_frame=240,
+                duration_frames=240,
+            )
+        ]
     )
-    assert response.status_code == 200
-    return response.json()
-
-
-def run_to_render_spec(client: TestClient, created: dict) -> dict:
-    run_stage(client, created, "script_brief")
-    run_stage(client, created, "narrative_arc")
-    run_stage(client, created, "script_draft")
-    run_stage(client, created, "scene_script")
-    run_stage(client, created, "semantic_scene")
-    run_stage(client, created, "visual_event_sequence")
-    run_stage(client, created, "visual_plan")
-    run_stage(client, created, "timing")
-    return run_stage(client, created, "render_spec")
+    return store.save_artifact(
+        project_id=project_id,
+        run_id=run_id,
+        artifact_type="render_spec",
+        schema_version="1",
+        payload_json=spec.model_dump(),
+        parent_artifact_roles_json={},
+        validation_json=ValidationResult(status="valid"),
+    )
 
 
 def test_run_render_creates_video_artifact_and_media_file(tmp_path) -> None:
-    client, _store, media_storage = make_client(tmp_path)
+    client, store, media_storage = make_client(tmp_path)
     created = create_valid_project(client)
-    render_spec_response = run_to_render_spec(client, created)
+    project_id = created["project"]["id"]
+    run_id = created["run"]["id"]
+    render_spec_art = save_mock_render_spec(store, project_id, run_id)
 
     response = client.post(
-        f"/projects/{created['project']['id']}/runs/{created['run']['id']}/run/render"
+        f"/projects/{project_id}/runs/{run_id}/run/render"
     )
 
     assert response.status_code == 200
@@ -89,7 +120,7 @@ def test_run_render_creates_video_artifact_and_media_file(tmp_path) -> None:
     assert body["validation"]["status"] == "valid"
     assert artifact["artifact_type"] == "video"
     assert artifact["parent_artifact_roles_json"] == {
-        "render_spec": render_spec_response["artifact_id"]
+        "render_spec": render_spec_art.id
     }
     assert payload["render_status"] == "succeeded"
     assert payload["storage_key"].endswith("/scene_01.mp4")
@@ -105,15 +136,17 @@ def test_run_render_creates_video_artifact_and_media_file(tmp_path) -> None:
 
 
 def test_run_render_twice_returns_existing_artifact(tmp_path) -> None:
-    client, _store, _media_storage = make_client(tmp_path)
+    client, store, _media_storage = make_client(tmp_path)
     created = create_valid_project(client)
-    run_to_render_spec(client, created)
-    path = f"/projects/{created['project']['id']}/runs/{created['run']['id']}/run/render"
+    project_id = created["project"]["id"]
+    run_id = created["run"]["id"]
+    save_mock_render_spec(store, project_id, run_id)
+    path = f"/projects/{project_id}/runs/{run_id}/run/render"
 
     first = client.post(path)
     second = client.post(path)
     artifacts = client.get(
-        f"/projects/{created['project']['id']}/runs/{created['run']['id']}/artifacts"
+        f"/projects/{project_id}/runs/{run_id}/artifacts"
     )
 
     assert first.status_code == 200
@@ -125,9 +158,11 @@ def test_run_render_twice_returns_existing_artifact(tmp_path) -> None:
 def test_render_requires_render_spec(tmp_path) -> None:
     client, _store, _media_storage = make_client(tmp_path)
     created = create_valid_project(client)
+    project_id = created["project"]["id"]
+    run_id = created["run"]["id"]
 
     response = client.post(
-        f"/projects/{created['project']['id']}/runs/{created['run']['id']}/run/render"
+        f"/projects/{project_id}/runs/{run_id}/run/render"
     )
 
     assert response.status_code == 409
@@ -135,12 +170,14 @@ def test_render_requires_render_spec(tmp_path) -> None:
 
 
 def test_render_failure_is_stored_as_failed_video_artifact(tmp_path) -> None:
-    client, _store, _media_storage = make_client(tmp_path, provider=FailingProvider())
+    client, store, _media_storage = make_client(tmp_path, provider=FailingProvider())
     created = create_valid_project(client)
-    run_to_render_spec(client, created)
+    project_id = created["project"]["id"]
+    run_id = created["run"]["id"]
+    save_mock_render_spec(store, project_id, run_id)
 
     response = client.post(
-        f"/projects/{created['project']['id']}/runs/{created['run']['id']}/run/render"
+        f"/projects/{project_id}/runs/{run_id}/run/render"
     )
 
     assert response.status_code == 200

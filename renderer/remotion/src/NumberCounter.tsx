@@ -11,9 +11,11 @@ export function NumberCounter(renderSpec: SplitComparisonRenderSpec) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const leftValue = renderSpec.props.left.value;
-  const rightValue = renderSpec.props.right.value;
-  const unit = renderSpec.props.left.unit;
+  const isClean = (renderSpec.props as any).startValue !== undefined;
+  const startValue = isClean ? (renderSpec.props as any).startValue : (renderSpec.props.left?.value || 0);
+  const endValue = isClean ? (renderSpec.props as any).endValue : (renderSpec.props.right?.value || 100);
+  const label = isClean ? (renderSpec.props as any).label : `${renderSpec.props.left?.label || ""} ➔ ${renderSpec.props.right?.label || ""}`;
+  const unit = isClean ? "" : (renderSpec.props.left?.unit || "");
 
   const countSpring = spring({
     frame,
@@ -21,7 +23,7 @@ export function NumberCounter(renderSpec: SplitComparisonRenderSpec) {
     config: { damping: 20, stiffness: 80 },
   });
 
-  const currentValue = Math.round(interpolate(countSpring, [0, 1], [leftValue, rightValue]));
+  const currentValue = Math.round(interpolate(countSpring, [0, 1], [startValue, endValue]));
 
   return (
     <AbsoluteFill
@@ -75,7 +77,7 @@ export function NumberCounter(renderSpec: SplitComparisonRenderSpec) {
           }}
         >
           <div style={{ color: "#9ca3af", fontSize: 28, fontWeight: 700, textTransform: "uppercase" }}>
-            {renderSpec.props.left.label} ➔ {renderSpec.props.right.label}
+            {label}
           </div>
           <div
             style={{
@@ -87,7 +89,7 @@ export function NumberCounter(renderSpec: SplitComparisonRenderSpec) {
               textShadow: "0 0 40px rgba(168, 85, 247, 0.4)",
             }}
           >
-            {unit === "INR" ? "₹" : ""}{currentValue.toLocaleString()} {unit !== "INR" ? unit : ""}
+            {unit === "INR" ? "₹" : ""}{currentValue.toLocaleString()} {unit !== "INR" && unit ? unit : ""}
           </div>
         </main>
 
