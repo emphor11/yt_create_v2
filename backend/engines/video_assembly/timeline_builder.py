@@ -72,21 +72,53 @@ class TimelineBuilder:
 
         # Process Hook section
         hook_timestamps = section_timestamps[0]
-        hook_beats_count = len(hook.visual_directives)
+        hook_beats = hook.visual_directives
+        hook_beats_count = len(hook_beats)
         if hook_beats_count > 0:
-            # Since hook has no trigger_word fields, split timestamps proportionally
-            hook_subgroups = self._split_timestamps_proportionally(
-                timestamps=hook_timestamps,
-                text=hook.script_text,
-                num_beats=hook_beats_count,
-            )
+            # Align hook beats using trigger words (same as body sections)
+            hook_start_indices = [0]
+            for b_idx in range(1, hook_beats_count):
+                trigger = hook_beats[b_idx].trigger_word
+                if not trigger or not trigger.strip():
+                    raise TimelineBuilderError(
+                        f"Beat '{hook_beats[b_idx].beat_id}' in hook requires trigger_word."
+                    )
+                
+                cleaned_trigger = re.sub(r"[^\w]", "", trigger.lower())
+                
+                # Find matching word in hook timestamps starting from the last matched word
+                match_idx = -1
+                prev_start = hook_start_indices[-1]
+                for idx in range(prev_start, len(hook_timestamps)):
+                    cleaned_polly_word = re.sub(r"[^\w]", "", hook_timestamps[idx].word.lower())
+                    if cleaned_polly_word == cleaned_trigger:
+                        match_idx = idx
+                        break
+                
+                if match_idx == -1:
+                    raise TimelineBuilderError(
+                        f"Trigger word '{trigger}' for beat '{hook_beats[b_idx].beat_id}' in hook "
+                        f"was not found in the voice track words."
+                    )
+                
+                hook_start_indices.append(match_idx)
+
+            hook_start_indices.append(len(hook_timestamps))
+
+            # Assign bounds to hook beats
             for b_idx in range(hook_beats_count):
-                sub = hook_subgroups[b_idx]
-                if sub:
-                    beat_time_bounds.append((float(sub[0].start_ms), float(sub[-1].end_ms)))
+                start_idx = hook_start_indices[b_idx]
+                end_idx = hook_start_indices[b_idx + 1]
+                
+                if start_idx < end_idx and start_idx < len(hook_timestamps):
+                    start_ms = float(hook_timestamps[start_idx].start_ms)
+                    actual_end_idx = min(end_idx - 1, len(hook_timestamps) - 1)
+                    end_ms = float(hook_timestamps[actual_end_idx].end_ms)
+                    beat_time_bounds.append((start_ms, end_ms))
                 else:
-                    last_end = beat_time_bounds[-1][1] if beat_time_bounds else 0.0
-                    beat_time_bounds.append((last_end, last_end))
+                    raise TimelineBuilderError(
+                        f"Invalid trigger word order or empty range for beat '{hook_beats[b_idx].beat_id}' in hook."
+                    )
 
         # Process Body Sections
         for s_idx, idea in enumerate(strategy.ideas):
@@ -142,8 +174,9 @@ class TimelineBuilder:
                     end_ms = float(timestamps[actual_end_idx].end_ms)
                     beat_time_bounds.append((start_ms, end_ms))
                 else:
-                    last_end = beat_time_bounds[-1][1] if beat_time_bounds else 0.0
-                    beat_time_bounds.append((last_end, last_end))
+                    raise TimelineBuilderError(
+                        f"Invalid trigger word order or empty range for beat '{beats[b_idx].beat_id}' in idea '{idea.idea_id}'."
+                    )
 
         # 5. Build contiguous and non-overlapping intervals
         total_duration_frames = int(round(voice_track.duration_seconds * self.fps))
@@ -212,57 +245,3 @@ class TimelineBuilder:
             )
 
         return timed_intervals
-
-    @staticmethod
-    def _split_timestamps_proportionally(
-        timestamps: list[Any],
-        text: str,
-        num_beats: int,
-    ) -> list[list[Any]]:
-        # Split text into sentences
-        sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
-        if not sentences:
-            sentences = [text]
-
-        N = len(sentences)
-        M = num_beats
-        if N >= M:
-            k, m = divmod(N, M)
-            sentence_groups = [
-                sentences[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)]
-                for i in range(M)
-            ]
-        else:
-            sentence_groups = [[sentences[i]] if i < N else [] for i in range(M)]
-
-        word_counts = []
-        for group in sentence_groups:
-            if group:
-                combined_text = " ".join(group)
-                word_counts.append(max(1, len(re.findall(r"\w+", combined_text))))
-            else:
-                word_counts.append(1)
-
-        total_words_in_beats = sum(word_counts)
-        total_timestamps = len(timestamps)
-
-        subgroups = []
-        curr_time_idx = 0
-        for i, count in enumerate(word_counts):
-            if total_words_in_beats > 0:
-                share = int(round((count / total_words_in_beats) * total_timestamps))
-            else:
-                share = total_timestamps // M
-
-            if share <= 0 and curr_time_idx < total_timestamps:
-                share = 1
-
-            if i == M - 1:
-                end_time_idx = total_timestamps
-            else:
-                end_time_idx = min(curr_time_idx + share, total_timestamps)
-
-            subgroups.append(timestamps[curr_time_idx:end_time_idx])
-            curr_time_idx = end_time_idx
-
-        return subgroups

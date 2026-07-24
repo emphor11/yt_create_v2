@@ -140,7 +140,8 @@ def test_timeline_builder_trigger_words() -> None:
         conceptual_hook="Hook",
         script_text="Is salary a drug?",
         visual_directives=[
-            HookVisualDirective(beat_id="hook_beat_1", visual_instruction="Intro visual")
+            HookVisualDirective(beat_id="hook_beat_1", visual_instruction="Intro visual", trigger_word=None),
+            HookVisualDirective(beat_id="hook_beat_2", visual_instruction="Intro visual 2", trigger_word="drug")
         ]
     )
     strategy = ScriptVisualStrategy(
@@ -202,19 +203,22 @@ def test_timeline_builder_trigger_words() -> None:
 
     timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=voice_track)
 
-    assert len(timeline) == 4
-    # Hook beat
+    assert len(timeline) == 5
+    # Hook beat 1
     assert timeline[0].beat_id == "hook_beat_1"
     assert timeline[0].start_frame == 0
+    # Hook beat 2 (starts at trigger "drug" at 500ms -> frame 15)
+    assert timeline[1].beat_id == "hook_beat_2"
+    assert timeline[1].start_frame == 15
     # body_beat_1 (starts at start of body section, i.e. "You" at 1000ms -> frame 30)
-    assert timeline[1].beat_id == "body_beat_1"
-    assert timeline[1].start_frame == timeline[0].end_frame # contiguous hook border
+    assert timeline[2].beat_id == "body_beat_1"
+    assert timeline[2].start_frame == timeline[1].end_frame # contiguous hook border
     # body_beat_2 (starts at trigger_word "safety" at 2000ms -> frame 60)
-    assert timeline[2].beat_id == "body_beat_2"
-    assert timeline[2].start_frame == timeline[1].end_frame
-    # body_beat_3 (starts at trigger_word "trap" at 3200ms -> frame 96)
-    assert timeline[3].beat_id == "body_beat_3"
+    assert timeline[3].beat_id == "body_beat_2"
     assert timeline[3].start_frame == timeline[2].end_frame
+    # body_beat_3 (starts at trigger_word "trap" at 3200ms -> frame 96)
+    assert timeline[4].beat_id == "body_beat_3"
+    assert timeline[4].start_frame == timeline[3].end_frame
 
 
 def test_timeline_builder_throws_on_missing_trigger() -> None:
@@ -224,6 +228,7 @@ def test_timeline_builder_throws_on_missing_trigger() -> None:
     from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea, VisualStrategyBeat
     from domain.voice_track import VoiceTrack, WordTimestamp
 
+    # Test Body beat trigger mismatch
     builder = TimelineBuilder(fps=30)
     hook = Hook(
         conceptual_hook="Hook",
@@ -276,4 +281,18 @@ def test_timeline_builder_throws_on_missing_trigger() -> None:
     with pytest.raises(TimelineBuilderError) as exc_info:
         builder.build_timeline(hook=hook, strategy=strategy, voice_track=voice_track)
     assert "was not found in the voice track words" in str(exc_info.value)
+
+    # Test Hook beat trigger mismatch
+    hook_bad = Hook(
+        conceptual_hook="Hook",
+        script_text="Is salary a drug?",
+        visual_directives=[
+            HookVisualDirective(beat_id="hook_beat_1", visual_instruction="Intro visual", trigger_word=None),
+            HookVisualDirective(beat_id="hook_beat_2", visual_instruction="Intro visual 2", trigger_word="nonexistent")
+        ]
+    )
+    with pytest.raises(TimelineBuilderError) as exc_info2:
+        builder.build_timeline(hook=hook_bad, strategy=strategy, voice_track=voice_track)
+    assert "was not found in the voice track words" in str(exc_info2.value)
+
 

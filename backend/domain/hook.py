@@ -5,6 +5,7 @@ class VisualDirective(BaseModel):
     beat_id: str
     visual_instruction: str
     onscreen_text: str | None = None
+    trigger_word: str | None = None
 
 
 class Hook(BaseModel):

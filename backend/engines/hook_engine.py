@@ -28,6 +28,7 @@ HOOK_RESPONSE_SCHEMA: dict[str, Any] = {
                     "beat_id": {"type": "string"},
                     "visual_instruction": {"type": "string"},
                     "onscreen_text": {"type": "string"},
+                    "trigger_word": {"type": "string"},
                 },
                 "required": ["beat_id", "visual_instruction"],
             },

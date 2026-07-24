@@ -8,7 +8,8 @@ You MUST return strict JSON matching this schema:
     {
       "beat_id": "beat_01",
       "visual_instruction": "Description of what is shown on screen, e.g. stock footage search query, transition effect, animation description.",
-      "onscreen_text": "Optional large text overlay to display on screen (or null if none)"
+      "onscreen_text": "Optional large text overlay to display on screen (or null if none)",
+      "trigger_word": "The exact word from the generated script_text where this beat starts (must be null for the first beat of the sequence, but MUST be a word present in the script_text for all subsequent beats)"
     }
   ]
 }
@@ -17,3 +18,5 @@ Rules:
 1. Return ONLY JSON. No explanation, no markdown text outside the JSON block.
 2. Define at least 2 visual directives.
 3. The hook script text must directly address the target pain point and use the conceptual hook analogy from the narrative plan.
+4. CRITICAL: For every visual directive beat (except the first hook beat which starts automatically at the beginning of the audio), you MUST choose a 'trigger_word' present in the generated script_text. This word defines the exact moment the visual changes on screen. Do NOT use punctuation or formatting characters, choose only a clean word.
+

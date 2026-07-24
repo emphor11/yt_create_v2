@@ -31,11 +31,13 @@ def valid_hook_payload() -> dict:
                 "beat_id": "beat_01",
                 "visual_instruction": "Show anchor sliding down",
                 "onscreen_text": "RENT IS WASTED?",
+                "trigger_word": None,
             },
             {
                 "beat_id": "beat_02",
                 "visual_instruction": "Show engine blasting off",
                 "onscreen_text": "THE RENT ENGINE",
+                "trigger_word": "rent",
             },
         ],
     }
