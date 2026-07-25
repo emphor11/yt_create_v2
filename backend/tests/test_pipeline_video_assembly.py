@@ -139,10 +139,27 @@ def test_video_assembly_pipeline_stage(tmp_path):
     real_media_path.parent.mkdir(parents=True, exist_ok=True)
     real_media_path.write_bytes(b"mock audio data")
 
-    # Trigger stage execution
-    response = client.post(
-        f"/projects/{project_id}/runs/{run_id}/run/video_assembly"
+    # Trigger stage execution with mocked asset resolver to avoid network requests
+    from unittest.mock import patch
+    from domain.video_assembly_props import AssetReference
+    
+    mock_asset = AssetReference(
+        asset_id="asset_body_beat_1",
+        asset_type="video",
+        source="pexels",
+        query="renting apartment",
+        local_path=str(tmp_path / "mock_video.mp4"),
+        url="http://example.com/mock.mp4",
+        asset_status="cached",
     )
+    
+    # Write a dummy mock video file to disk so that local path resolution exists
+    (tmp_path / "mock_video.mp4").write_bytes(b"mock video data")
+
+    with patch("engines.video_assembly.asset_resolver.AssetResolver.resolve_asset", return_value=mock_asset):
+        response = client.post(
+            f"/projects/{project_id}/runs/{run_id}/run/video_assembly"
+        )
     assert response.status_code == 200, f"Error: {response.text}"
 
     data = response.json()

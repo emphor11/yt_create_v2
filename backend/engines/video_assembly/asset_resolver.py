@@ -7,20 +7,15 @@ from pathlib import Path
 from typing import Literal
 from domain.video_assembly_props import AssetReference
 
+
+class AssetResolverError(Exception):
+    """Raised when stock asset resolution, search, or download fails loudly."""
+
+
 class AssetResolver:
     def __init__(self, cache_dir: str | Path = "/Users/dakshyadav/Documents/YTcreate_V2/backend/.data/media/assets_cache"):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-
-        # High-quality direct public fallback URLs from Pexels
-        self.fallback_image_url = (
-            "https://images.pexels.com/photos/3183150/pexels-photo-3183150.jpeg"
-            "?auto=compress&cs=tinysrgb&w=1280&h=720"
-        )
-        self.fallback_video_url = (
-            "https://player.vimeo.com/external/371433846.sd.mp4"
-            "?s=236da2f3c0227e2ed9e13a48e7786047&profile_id=164"
-        )
 
     def resolve_asset(
         self,
@@ -65,13 +60,17 @@ class AssetResolver:
                 except Exception:
                     pass
 
-        # 2. Look for API Keys in Environment
+        # 2. Look for API Keys in Environment (Raise error loudly if keys are missing)
         pexels_key = os.environ.get("PEXELS_API_KEY")
         pixabay_key = os.environ.get("PIXABAY_API_KEY")
 
+        if not pexels_key and not pixabay_key:
+            raise AssetResolverError(
+                f"Missing API keys. To resolve asset for query '{query}', PEXELS_API_KEY or PIXABAY_API_KEY must be set."
+            )
+
         url_to_download = None
-        source: Literal["pexels", "pixabay", "fallback"] = "fallback"
-        asset_status: Literal["found", "cached", "fallback", "failed"] = "fallback"
+        source: Literal["pexels", "pixabay"] = "pexels"
 
         # Try Pexels search
         if pexels_key:
@@ -79,7 +78,6 @@ class AssetResolver:
                 url_to_download = self._search_pexels(query, asset_type, pexels_key)
                 if url_to_download:
                     source = "pexels"
-                    asset_status = "found"
             except Exception as e:
                 pass
 
@@ -89,63 +87,46 @@ class AssetResolver:
                 url_to_download = self._search_pixabay(query, asset_type, pixabay_key)
                 if url_to_download:
                     source = "pixabay"
-                    asset_status = "found"
             except Exception as e:
                 pass
 
-        # Use fallback URLs if search failed or no API keys are set
+        # Fail loudly if no links were returned by the stock APIs
         if not url_to_download:
-            url_to_download = self.fallback_video_url if asset_type == "video" else self.fallback_image_url
-            source = "fallback"
-            asset_status = "fallback"
+            raise AssetResolverError(
+                f"No stock assets found matching query '{query}' (type: '{asset_type}') on Pexels or Pixabay."
+            )
 
-        # 3. Download the asset and save in cache
+        # 3. Download the asset and save in cache (Fail loudly if network or format check fails)
         try:
             headers = {"User-Agent": "Mozilla/5.0"}
             req = urllib.request.Request(url_to_download, headers=headers)
             with urllib.request.urlopen(req, timeout=15) as response:
                 content_bytes = response.read()
                 
-                # Validate MP4 header (ftyp box usually in first 12 bytes)
+                # Validate MP4 header
                 if asset_type == "video":
                     if b"ftyp" not in content_bytes[:24]:
-                        raise ValueError("Invalid MP4 file: ftyp signature not found")
-                # Validate image header (JPEG, PNG, or GIF)
+                        raise ValueError("Downloaded file is not a valid MP4 video.")
+                # Validate image header
                 elif asset_type == "image":
                     if not (content_bytes.startswith(b"\xff\xd8") or content_bytes.startswith(b"\x89PNG") or content_bytes.startswith(b"GIF")):
-                        raise ValueError("Invalid image file: magic bytes mismatch")
+                        raise ValueError("Downloaded file is not a valid image format.")
                         
                 cache_path.write_bytes(content_bytes)
             
             return AssetReference(
                 asset_id=asset_id,
                 asset_type=asset_type,
-                source="pexels" if source == "pexels" else "fallback",
+                source=source,
                 query=query,
                 local_path=str(cache_path),
                 url=url_to_download,
                 asset_status="cached"
             )
         except Exception as e:
-            # Sandbox or network block fallback: write a mock binary file and return as image asset to prevent video demuxer crash
-            try:
-                # Minimal valid 1x1 transparent PNG data
-                mock_png = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc`\x00\x00\x00\x02\x00\x01H\xaf\xa4q\x00\x00\x00\x00IEND\xaeB`\x82'
-                cache_filename_img = f"{sanitized_query}_image.jpg"
-                cache_path_img = self.cache_dir / cache_filename_img
-                cache_path_img.write_bytes(mock_png)
-                cache_path = cache_path_img
-            except Exception:
-                pass
-            return AssetReference(
-                asset_id=asset_id,
-                asset_type="image",  # Downgrade to image to prevent HTMLVideoElement crash
-                source="pexels",
-                query=query,
-                local_path=str(cache_path),
-                url=url_to_download,
-                asset_status="cached"
-            )
+            raise AssetResolverError(
+                f"Failed to download or validate asset from URL '{url_to_download}' for query '{query}': {e}"
+            ) from e
 
     def _search_pexels(self, query: str, asset_type: Literal["image", "video"], api_key: str) -> str | None:
         encoded_query = urllib.parse.quote(query)
@@ -161,7 +142,6 @@ class AssetResolver:
             data = json.loads(response.read().decode("utf-8"))
             if asset_type == "video" and data.get("videos"):
                 video_files = data["videos"][0].get("video_files", [])
-                # Find standard definitions or first file
                 for f in video_files:
                     if f.get("quality") == "sd" or "sd" in f.get("link", ""):
                         return f["link"]
@@ -184,9 +164,7 @@ class AssetResolver:
             hits = data.get("hits", [])
             if hits:
                 if asset_type == "video":
-                    # pixabay videos hits contain videos dictionary
                     video_streams = hits[0].get("videos", {})
-                    # return standard definition or medium stream
                     for size in ["medium", "small", "large"]:
                         if video_streams.get(size) and video_streams[size].get("url"):
                             return video_streams[size]["url"]
