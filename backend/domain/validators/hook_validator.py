@@ -36,7 +36,7 @@ class HookValidator:
                         )
             else:
                 # First beat can have trigger_word, but if it exists, validate it is in the script text
-                if beat.trigger_word and beat.trigger_word.strip():
+                if beat.trigger_word and beat.trigger_word.strip() and beat.trigger_word.lower() not in ("null", "none"):
                     import re
                     cleaned_word = re.sub(r"[^\w]", "", beat.trigger_word.lower())
                     cleaned_script_words = [re.sub(r"[^\w]", "", w.lower()) for w in re.findall(r"\w+", hook.script_text)]
