@@ -136,86 +136,65 @@ export function getRunStatus(
   return request<RunStatusResponse>(`/projects/${projectId}/runs/${runId}/status`);
 }
 
-export function runScriptBrief(
+export function runResearch(
   projectId: string,
   runId: string
 ): Promise<RunStageResponse> {
-  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/script_brief`, {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/research`, {
     method: "POST",
   });
 }
 
-export function runNarrativeArc(
+export function runNarrativePlan(
   projectId: string,
   runId: string
 ): Promise<RunStageResponse> {
-  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/narrative_arc`, {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/narrative_plan`, {
     method: "POST",
   });
 }
 
-export function runScriptDraft(
+export function runHook(
   projectId: string,
   runId: string
 ): Promise<RunStageResponse> {
-  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/script_draft`, {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/hook`, {
     method: "POST",
   });
 }
 
-export function runSceneScript(
+export function runScriptVisualStrategy(
   projectId: string,
   runId: string
 ): Promise<RunStageResponse> {
-  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/scene_script`, {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/script_visual_strategy`, {
     method: "POST",
   });
 }
 
-export function runSemanticScene(
+export function runQualityReview(
   projectId: string,
   runId: string
 ): Promise<RunStageResponse> {
-  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/semantic_scene`, {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/quality_review`, {
     method: "POST",
   });
 }
 
-export function runVisualEventSequence(
+export function runVoiceGeneration(
   projectId: string,
   runId: string
 ): Promise<RunStageResponse> {
-  return request<RunStageResponse>(
-    `/projects/${projectId}/runs/${runId}/run/visual_event_sequence`,
-    {
-      method: "POST",
-    }
-  );
-}
-
-export function runVisualPlan(
-  projectId: string,
-  runId: string
-): Promise<RunStageResponse> {
-  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/visual_plan`, {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/voice_generation`, {
     method: "POST",
   });
 }
 
-export function runTiming(
+export function runVideoAssembly(
   projectId: string,
   runId: string
 ): Promise<RunStageResponse> {
-  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/timing`, {
-    method: "POST",
-  });
-}
-
-export function runRenderSpec(
-  projectId: string,
-  runId: string
-): Promise<RunStageResponse> {
-  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/render_spec`, {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/video_assembly`, {
     method: "POST",
   });
 }

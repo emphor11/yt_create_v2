@@ -8,16 +8,14 @@ import {
   listRunArtifacts,
   listRuns,
   regenerateDescendants,
-  runNarrativeArc,
+  runResearch,
+  runNarrativePlan,
+  runHook,
+  runScriptVisualStrategy,
+  runQualityReview,
+  runVoiceGeneration,
+  runVideoAssembly,
   runRender,
-  runRenderSpec,
-  runSceneScript,
-  runSemanticScene,
-  runScriptBrief,
-  runScriptDraft,
-  runTiming,
-  runVisualEventSequence,
-  runVisualPlan,
   type ArtifactRecord,
   type PipelineStageSummary,
   type PipelineRunRecord,
@@ -139,14 +137,14 @@ export function ProjectListPage() {
     }
   }
 
-  async function handleRunScriptBrief() {
+  async function handleRunResearch() {
     if (!selectedProject || !selectedRun) {
       return;
     }
     setIsRunningStage(true);
     setError(null);
     try {
-      const response = await runScriptBrief(selectedProject.id, selectedRun.id);
+      const response = await runResearch(selectedProject.id, selectedRun.id);
       await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
@@ -156,14 +154,14 @@ export function ProjectListPage() {
     }
   }
 
-  async function handleRunNarrativeArc() {
+  async function handleRunNarrativePlan() {
     if (!selectedProject || !selectedRun) {
       return;
     }
     setIsRunningStage(true);
     setError(null);
     try {
-      const response = await runNarrativeArc(selectedProject.id, selectedRun.id);
+      const response = await runNarrativePlan(selectedProject.id, selectedRun.id);
       await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
@@ -173,14 +171,14 @@ export function ProjectListPage() {
     }
   }
 
-  async function handleRunScriptDraft() {
+  async function handleRunHook() {
     if (!selectedProject || !selectedRun) {
       return;
     }
     setIsRunningStage(true);
     setError(null);
     try {
-      const response = await runScriptDraft(selectedProject.id, selectedRun.id);
+      const response = await runHook(selectedProject.id, selectedRun.id);
       await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
@@ -190,14 +188,14 @@ export function ProjectListPage() {
     }
   }
 
-  async function handleRunSceneScript() {
+  async function handleRunScriptVisualStrategy() {
     if (!selectedProject || !selectedRun) {
       return;
     }
     setIsRunningStage(true);
     setError(null);
     try {
-      const response = await runSceneScript(selectedProject.id, selectedRun.id);
+      const response = await runScriptVisualStrategy(selectedProject.id, selectedRun.id);
       await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
@@ -207,14 +205,14 @@ export function ProjectListPage() {
     }
   }
 
-  async function handleRunSemanticScene() {
+  async function handleRunQualityReview() {
     if (!selectedProject || !selectedRun) {
       return;
     }
     setIsRunningStage(true);
     setError(null);
     try {
-      const response = await runSemanticScene(selectedProject.id, selectedRun.id);
+      const response = await runQualityReview(selectedProject.id, selectedRun.id);
       await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
@@ -224,14 +222,14 @@ export function ProjectListPage() {
     }
   }
 
-  async function handleRunVisualEventSequence() {
+  async function handleRunVoiceGeneration() {
     if (!selectedProject || !selectedRun) {
       return;
     }
     setIsRunningStage(true);
     setError(null);
     try {
-      const response = await runVisualEventSequence(selectedProject.id, selectedRun.id);
+      const response = await runVoiceGeneration(selectedProject.id, selectedRun.id);
       await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
@@ -241,48 +239,14 @@ export function ProjectListPage() {
     }
   }
 
-  async function handleRunVisualPlan() {
+  async function handleRunVideoAssembly() {
     if (!selectedProject || !selectedRun) {
       return;
     }
     setIsRunningStage(true);
     setError(null);
     try {
-      const response = await runVisualPlan(selectedProject.id, selectedRun.id);
-      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
-      await selectArtifact(response.artifact);
-    } catch (requestError) {
-      setError((requestError as Error).message);
-    } finally {
-      setIsRunningStage(false);
-    }
-  }
-
-  async function handleRunTiming() {
-    if (!selectedProject || !selectedRun) {
-      return;
-    }
-    setIsRunningStage(true);
-    setError(null);
-    try {
-      const response = await runTiming(selectedProject.id, selectedRun.id);
-      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
-      await selectArtifact(response.artifact);
-    } catch (requestError) {
-      setError((requestError as Error).message);
-    } finally {
-      setIsRunningStage(false);
-    }
-  }
-
-  async function handleRunRenderSpec() {
-    if (!selectedProject || !selectedRun) {
-      return;
-    }
-    setIsRunningStage(true);
-    setError(null);
-    try {
-      const response = await runRenderSpec(selectedProject.id, selectedRun.id);
+      const response = await runVideoAssembly(selectedProject.id, selectedRun.id);
       await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
@@ -400,15 +364,13 @@ export function ProjectListPage() {
           children={children}
           onRunSelect={selectRun}
           onArtifactSelect={selectArtifact}
-          onRunScriptBrief={handleRunScriptBrief}
-          onRunNarrativeArc={handleRunNarrativeArc}
-          onRunScriptDraft={handleRunScriptDraft}
-          onRunSceneScript={handleRunSceneScript}
-          onRunSemanticScene={handleRunSemanticScene}
-          onRunVisualEventSequence={handleRunVisualEventSequence}
-          onRunVisualPlan={handleRunVisualPlan}
-          onRunTiming={handleRunTiming}
-          onRunRenderSpec={handleRunRenderSpec}
+          onRunResearch={handleRunResearch}
+          onRunNarrativePlan={handleRunNarrativePlan}
+          onRunHook={handleRunHook}
+          onRunScriptVisualStrategy={handleRunScriptVisualStrategy}
+          onRunQualityReview={handleRunQualityReview}
+          onRunVoiceGeneration={handleRunVoiceGeneration}
+          onRunVideoAssembly={handleRunVideoAssembly}
           onRunRender={handleRunRender}
           onRegenerateDescendants={handleRegenerateDescendants}
           isRunningStage={isRunningStage}

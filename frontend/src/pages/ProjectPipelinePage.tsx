@@ -19,15 +19,13 @@ type ProjectPipelinePageProps = {
   children: ArtifactRecord[];
   onRunSelect: (run: PipelineRunRecord) => void;
   onArtifactSelect: (artifact: ArtifactRecord) => void;
-  onRunScriptBrief: () => void;
-  onRunNarrativeArc: () => void;
-  onRunScriptDraft: () => void;
-  onRunSceneScript: () => void;
-  onRunSemanticScene: () => void;
-  onRunVisualEventSequence: () => void;
-  onRunVisualPlan: () => void;
-  onRunTiming: () => void;
-  onRunRenderSpec: () => void;
+  onRunResearch: () => void;
+  onRunNarrativePlan: () => void;
+  onRunHook: () => void;
+  onRunScriptVisualStrategy: () => void;
+  onRunQualityReview: () => void;
+  onRunVoiceGeneration: () => void;
+  onRunVideoAssembly: () => void;
   onRunRender: () => void;
   onRegenerateDescendants: () => void;
   isRunningStage: boolean;
@@ -44,15 +42,13 @@ export function ProjectPipelinePage({
   children,
   onRunSelect,
   onArtifactSelect,
-  onRunScriptBrief,
-  onRunNarrativeArc,
-  onRunScriptDraft,
-  onRunSceneScript,
-  onRunSemanticScene,
-  onRunVisualEventSequence,
-  onRunVisualPlan,
-  onRunTiming,
-  onRunRenderSpec,
+  onRunResearch,
+  onRunNarrativePlan,
+  onRunHook,
+  onRunScriptVisualStrategy,
+  onRunQualityReview,
+  onRunVoiceGeneration,
+  onRunVideoAssembly,
   onRunRender,
   onRegenerateDescendants,
   isRunningStage,
@@ -137,74 +133,58 @@ export function ProjectPipelinePage({
           <button
             className="primary-button"
             disabled={!selectedRun || isRunningStage}
-            onClick={onRunScriptBrief}
+            onClick={onRunResearch}
             type="button"
           >
-            Run ScriptBrief
+            Run Research
           </button>
           <button
             className="primary-button secondary"
             disabled={!selectedRun || isRunningStage}
-            onClick={onRunNarrativeArc}
+            onClick={onRunNarrativePlan}
             type="button"
           >
-            Run NarrativeArc
+            Run NarrativePlan
           </button>
           <button
             className="primary-button secondary"
             disabled={!selectedRun || isRunningStage}
-            onClick={onRunScriptDraft}
+            onClick={onRunHook}
             type="button"
           >
-            Run ScriptDraft
+            Run Hook
           </button>
           <button
             className="primary-button secondary"
             disabled={!selectedRun || isRunningStage}
-            onClick={onRunSceneScript}
+            onClick={onRunScriptVisualStrategy}
             type="button"
           >
-            Run SceneScript
+            Run Strategy
           </button>
           <button
             className="primary-button secondary"
             disabled={!selectedRun || isRunningStage}
-            onClick={onRunSemanticScene}
+            onClick={onRunQualityReview}
             type="button"
           >
-            Run SemanticScene
+            Run Review
           </button>
           <button
             className="primary-button secondary"
             disabled={!selectedRun || isRunningStage}
-            onClick={onRunVisualEventSequence}
+            onClick={onRunVoiceGeneration}
             type="button"
           >
-            Run VisualEventSequence
+            Run Voiceover
           </button>
           <button
             className="primary-button secondary"
             disabled={!selectedRun || isRunningStage}
-            onClick={onRunVisualPlan}
+            onClick={onRunVideoAssembly}
             type="button"
           >
-            Run VisualPlan
-          </button>
-          <button
-            className="primary-button secondary"
-            disabled={!selectedRun || isRunningStage}
-            onClick={onRunTiming}
-            type="button"
-          >
-            Run Timing
-          </button>
-          <button
-            className="primary-button secondary"
-            disabled={!selectedRun || isRunningStage}
-            onClick={onRunRenderSpec}
-            type="button"
-          >
-            Run RenderSpec
+            Run Assembly
           </button>
           <button
             className="primary-button secondary"
