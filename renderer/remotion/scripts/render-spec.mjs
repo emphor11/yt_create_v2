@@ -34,6 +34,10 @@ if (!composition) {
   throw new Error(`Composition not found: ${renderSpec.composition}.`);
 }
 
+// Override composition settings dynamically to match the render spec
+composition.durationInFrames = renderSpec.duration_frames;
+composition.fps = renderSpec.fps;
+
 await mkdir(path.dirname(outputPath), { recursive: true });
 await renderMedia({
   composition,

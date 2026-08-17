@@ -6,6 +6,7 @@ class VisualStrategyBeat(BaseModel):
     beat_id: str
     preferred_component: str
     visual_goal: str
+    onscreen_text: str | None = None
     asset_query: str | None = None
     notes: str | None = None
     trigger_word: str | None = None

@@ -1,0 +1,140 @@
+{
+  "renderSpec": {
+    "schema_version": "1",
+    "scene_id": "scene_project_cbe0622178ab4f20ad18ab4c5167d226",
+    "composition": "VideoAssembly",
+    "fps": 30,
+    "duration_frames": 1671,
+    "props": {
+      "scenes": [
+        {
+          "scene_id": "scene_001",
+          "start_frame": 0,
+          "end_frame": 301,
+          "duration_frames": 301,
+          "component": {
+            "component_id": "Typography",
+            "props": {
+              "text": "Close-up of a high-end watch or luxury car key on a desk, slowly transitioning to a shot of a person staring blankly at a glowing computer screen in a dark office.",
+              "subtitle": "You aren't just earning a paycheck; you're paying for your o...",
+              "style": "headline"
+            }
+          },
+          "asset": {
+            "asset_id": "asset_beat_01",
+            "asset_type": "image",
+            "source": "pexels",
+            "query": "abstract business",
+            "local_path": "run_954dded7ddf449d599127a77385c1ccc_asset_beat_01.jpg",
+            "url": "https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c0227e2ed9e13a48e7786047&profile_id=164",
+            "asset_status": "cached"
+          },
+          "narration_text": "You aren't just earning a paycheck; you're paying for your own cage. That high corporate salary is a pair of golden handcuffs, and every lifestyle upgrade you make just adds another lock. You think you're climbing the ladder, but you're actually just decorating your prison cell. It\u2019s time to stop trading your ambition for a steady deposit and start building your own exit strategy."
+        },
+        {
+          "scene_id": "scene_002",
+          "start_frame": 301,
+          "end_frame": 621,
+          "duration_frames": 320,
+          "component": {
+            "component_id": "Typography",
+            "props": {
+              "text": "Fast-paced montage of a bank account balance increasing followed by a credit card bill swipe, ending with a shot of the person looking out a window at a city skyline.",
+              "subtitle": "You aren't just earning a paycheck; you're paying for your o...",
+              "style": "headline"
+            }
+          },
+          "asset": {
+            "asset_id": "asset_beat_02",
+            "asset_type": "image",
+            "source": "pexels",
+            "query": "abstract business",
+            "local_path": "run_954dded7ddf449d599127a77385c1ccc_asset_beat_02.jpg",
+            "url": "https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c0227e2ed9e13a48e7786047&profile_id=164",
+            "asset_status": "cached"
+          },
+          "narration_text": "You aren't just earning a paycheck; you're paying for your own cage. That high corporate salary is a pair of golden handcuffs, and every lifestyle upgrade you make just adds another lock. You think you're climbing the ladder, but you're actually just decorating your prison cell. It\u2019s time to stop trading your ambition for a steady deposit and start building your own exit strategy."
+        },
+        {
+          "scene_id": "scene_003",
+          "start_frame": 621,
+          "end_frame": 1166,
+          "duration_frames": 545,
+          "component": {
+            "component_id": "StockVideo",
+            "props": {
+              "text": "Show the contrast between a rising salary and rising expenses",
+              "subtitle": "When your salary grows, your expenses often follow. This is ..."
+            }
+          },
+          "asset": {
+            "asset_id": "asset_beat_01",
+            "asset_type": "image",
+            "source": "pexels",
+            "query": "person looking at bank account on smartphone",
+            "local_path": "run_954dded7ddf449d599127a77385c1ccc_asset_beat_01.jpg",
+            "url": "https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c0227e2ed9e13a48e7786047&profile_id=164",
+            "asset_status": "cached"
+          },
+          "narration_text": "When your salary grows, your expenses often follow. This is Lifestyle Creep. You find yourself working harder not to achieve your dreams, but to maintain a standard of living that keeps you tethered to your desk. You are effectively paying for your own cage, trading your creative potential for the comfort of a paycheck that you can no longer afford to live without."
+        },
+        {
+          "scene_id": "scene_004",
+          "start_frame": 1166,
+          "end_frame": 1671,
+          "duration_frames": 505,
+          "component": {
+            "component_id": "Typography",
+            "props": {
+              "text": "Highlight the statistic to emphasize the scale of disengagement",
+              "subtitle": "The cost of staying in a role that doesn't align with your g...",
+              "style": "headline"
+            }
+          },
+          "asset": {
+            "asset_id": "asset_beat_02",
+            "asset_type": "image",
+            "source": "pexels",
+            "query": "abstract business",
+            "local_path": "run_954dded7ddf449d599127a77385c1ccc_asset_beat_02.jpg",
+            "url": "https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c0227e2ed9e13a48e7786047&profile_id=164",
+            "asset_status": "cached"
+          },
+          "narration_text": "The cost of staying in a role that doesn't align with your goals is massive. Research from Gallup shows that 77 percent of employees are either not engaged or actively disengaged at work. That is a staggering amount of human potential being sacrificed. When you choose that salary, you are paying the opportunity cost of your own future ambition."
+        }
+      ],
+      "audio": {
+        "audio_file_name": "narration.mp3",
+        "local_path": "run_954dded7ddf449d599127a77385c1ccc_narration.mp3",
+        "duration_seconds": 55.689
+      }
+    },
+    "frame_spans": [
+      {
+        "event_id": "scene_001",
+        "start_frame": 0,
+        "end_frame": 301,
+        "duration_frames": 301
+      },
+      {
+        "event_id": "scene_002",
+        "start_frame": 301,
+        "end_frame": 621,
+        "duration_frames": 320
+      },
+      {
+        "event_id": "scene_003",
+        "start_frame": 621,
+        "end_frame": 1166,
+        "duration_frames": 545
+      },
+      {
+        "event_id": "scene_004",
+        "start_frame": 1166,
+        "end_frame": 1671,
+        "duration_frames": 505
+      }
+    ]
+  },
+  "outputPath": "/Users/dakshyadav/Documents/YTcreate_V2/renderer/remotion/test_output.mp4"
+}

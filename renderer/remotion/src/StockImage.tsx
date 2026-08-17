@@ -5,17 +5,16 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { type SplitComparisonRenderSpec } from "./SplitComparison";
+import { type StockImageRenderSpec } from "./types";
+import { tokens } from "./design-tokens";
 
-export function StockImage(renderSpec: SplitComparisonRenderSpec) {
+export function StockImage(renderSpec: StockImageRenderSpec) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const isClean = (renderSpec.props as any).text !== undefined;
-  const leftLabel = isClean ? "Visual Goal" : renderSpec.props.left?.label;
-  const leftRaw = isClean ? (renderSpec.props as any).text : renderSpec.props.left?.raw;
-  const rightLabel = isClean ? "Context" : renderSpec.props.right?.label;
-  const rightRaw = isClean ? (renderSpec.props as any).subtitle : renderSpec.props.right?.raw;
+  const duration_frames = renderSpec.duration_frames || 180;
+  const isClean = renderSpec.props.text !== undefined;
+  const headlineText = isClean ? renderSpec.props.text : (renderSpec.props.left?.raw || renderSpec.props.left?.label || "");
 
   const imgSpring = spring({
     frame,
@@ -23,16 +22,23 @@ export function StockImage(renderSpec: SplitComparisonRenderSpec) {
     config: { damping: 24, stiffness: 60 },
   });
 
+  // Ken Burns zoom effect across scene duration (1.0 -> 1.08 scale)
+  const kenBurnsScale = interpolate(frame, [0, duration_frames], [1.0, 1.08], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
   return (
     <AbsoluteFill
       style={{
-        background: "#030712",
-        color: "#ffffff",
-        fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        background: tokens.bg.base,
+        backdropFilter: "blur(2px)",
+        color: tokens.text.primary,
+        fontFamily: tokens.font.family,
         overflow: "hidden",
       }}
     >
-      {/* Stock Image Background Layer (using premium Unsplash architecture background as standard) */}
+      {/* Background Image with Ken Burns zoom effect */}
       <img
         src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=1920&q=80"
         style={{
@@ -40,17 +46,17 @@ export function StockImage(renderSpec: SplitComparisonRenderSpec) {
           height: "100%",
           objectFit: "cover",
           opacity: 0.35 * imgSpring,
-          transform: `scale(${1 + (1 - imgSpring) * 0.05})`,
+          transform: `scale(${kenBurnsScale})`,
         }}
         alt="Stock background"
       />
 
-      {/* Grid overlay */}
+      {/* Radial vignette overlay */}
       <div
         style={{
           position: "absolute",
           inset: 0,
-          background: "radial-gradient(circle, transparent 40%, rgba(3,7,18,0.85) 100%)",
+          background: "radial-gradient(circle, transparent 40%, rgba(9,9,11,0.85) 100%)",
         }}
       />
 
@@ -61,78 +67,53 @@ export function StockImage(renderSpec: SplitComparisonRenderSpec) {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          padding: "80px 100px",
+          padding: tokens.spacing.padding,
         }}
       >
         <header>
           <div
             style={{
-              color: "#38bdf8",
-              fontSize: 24,
+              color: tokens.accent.cyan,
+              fontSize: tokens.font.eyebrow,
               fontWeight: 800,
               textTransform: "uppercase",
               letterSpacing: 2,
             }}
           >
-            CONCEPTUAL OUTLINE
+            {renderSpec.props.headerLabel || "VISUAL CONTEXT"}
           </div>
-          <div
-            style={{
-              fontSize: 54,
-              fontWeight: 900,
-              marginTop: 16,
-              maxWidth: "1000px",
-            }}
-          >
-            Factual visual context representation
-          </div>
+          {renderSpec.props.title && (
+            <div style={{ fontSize: 54, fontWeight: 900, marginTop: 16, color: tokens.text.primary }}>
+              {renderSpec.props.title}
+            </div>
+          )}
         </header>
 
         <main style={{ display: "flex", gap: "40px", marginTop: "40px" }}>
           <div
             style={{
-              background: "rgba(15, 23, 42, 0.75)",
-              border: "1px solid rgba(255, 255, 255, 0.15)",
-              borderRadius: "12px",
-              padding: "36px",
+              background: "rgba(15, 23, 42, 0.80)",
+              border: "1px solid rgba(6, 182, 212, 0.3)",
+              borderRadius: "16px",
+              padding: "44px",
               flex: 1,
-              backdropFilter: "blur(8px)",
+              backdropFilter: "blur(12px)",
               transform: `translateY(${(1 - imgSpring) * 30}px)`,
               opacity: imgSpring,
+              boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
             }}
           >
-            <div style={{ color: "#38bdf8", fontSize: 24, fontWeight: 800, textTransform: "uppercase" }}>
-              {leftLabel}
-            </div>
-            <div style={{ fontSize: 64, fontWeight: 950, color: "#ffffff", marginTop: 16 }}>
-              {leftRaw}
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: "rgba(15, 23, 42, 0.85)",
-              border: "1.5px solid rgba(56, 189, 248, 0.4)",
-              borderRadius: "12px",
-              padding: "36px",
-              flex: 1,
-              backdropFilter: "blur(8px)",
-              transform: `translateY(${(1 - imgSpring) * 40}px)`,
-              opacity: imgSpring,
-            }}
-          >
-            <div style={{ color: "#0ea5e9", fontSize: 24, fontWeight: 800, textTransform: "uppercase" }}>
-              {rightLabel}
-            </div>
-            <div style={{ fontSize: 64, fontWeight: 950, color: "#38bdf8", marginTop: 16 }}>
-              {rightRaw}
+            <div style={{ fontSize: 60, fontWeight: 950, color: tokens.text.primary, lineHeight: 1.15 }}>
+              {headlineText}
             </div>
           </div>
         </main>
 
-        <footer style={{ fontSize: 24, color: "#9ca3af", fontWeight: 600 }}>
-          Background illustration matches target domain themes.
-        </footer>
+        {renderSpec.props.footerLabel ? (
+          <footer style={{ fontSize: 24, color: tokens.text.muted, fontWeight: 600 }}>
+            {renderSpec.props.footerLabel}
+          </footer>
+        ) : null}
       </div>
     </AbsoluteFill>
   );

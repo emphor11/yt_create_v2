@@ -161,4 +161,4 @@ Phase 14 foundation adds the first controlled AI boundary:
 
 Real Gemini API calls are available when `GEMINI_API_KEY` is configured.
 
-Voice, publishing, non-Gemini AI providers, and AI-backed stages after ScriptBrief are intentionally not implemented yet.
+Voice, publishing, non-Gemini AI providers, and AI-backed stages after ScriptBrief are intentionally not implemented yet. .

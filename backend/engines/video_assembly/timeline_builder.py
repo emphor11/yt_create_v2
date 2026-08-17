@@ -7,6 +7,36 @@ from domain.voice_track import VoiceTrack
 # Constant for minimum beat duration in frames (30fps: 15 frames = 0.5s)
 MIN_BEAT_DURATION_FRAMES = 15
 
+def _is_word_match(polly_raw: str, trigger_raw: str) -> bool:
+    p_clean = re.sub(r"[^\w]", "", polly_raw.lower())
+    t_clean = re.sub(r"[^\w]", "", trigger_raw.lower())
+    if not p_clean or not t_clean:
+        return False
+    if p_clean == t_clean:
+        return True
+    
+    # 1. Check token-based exact matching first
+    p_tokens = [re.sub(r"[^\w]", "", pt) for pt in re.split(r"[^a-zA-Z0-9]", polly_raw.lower()) if re.sub(r"[^\w]", "", pt)]
+    t_tokens = [re.sub(r"[^\w]", "", tt) for tt in re.split(r"[^a-zA-Z0-9]", trigger_raw.lower()) if re.sub(r"[^\w]", "", tt)]
+    if p_tokens and t_tokens:
+        for pt in p_tokens:
+            for tt in t_tokens:
+                if pt == tt:
+                    return True
+
+    # 2. Check safe substring matching:
+    # Trigger inside Polly word (e.g. trigger "106" inside Polly "106inr")
+    if t_clean in p_clean:
+        if len(t_clean) >= 3 or (t_clean.isdigit() and len(t_clean) >= 2):
+            return True
+            
+    # Polly word inside Trigger (e.g. Polly "30" inside trigger "30-year")
+    if p_clean in t_clean:
+        if len(p_clean) >= 3 or (p_clean.isdigit() and len(p_clean) >= 2):
+            return True
+            
+    return False
+
 class TimelineBuilderError(Exception):
     """Raised when timeline generation fails, e.g. when a trigger word is missing."""
 
@@ -46,7 +76,7 @@ class TimelineBuilder:
         # Map word indices of the overall script to sections
         all_section_word_mappings = []
         for s_idx, text in enumerate(section_texts):
-            words = [w.lower() for w in re.findall(r"\w+", text)]
+            words = [re.sub(r"[^\w]", "", w.lower()) for w in text.split() if re.sub(r"[^\w]", "", w)]
             for _ in words:
                 all_section_word_mappings.append(s_idx)
 
@@ -90,8 +120,7 @@ class TimelineBuilder:
                 match_idx = -1
                 prev_start = hook_start_indices[-1]
                 for idx in range(prev_start, len(hook_timestamps)):
-                    cleaned_polly_word = re.sub(r"[^\w]", "", hook_timestamps[idx].word.lower())
-                    if cleaned_polly_word == cleaned_trigger:
+                    if _is_word_match(hook_timestamps[idx].word, trigger):
                         match_idx = idx
                         break
                 
@@ -146,8 +175,7 @@ class TimelineBuilder:
                 match_idx = -1
                 prev_start = beat_start_indices[-1]
                 for idx in range(prev_start, len(timestamps)):
-                    cleaned_polly_word = re.sub(r"[^\w]", "", timestamps[idx].word.lower())
-                    if cleaned_polly_word == cleaned_trigger:
+                    if _is_word_match(timestamps[idx].word, trigger):
                         match_idx = idx
                         break
                 

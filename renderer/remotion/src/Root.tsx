@@ -133,7 +133,7 @@ export function RemotionRoot() {
       <Composition
         id="VideoAssembly"
         component={VideoAssembly}
-        durationInFrames={1800}
+        durationInFrames={18000}
         fps={30}
         width={1920}
         height={1080}

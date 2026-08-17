@@ -129,6 +129,17 @@ def test_gemini_provider_rejects_non_json_text(monkeypatch) -> None:
         provider.generate_json(make_request())
 
 
+def test_gemini_provider_collapses_phrase_loops() -> None:
+    raw_loop = '{"thesis": "Hello and legacy and impact and influence and legacy and impact and influence and legacy and impact and influence"}'
+    collapsed = GeminiProvider._collapse_phrase_loops(raw_loop)
+    assert "and legacy and impact and influence and legacy" not in collapsed
+    assert "and legacy and impact and influence" in collapsed
+
+    sentence_loop = '{"visual_goal": "The overall visual design should be cohesive and visually appealing. The text should be easy to read. The overall visual design should be cohesive and visually appealing. The text should be easy to read. The overall visual design should be cohesive and visually appealing. The text should be easy to read."}'
+    collapsed_sentences = GeminiProvider._collapse_phrase_loops(sentence_loop)
+    assert collapsed_sentences.count("The overall visual design should be cohesive and visually appealing.") == 1
+
+
 def test_dependency_uses_gemini_provider_when_api_key_exists(monkeypatch) -> None:
     clear_dependency_caches()
     monkeypatch.setenv("YTCREATE_ENV_FILE", "/tmp/ytcreate-v2-missing-env")

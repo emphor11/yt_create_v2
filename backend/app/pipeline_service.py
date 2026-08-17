@@ -98,6 +98,21 @@ class PipelineService:
         except ValueError as exc:
             raise PipelineServiceError(f"Stage '{stage}' is not implemented.") from exc
 
+        # Delete failed/blocked artifact of this stage so the run can be retried cleanly
+        artifact_type = None
+        for s_name, a_type in AI_STAGE_DEFINITIONS:
+            if s_name == stage_enum.value:
+                artifact_type = a_type
+                break
+
+        from artifact_store.models import is_advanceable_status
+        if artifact_type:
+            existing = self.store.find_artifact_by_type(project_id, run_id, artifact_type)
+            if existing is not None and not is_advanceable_status(existing.status):
+                descendants = get_artifact_descendants(self.store, existing.id)
+                ids_to_delete = [existing.id] + [d.id for d in descendants]
+                self.store.delete_artifacts(ids_to_delete)
+
         # Update run state to 'running'
         self.store.update_run_state(
             project_id=project_id,

@@ -104,7 +104,7 @@ body {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: 340px minmax(0, 1fr);
   gap: 24px;
   align-items: start;
 }
@@ -113,6 +113,7 @@ body {
 .project-pipeline {
   display: grid;
   gap: 24px;
+  min-width: 0;
 }
 
 /* Cards & Panel Styling */
@@ -488,7 +489,7 @@ body {
 }
 
 /* Responsive Breakpoints */
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
   }

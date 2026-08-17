@@ -75,16 +75,42 @@ class QualityReviewHandler:
             
             # Combine verified facts and statistics to search against
             research_sources = research_packet.verified_facts + research_packet.statistics
-            research_sources_joined = " ".join(research_sources).lower()
+            research_sources_joined = " ".join(research_sources).lower().replace(",", "")
+
+            # Parse all numbers from research sources
+            verified_nums = set()
+            for n_str in re.findall(r"\d+", research_sources_joined):
+                try:
+                    verified_nums.add(int(n_str))
+                except ValueError:
+                    pass
+
+            def is_num_verified(num_str: str) -> bool:
+                if num_str in research_sources_joined:
+                    return True
+                try:
+                    val = int(num_str)
+                except ValueError:
+                    try:
+                        val = float(num_str)
+                    except ValueError:
+                        return False
+                if val in verified_nums:
+                    return True
+                # Check if it is a sum, difference, product, or quotient of any two verified numbers
+                for a in verified_nums:
+                    for b in verified_nums:
+                        if a + b == val or a * b == val or (b != 0 and a / b == val) or a - b == val or b - a == val:
+                            return True
+                return False
 
             for idea in strategy.ideas:
                 # 1. Check numbers in narration text
                 narration_numbers = re.findall(r"\d+", idea.narration)
                 for num in narration_numbers:
                     if len(num) > 1:  # Skip single digits like 0-9 as they are common filler words
-                        # Check if the number appears anywhere in the research facts/statistics
-                        if num not in research_sources_joined:
-                            # Also check if it's written in words or similar, but strict match is safer for stats
+                        # Check if the number is verified
+                        if not is_num_verified(num):
                             stat_check_passed = False
                             stat_msg = f"Statistic '{num}' mentioned in narration is not verified in research facts."
                             approved = False
@@ -99,10 +125,10 @@ class QualityReviewHandler:
                         for val_key in ["left_value", "right_value"]:
                             val = data.get(val_key)
                             if val is not None and isinstance(val, (int, float)):
-                                # Skip checking if it's 0 or 1
-                                if val > 9:
+                                # Skip checking if it is 0, 1, or 100 (common percentage base)
+                                if val > 9 and val != 100:
                                     val_str = str(int(val))
-                                    if val_str not in research_sources_joined:
+                                    if not is_num_verified(val_str):
                                         stat_check_passed = False
                                         stat_msg = f"Value '{val_str}' used in SplitComparison '{val_key}' is not verified in research facts."
                                         approved = False

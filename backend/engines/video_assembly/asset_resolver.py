@@ -72,28 +72,38 @@ class AssetResolver:
         url_to_download = None
         source: Literal["pexels", "pixabay"] = "pexels"
 
-        # Try Pexels search
-        if pexels_key:
-            try:
-                url_to_download = self._search_pexels(query, asset_type, pexels_key)
-                if url_to_download:
-                    source = "pexels"
-            except Exception as e:
-                pass
+        # Try queries: original query first, then fallback queries
+        queries_to_try = [query]
+        fallback_terms = ["business", "office", "work", "finance"]
+        for term in fallback_terms:
+            if term not in queries_to_try:
+                queries_to_try.append(term)
 
-        # Try Pixabay search
-        if not url_to_download and pixabay_key:
-            try:
-                url_to_download = self._search_pixabay(query, asset_type, pixabay_key)
-                if url_to_download:
-                    source = "pixabay"
-            except Exception as e:
-                pass
+        for q in queries_to_try:
+            # Try Pexels search
+            if pexels_key:
+                try:
+                    url_to_download = self._search_pexels(q, asset_type, pexels_key)
+                    if url_to_download:
+                        source = "pexels"
+                        break
+                except Exception:
+                    pass
 
-        # Fail loudly if no links were returned by the stock APIs
+            # Try Pixabay search
+            if not url_to_download and pixabay_key:
+                try:
+                    url_to_download = self._search_pixabay(q, asset_type, pixabay_key)
+                    if url_to_download:
+                        source = "pixabay"
+                        break
+                except Exception:
+                    pass
+
+        # Fail loudly if no links were returned by the stock APIs for any query
         if not url_to_download:
             raise AssetResolverError(
-                f"No stock assets found matching query '{query}' (type: '{asset_type}') on Pexels or Pixabay."
+                f"No stock assets found matching query '{query}' or fallback terms {fallback_terms} (type: '{asset_type}') on Pexels or Pixabay."
             )
 
         # 3. Download the asset and save in cache (Fail loudly if network or format check fails)
@@ -137,6 +147,7 @@ class AssetResolver:
 
         req = urllib.request.Request(url)
         req.add_header("Authorization", api_key)
+        req.add_header("User-Agent", "Mozilla/5.0")
         
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode("utf-8"))

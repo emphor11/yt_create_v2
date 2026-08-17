@@ -17,8 +17,8 @@ class HookValidator:
         for idx, beat in enumerate(hook.visual_directives):
             if not beat.beat_id.strip():
                 errors.append(f"Visual directive at index {idx} requires a valid beat_id.")
-            if not beat.visual_instruction.strip():
-                errors.append(f"Visual directive '{beat.beat_id}' requires a visual instruction.")
+            if not beat.get_visual_instruction().strip():
+                errors.append(f"Visual directive '{beat.beat_id}' requires a visual instruction or goal.")
             
             # Validate trigger word existence and presence in hook script text
             if idx > 0:
@@ -29,7 +29,7 @@ class HookValidator:
                 else:
                     import re
                     cleaned_word = re.sub(r"[^\w]", "", beat.trigger_word.lower())
-                    cleaned_script_words = [re.sub(r"[^\w]", "", w.lower()) for w in re.findall(r"\w+", hook.script_text)]
+                    cleaned_script_words = [re.sub(r"[^\w]", "", w.lower()) for w in hook.script_text.split() if re.sub(r"[^\w]", "", w)]
                     if cleaned_word not in cleaned_script_words:
                         errors.append(
                             f"Visual directive '{beat.beat_id}' in hook has trigger_word '{beat.trigger_word}' which does not exist in the script text."
@@ -39,7 +39,7 @@ class HookValidator:
                 if beat.trigger_word and beat.trigger_word.strip() and beat.trigger_word.lower() not in ("null", "none"):
                     import re
                     cleaned_word = re.sub(r"[^\w]", "", beat.trigger_word.lower())
-                    cleaned_script_words = [re.sub(r"[^\w]", "", w.lower()) for w in re.findall(r"\w+", hook.script_text)]
+                    cleaned_script_words = [re.sub(r"[^\w]", "", w.lower()) for w in hook.script_text.split() if re.sub(r"[^\w]", "", w)]
                     if cleaned_word not in cleaned_script_words:
                         errors.append(
                             f"Visual directive '{beat.beat_id}' in hook has trigger_word '{beat.trigger_word}' which does not exist in the script text."

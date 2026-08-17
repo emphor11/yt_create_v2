@@ -5,17 +5,15 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { type SplitComparisonRenderSpec } from "./SplitComparison";
+import { type IconAnimationRenderSpec } from "./types";
+import { tokens } from "./design-tokens";
 
-export function IconAnimation(renderSpec: SplitComparisonRenderSpec) {
+export function IconAnimation(renderSpec: IconAnimationRenderSpec) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const isClean = (renderSpec.props as any).text !== undefined;
-  const leftLabel = isClean ? "Visual Goal" : renderSpec.props.left?.label;
-  const leftRaw = isClean ? (renderSpec.props as any).text : renderSpec.props.left?.raw;
-  const rightLabel = isClean ? "Context" : renderSpec.props.right?.label;
-  const rightRaw = isClean ? (renderSpec.props as any).subtitle : renderSpec.props.right?.raw;
+  const isClean = renderSpec.props.text !== undefined;
+  const headlineText = isClean ? renderSpec.props.text : (renderSpec.props.left?.raw || renderSpec.props.left?.label || "");
 
   const iconSpring = spring({
     frame,
@@ -23,14 +21,17 @@ export function IconAnimation(renderSpec: SplitComparisonRenderSpec) {
     config: { damping: 12, stiffness: 130 },
   });
 
+  const glowPulse = Math.sin(frame * 0.08) * 0.08 + 1;
+
   return (
     <AbsoluteFill
       style={{
-        background: "linear-gradient(135deg, #090514 0%, #1c0e35 100%)",
-        color: "#f5f3ff",
-        fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        background: tokens.bg.base,
+        backdropFilter: "blur(4px)",
+        color: tokens.text.primary,
+        fontFamily: tokens.font.family,
         overflow: "hidden",
-        padding: "80px 100px",
+        padding: tokens.spacing.padding,
       }}
     >
       <div
@@ -44,38 +45,42 @@ export function IconAnimation(renderSpec: SplitComparisonRenderSpec) {
         <header>
           <div
             style={{
-              color: "#a78bfa",
-              fontSize: 24,
+              color: tokens.accent.purple,
+              fontSize: tokens.font.eyebrow,
               fontWeight: 800,
               textTransform: "uppercase",
               letterSpacing: 2,
             }}
           >
-            ICON METAPHORS
+            {renderSpec.props.headerLabel || "ICON CONCEPT"}
           </div>
-          <div
-            style={{
-              fontSize: 54,
-              fontWeight: 900,
-              marginTop: 16,
-            }}
-          >
-            Visual domain representations
-          </div>
+          {renderSpec.props.title && (
+            <div
+              style={{
+                fontSize: 54,
+                fontWeight: 900,
+                marginTop: 16,
+                lineHeight: 1.1,
+              }}
+            >
+              {renderSpec.props.title}
+            </div>
+          )}
         </header>
 
         <main
           style={{
             display: "flex",
+            flexDirection: "column",
             justifyContent: "center",
             alignItems: "center",
-            gap: "100px",
             flex: 1,
           }}
         >
-          {/* Left Icon Block */}
+          {/* Main Icon Block with radiating glow ring */}
           <div
             style={{
+              position: "relative",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
@@ -83,70 +88,64 @@ export function IconAnimation(renderSpec: SplitComparisonRenderSpec) {
               opacity: iconSpring,
             }}
           >
+            {/* Outer Glow Ring */}
             <div
               style={{
-                width: "160px",
-                height: "160px",
-                borderRadius: "32px",
-                background: "rgba(167, 139, 250, 0.15)",
-                border: "2px solid #a78bfa",
+                position: "absolute",
+                top: 0,
+                left: "50%",
+                transform: `translateX(-50%) scale(${glowPulse * 1.18})`,
+                width: "200px",
+                height: "200px",
+                borderRadius: "44px",
+                background: "rgba(168, 85, 247, 0.25)",
+                filter: "blur(16px)",
+                zIndex: 0,
+              }}
+            />
+
+            <div
+              style={{
+                position: "relative",
+                width: "200px",
+                height: "200px",
+                borderRadius: "40px",
+                background: "rgba(15, 23, 42, 0.85)",
+                border: "2px solid rgba(168, 85, 247, 0.6)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: 64,
-                boxShadow: "0 0 30px rgba(167, 139, 250, 0.2)",
+                fontSize: 90,
+                boxShadow: "0 0 50px rgba(168, 85, 247, 0.4)",
+                backdropFilter: "blur(12px)",
+                zIndex: 1,
               }}
             >
-              💼
+              {renderSpec.props.icon || "💡"}
             </div>
-            <div style={{ marginTop: 24, fontSize: 28, fontWeight: 800, color: "#c084fc" }}>
-              {leftLabel}
-            </div>
-            <div style={{ fontSize: 34, fontWeight: 900, color: "#ffffff", marginTop: 8 }}>
-              {leftRaw}
-            </div>
-          </div>
 
-          <div style={{ fontSize: 48, color: "#a78bfa", opacity: iconSpring }}>➔</div>
-
-          {/* Right Icon Block */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              transform: `scale(${iconSpring})`,
-              opacity: iconSpring,
-            }}
-          >
             <div
               style={{
-                width: "160px",
-                height: "160px",
-                borderRadius: "32px",
-                background: "rgba(192, 132, 252, 0.2)",
-                border: "3px solid #c084fc",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 64,
-                boxShadow: "0 0 40px rgba(192, 132, 252, 0.3)",
+                marginTop: 36,
+                fontSize: 48,
+                fontWeight: 950,
+                color: tokens.text.primary,
+                textAlign: "center",
+                maxWidth: "900px",
+                lineHeight: 1.2,
+                zIndex: 1,
               }}
             >
-              🏠
-            </div>
-            <div style={{ marginTop: 24, fontSize: 28, fontWeight: 800, color: "#c084fc" }}>
-              {rightLabel}
-            </div>
-            <div style={{ fontSize: 34, fontWeight: 900, color: "#ffffff", marginTop: 8 }}>
-              {rightRaw}
+              {headlineText}
             </div>
           </div>
         </main>
 
-        <footer style={{ textAlign: "center", fontSize: 26, color: "#a78bfa", fontWeight: 600 }}>
-          Animated representations map onto core concepts.
-        </footer>
+        {renderSpec.props.footerLabel ? (
+          <footer style={{ textAlign: "center", fontSize: 24, color: tokens.text.muted, fontWeight: 600 }}>
+            {renderSpec.props.footerLabel}
+          </footer>
+        ) : null}
       </div>
     </AbsoluteFill>
   );

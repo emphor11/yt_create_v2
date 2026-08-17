@@ -21,7 +21,7 @@ export function RenderOutputPage({ artifact }: RenderOutputPageProps) {
         <h2>scene_01.mp4</h2>
       </div>
       {isSucceeded && storageKey ? (
-        <video className="video-preview" controls src={mediaUrl(storageKey)} />
+        <video className="video-preview" controls src={`${mediaUrl(storageKey)}?t=${artifact?.created_at}`} />
       ) : (
         <p className="empty-state">Render did not produce a playable video.</p>
       )}

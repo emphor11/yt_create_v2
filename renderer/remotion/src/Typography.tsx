@@ -5,14 +5,16 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { type SplitComparisonRenderSpec } from "./SplitComparison";
+import { type TypographyRenderSpec } from "./types";
+import { tokens } from "./design-tokens";
 
-export function Typography(renderSpec: SplitComparisonRenderSpec) {
+export function Typography(renderSpec: TypographyRenderSpec) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const text = (renderSpec.props as any).text || renderSpec.props.left?.raw || renderSpec.props.left?.label || "";
-  const subtitle = (renderSpec.props as any).subtitle || renderSpec.props.right?.raw || "";
+  const duration_frames = renderSpec.duration_frames || 180;
+  const text = renderSpec.props.text || renderSpec.props.left?.raw || renderSpec.props.left?.label || "";
+  const subtitle = renderSpec.props.subtitle || renderSpec.props.right?.raw || "";
 
   const titleSpring = spring({
     frame,
@@ -20,20 +22,18 @@ export function Typography(renderSpec: SplitComparisonRenderSpec) {
     config: { damping: 14, stiffness: 120 },
   });
 
-  const valueSpring = spring({
-    frame: Math.max(0, frame - 15),
-    fps,
-    config: { damping: 14, stiffness: 120 },
-  });
+  // Living motion pulse for long scene holds
+  const pulse = 1 + Math.sin((frame / duration_frames) * Math.PI * 2) * 0.015;
 
   return (
     <AbsoluteFill
       style={{
-        background: "#09090b",
-        color: "#ffffff",
-        fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        background: tokens.bg.base,
+        backdropFilter: "blur(4px)",
+        color: tokens.text.primary,
+        fontFamily: tokens.font.family,
         overflow: "hidden",
-        padding: "80px 100px",
+        padding: tokens.spacing.padding,
       }}
     >
       <div
@@ -47,14 +47,14 @@ export function Typography(renderSpec: SplitComparisonRenderSpec) {
         <header>
           <div
             style={{
-              color: "#f43f5e",
-              fontSize: 24,
+              color: tokens.accent.rose,
+              fontSize: tokens.font.eyebrow,
               fontWeight: 800,
               textTransform: "uppercase",
               letterSpacing: 2,
             }}
           >
-            FOCUS PHRASE
+            {renderSpec.props.headerLabel || "KEY INSIGHT"}
           </div>
         </header>
 
@@ -73,31 +73,19 @@ export function Typography(renderSpec: SplitComparisonRenderSpec) {
               fontWeight: 950,
               lineHeight: 1.1,
               letterSpacing: -2,
-              transform: `scale(${interpolate(titleSpring, [0, 1], [0.92, 1])})`,
+              transform: `scale(${interpolate(titleSpring, [0, 1], [0.92, 1]) * pulse})`,
               opacity: titleSpring,
             }}
           >
             {text}
           </div>
-          <div
-            style={{
-              fontSize: 100,
-              fontWeight: 950,
-              color: "#f43f5e",
-              lineHeight: 1.1,
-              letterSpacing: -2,
-              marginTop: 10,
-              transform: `scale(${interpolate(valueSpring, [0, 1], [0.92, 1])})`,
-              opacity: valueSpring,
-            }}
-          >
-            ➔ {subtitle}
-          </div>
         </main>
 
-        <footer style={{ fontSize: 24, color: "#71717a", fontWeight: 600 }}>
-          Typography focus enforces memorability.
-        </footer>
+        {renderSpec.props.footerLabel ? (
+          <footer style={{ fontSize: 24, color: "#71717a", fontWeight: 600 }}>
+            {renderSpec.props.footerLabel}
+          </footer>
+        ) : null}
       </div>
     </AbsoluteFill>
   );

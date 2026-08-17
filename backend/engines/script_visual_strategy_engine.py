@@ -38,21 +38,70 @@ SCRIPT_VISUAL_STRATEGY_RESPONSE_SCHEMA: dict[str, Any] = {
                                 "beat_id": {"type": "string"},
                                 "preferred_component": {"type": "string"},
                                 "visual_goal": {"type": "string"},
+                                "onscreen_text": {"type": "string"},
                                 "asset_query": {"type": "string"},
                                 "notes": {"type": "string"},
                                 "trigger_word": {"type": "string"},
                                 "component_data": {
                                     "type": "object",
-                                    "properties": {
-                                        "left_label": {"type": "string"},
-                                        "right_label": {"type": "string"},
-                                        "left_value": {"type": "number"},
-                                        "right_value": {"type": "number"},
-                                        "left_unit": {"type": "string"},
-                                        "right_unit": {"type": "string"},
-                                        "left_role": {"type": "string"},
-                                        "right_role": {"type": "string"}
-                                    }
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "left_role": {"type": "string"},
+                                                "left_label": {"type": "string"},
+                                                "left_value": {"type": "number"},
+                                                "left_unit": {"type": "string"},
+                                                "right_role": {"type": "string"},
+                                                "right_label": {"type": "string"},
+                                                "right_value": {"type": "number"},
+                                                "right_unit": {"type": "string"}
+                                            },
+                                            "required": [
+                                                "left_role", "left_label", "left_value", "left_unit",
+                                                "right_role", "right_label", "right_value", "right_unit"
+                                            ]
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "start_value": {"type": "number"},
+                                                "end_value": {"type": "number"},
+                                                "label": {"type": "string"},
+                                                "unit": {"type": "string"}
+                                            },
+                                            "required": ["start_value", "end_value", "label", "unit"]
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "chart_type": {"type": "string"},
+                                                "labels": {
+                                                    "type": "array",
+                                                    "items": {"type": "string"}
+                                                },
+                                                "values": {
+                                                    "type": "array",
+                                                    "items": {"type": "number"}
+                                                }
+                                            },
+                                            "required": ["chart_type", "labels", "values"]
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "steps": {
+                                                    "type": "array",
+                                                    "items": {"type": "string"}
+                                                }
+                                            },
+                                            "required": ["steps"]
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {}
+                                        }
+                                    ]
                                 },
                             },
                             "required": ["beat_id", "preferred_component", "visual_goal"],

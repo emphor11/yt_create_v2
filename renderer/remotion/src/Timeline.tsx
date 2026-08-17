@@ -5,49 +5,36 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { type SplitComparisonRenderSpec } from "./SplitComparison";
+import { type TimelineRenderSpec } from "./types";
+import { tokens } from "./design-tokens";
 
-export function Timeline(renderSpec: SplitComparisonRenderSpec) {
+export function Timeline(renderSpec: TimelineRenderSpec) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const attentionShiftSpan = renderSpec.frame_spans.find(
-    (span) => span.event_id === renderSpec.props.attention_shift_event_id
-  );
+  const duration_frames = renderSpec.duration_frames || 180;
   
-  const shiftProgress = attentionShiftSpan
-    ? interpolate(
-        frame,
-        [
-          attentionShiftSpan.start_frame,
-          attentionShiftSpan.start_frame + Math.min(24, attentionShiftSpan.duration_frames),
-        ],
-        [0, 1],
-        { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
-      )
-    : 0;
+  // Extract steps array cleanly (support N steps)
+  const rawSteps = renderSpec.props.steps;
+  const isClean = rawSteps !== undefined && Array.isArray(rawSteps) && rawSteps.length > 0;
+  const stepsList: string[] = isClean
+    ? rawSteps!
+    : [
+        renderSpec.props.left?.raw || renderSpec.props.left?.label || "Step 1",
+        renderSpec.props.right?.raw || renderSpec.props.right?.label || "Step 2",
+      ].filter(Boolean);
 
-  const isClean = (renderSpec.props as any).steps !== undefined;
-  const leftLabel = isClean ? "Step 1" : renderSpec.props.left?.label;
-  const leftRaw = isClean ? (renderSpec.props as any).steps[0] : renderSpec.props.left?.raw;
-
-  const rightLabel = isClean ? "Step 2" : renderSpec.props.right?.label;
-  const rightRaw = isClean ? (renderSpec.props as any).steps[1] : renderSpec.props.right?.raw;
-
-  const springProgress = spring({
-    frame,
-    fps,
-    config: { damping: 15, stiffness: 100 },
-  });
+  const stepCount = stepsList.length;
 
   return (
     <AbsoluteFill
       style={{
-        background: "linear-gradient(135deg, #111827 0%, #1f2937 100%)",
-        color: "#f3f4f6",
-        fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        background: tokens.bg.base,
+        backdropFilter: "blur(4px)",
+        color: tokens.text.primary,
+        fontFamily: tokens.font.family,
         overflow: "hidden",
-        padding: "80px 100px",
+        padding: tokens.spacing.padding,
       }}
     >
       <div
@@ -62,126 +49,110 @@ export function Timeline(renderSpec: SplitComparisonRenderSpec) {
         <header>
           <div
             style={{
-              color: "#3b82f6",
-              fontSize: 24,
+              color: tokens.accent.blue,
+              fontSize: tokens.font.eyebrow,
               fontWeight: 800,
               textTransform: "uppercase",
               letterSpacing: 2,
             }}
           >
-            TIMELINE MILESTONES
+            {renderSpec.props.headerLabel || "PROGRESSION"}
           </div>
-          <div
-            style={{
-              fontSize: 54,
-              fontWeight: 900,
-              marginTop: 16,
-            }}
-          >
-            Tracking the progression over time
-          </div>
+          {renderSpec.props.title && (
+            <div
+              style={{
+                fontSize: 54,
+                fontWeight: 900,
+                marginTop: 16,
+                lineHeight: 1.1,
+              }}
+            >
+              {renderSpec.props.title}
+            </div>
+          )}
         </header>
 
         <main
           style={{
             position: "relative",
             display: "flex",
-            alignItems: "center",
-            height: "300px",
+            flexDirection: "column",
+            justifyContent: "center",
+            gap: "28px",
+            flex: 1,
+            margin: "32px 0",
           }}
         >
-          {/* Main timeline track line */}
-          <div
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              height: "8px",
-              background: "#374151",
-              borderRadius: "4px",
-            }}
-          />
-          {/* Animated filled progress path */}
-          <div
-            style={{
-              position: "absolute",
-              left: 0,
-              width: `${interpolate(springProgress, [0, 1], [0, 100])}%`,
-              height: "8px",
-              background: "linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)",
-              borderRadius: "4px",
-              boxShadow: "0 0 16px rgba(59, 130, 246, 0.5)",
-            }}
-          />
+          {stepsList.map((stepText, idx) => {
+            // Sequential stagger delay for each step
+            const delay = Math.round((duration_frames * 0.45 * idx) / Math.max(1, stepCount - 1));
+            const stepSpring = spring({
+              frame: Math.max(0, frame - delay),
+              fps,
+              config: { damping: 16, stiffness: 110 },
+            });
 
-          {/* Left Node */}
-          <div
-            style={{
-              position: "absolute",
-              left: "10%",
-              transform: "translateX(-50%)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              opacity: springProgress,
-            }}
-          >
-            <div
-              style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "50%",
-                background: "#3b82f6",
-                border: "6px solid #111827",
-                boxShadow: "0 0 10px rgba(59, 130, 246, 0.8)",
-              }}
-            />
-            <div style={{ marginTop: "16px", textAlign: "center" }}>
-              <div style={{ fontSize: 24, color: "#9ca3af", fontWeight: 700 }}>
-                {leftLabel}
-              </div>
-              <div style={{ fontSize: 44, fontWeight: 900, color: "#3b82f6", marginTop: 4 }}>
-                {leftRaw}
-              </div>
-            </div>
-          </div>
+            return (
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "24px",
+                  opacity: stepSpring,
+                  transform: `translateX(${(1 - stepSpring) * -40}px)`,
+                }}
+              >
+                {/* Node Badge */}
+                <div
+                  style={{
+                    width: "48px",
+                    height: "48px",
+                    borderRadius: "50%",
+                    background: idx === stepCount - 1 ? tokens.accent.blue : "rgba(59, 130, 246, 0.2)",
+                    border: `3px solid ${tokens.accent.blue}`,
+                    boxShadow: "0 0 16px rgba(59, 130, 246, 0.4)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 20,
+                    fontWeight: 900,
+                    color: "#ffffff",
+                    flexShrink: 0,
+                  }}
+                >
+                  {idx + 1}
+                </div>
 
-          {/* Right Node */}
-          <div
-            style={{
-              position: "absolute",
-              left: "90%",
-              transform: "translateX(-50%)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              opacity: shiftProgress,
-            }}
-          >
-            <div
-              style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "50%",
-                background: "#60a5fa",
-                border: "6px solid #111827",
-                boxShadow: "0 0 10px rgba(96, 165, 250, 0.8)",
-              }}
-            />
-            <div style={{ marginTop: "16px", textAlign: "center" }}>
-              <div style={{ fontSize: 24, color: "#9ca3af", fontWeight: 700 }}>
-                {rightLabel}
+                {/* Step Card */}
+                <div
+                  style={{
+                    background: "rgba(15, 23, 42, 0.75)",
+                    border: "1px solid rgba(59, 130, 246, 0.3)",
+                    borderRadius: "12px",
+                    padding: "18px 28px",
+                    flex: 1,
+                    boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
+                    backdropFilter: "blur(6px)",
+                  }}
+                >
+                  <div style={{ fontSize: 18, color: tokens.accent.blue, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>
+                    Step {idx + 1}
+                  </div>
+                  <div style={{ fontSize: 36, fontWeight: 900, color: tokens.text.primary, marginTop: 4, lineHeight: 1.2 }}>
+                    {stepText}
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize: 44, fontWeight: 900, color: "#60a5fa", marginTop: 4 }}>
-                {rightRaw}
-              </div>
-            </div>
-          </div>
+            );
+          })}
         </main>
 
-        <footer style={{ textAlign: "center", fontSize: 28, color: "#9ca3af", fontWeight: 600 }}>
-          Timeline shifts are driven by decision logic.
-        </footer>
+        {renderSpec.props.footerLabel ? (
+          <footer style={{ textAlign: "center", fontSize: 24, color: tokens.text.muted, fontWeight: 600 }}>
+            {renderSpec.props.footerLabel}
+          </footer>
+        ) : null}
       </div>
     </AbsoluteFill>
   );

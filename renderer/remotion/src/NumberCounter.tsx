@@ -1,38 +1,51 @@
 import {
   AbsoluteFill,
+  Easing,
   interpolate,
   spring,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { type SplitComparisonRenderSpec } from "./SplitComparison";
+import { type NumberCounterRenderSpec } from "./types";
+import { tokens } from "./design-tokens";
 
-export function NumberCounter(renderSpec: SplitComparisonRenderSpec) {
+export function NumberCounter(renderSpec: NumberCounterRenderSpec) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const isClean = (renderSpec.props as any).startValue !== undefined;
-  const startValue = isClean ? (renderSpec.props as any).startValue : (renderSpec.props.left?.value || 0);
-  const endValue = isClean ? (renderSpec.props as any).endValue : (renderSpec.props.right?.value || 100);
-  const label = isClean ? (renderSpec.props as any).label : `${renderSpec.props.left?.label || ""} ➔ ${renderSpec.props.right?.label || ""}`;
-  const unit = isClean ? "" : (renderSpec.props.left?.unit || "");
+  const duration_frames = renderSpec.duration_frames || 180;
+  const isClean = renderSpec.props.startValue !== undefined;
+  const startValue = isClean ? renderSpec.props.startValue! : (renderSpec.props.left?.value || 0);
+  const endValue = isClean ? renderSpec.props.endValue! : (renderSpec.props.right?.value || 100);
+  const label = isClean ? (renderSpec.props.label || "Metric") : `${renderSpec.props.left?.label || ""} ➔ ${renderSpec.props.right?.label || ""}`;
+  const unit = renderSpec.props.unit || (renderSpec.props.left?.unit || "");
 
-  const countSpring = spring({
+  // Counter animation scales dynamically across 75% of scene duration
+  const countProgress = interpolate(
     frame,
-    fps,
-    config: { damping: 20, stiffness: 80 },
-  });
+    [0, Math.round(duration_frames * 0.75)],
+    [0, 1],
+    {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+      easing: Easing.bezier(0.16, 1, 0.3, 1), // ease-out-expo
+    }
+  );
 
-  const currentValue = Math.round(interpolate(countSpring, [0, 1], [startValue, endValue]));
+  const currentValue = Math.round(interpolate(countProgress, [0, 1], [startValue, endValue]));
+
+  // Living motion: subtle breathing pulse to keep long scene holds dynamic
+  const pulse = 1 + Math.sin((frame / duration_frames) * Math.PI * 4) * 0.02;
 
   return (
     <AbsoluteFill
       style={{
-        background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)",
-        color: "#ffffff",
-        fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        background: `linear-gradient(135deg, ${tokens.bg.cardLeft} 0%, ${tokens.bg.cardRight} 100%)`,
+        backdropFilter: "blur(4px)",
+        color: tokens.text.primary,
+        fontFamily: tokens.font.family,
         overflow: "hidden",
-        padding: "80px 100px",
+        padding: tokens.spacing.padding,
       }}
     >
       <div
@@ -48,24 +61,26 @@ export function NumberCounter(renderSpec: SplitComparisonRenderSpec) {
         <header>
           <div
             style={{
-              color: "#a855f7",
-              fontSize: 24,
+              color: tokens.accent.purple,
+              fontSize: tokens.font.eyebrow,
               fontWeight: 800,
               textTransform: "uppercase",
               letterSpacing: 2,
             }}
           >
-            REALTIME COUNTER
+            {renderSpec.props.headerLabel || "KEY METRIC"}
           </div>
-          <div
-            style={{
-              fontSize: 54,
-              fontWeight: 900,
-              marginTop: 16,
-            }}
-          >
-            Watch the scaling metrics comparison
-          </div>
+          {renderSpec.props.title && (
+            <div
+              style={{
+                fontSize: 54,
+                fontWeight: 900,
+                marginTop: 16,
+              }}
+            >
+              {renderSpec.props.title}
+            </div>
+          )}
         </header>
 
         <main
@@ -76,26 +91,60 @@ export function NumberCounter(renderSpec: SplitComparisonRenderSpec) {
             justifyContent: "center",
           }}
         >
-          <div style={{ color: "#9ca3af", fontSize: 28, fontWeight: 700, textTransform: "uppercase" }}>
+          <div style={{ color: tokens.text.secondary, fontSize: 26, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1.5 }}>
             {label}
           </div>
           <div
             style={{
-              fontSize: 160,
-              fontWeight: 950,
-              color: "#a855f7",
-              lineHeight: 1,
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "center",
               marginTop: 20,
-              textShadow: "0 0 40px rgba(168, 85, 247, 0.4)",
+              transform: `scale(${pulse})`,
             }}
           >
-            {unit === "INR" ? "₹" : ""}{currentValue.toLocaleString()} {unit !== "INR" && unit ? unit : ""}
+            {/* Currency Prefix if INR or USD */}
+            {unit === "INR" || unit === "₹" ? (
+              <span style={{ fontSize: 72, fontWeight: 900, color: tokens.accent.purple, marginRight: 8 }}>₹</span>
+            ) : unit === "USD" || unit === "$" ? (
+              <span style={{ fontSize: 72, fontWeight: 900, color: tokens.accent.purple, marginRight: 8 }}>$</span>
+            ) : null}
+
+            {/* Main Numeric Counter */}
+            <span
+              style={{
+                fontSize: 144,
+                fontWeight: 950,
+                color: tokens.accent.purple,
+                lineHeight: 1,
+                textShadow: "0 0 40px rgba(168, 85, 247, 0.4)",
+              }}
+            >
+              {currentValue.toLocaleString()}
+            </span>
+
+            {/* Unit Suffix for non-currency units (e.g. months, years, %, GB) */}
+            {unit && unit !== "INR" && unit !== "₹" && unit !== "USD" && unit !== "$" ? (
+              <span
+                style={{
+                  fontSize: 54,
+                  fontWeight: 800,
+                  color: tokens.text.secondary,
+                  marginLeft: 16,
+                  textTransform: "lowercase",
+                }}
+              >
+                {unit}
+              </span>
+            ) : null}
           </div>
         </main>
 
-        <footer style={{ fontSize: 26, color: "#9ca3af", fontWeight: 600 }}>
-          Compound difference scaling up automatically.
-        </footer>
+        {renderSpec.props.footerLabel ? (
+          <footer style={{ fontSize: 26, color: "#9ca3af", fontWeight: 600 }}>
+            {renderSpec.props.footerLabel}
+          </footer>
+        ) : null}
       </div>
     </AbsoluteFill>
   );

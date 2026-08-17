@@ -33,6 +33,7 @@ class GeminiProvider:
     def generate_json(self, llm_request: LLMJsonRequest) -> LLMJsonResponse:
         payload = self._build_payload(llm_request)
         raw_response = self._post_generate_content(payload)
+        finish_reason = self._finish_reason(raw_response)
         text = self._extract_text(raw_response).strip()
         
         # Clean markdown code block wrapping if present
@@ -41,10 +42,31 @@ class GeminiProvider:
         elif text.startswith("```"):
             text = text.removeprefix("```").removesuffix("```").strip()
 
+        # Pre-process text to collapse repeating phrase loops if an LLM hallucination loop occurred
+        text = self._collapse_phrase_loops(text)
+
         try:
             parsed_payload = json.loads(text)
         except json.JSONDecodeError as error:
-            raise LLMProviderError(f"Gemini returned non-JSON text. Raw content: {text}") from error
+            # Attempt JSON truncation repair by collapsing unclosed runaway strings
+            repaired_text = self._attempt_json_repair(text)
+            if repaired_text:
+                try:
+                    parsed_payload = json.loads(repaired_text)
+                except json.JSONDecodeError:
+                    if finish_reason == "MAX_TOKENS":
+                        raise LLMProviderError(
+                            f"Gemini output was truncated due to MAX_TOKENS limit ({llm_request.max_tokens} tokens). "
+                            f"Raw truncated text ends with: ...{text[-150:]}"
+                        ) from error
+                    raise LLMProviderError(f"Gemini returned non-JSON text. Raw content: {text}") from error
+            else:
+                if finish_reason == "MAX_TOKENS":
+                    raise LLMProviderError(
+                        f"Gemini output was truncated due to MAX_TOKENS limit ({llm_request.max_tokens} tokens). "
+                        f"Raw truncated text ends with: ...{text[-150:]}"
+                    ) from error
+                raise LLMProviderError(f"Gemini returned non-JSON text. Raw content: {text}") from error
 
         return LLMJsonResponse(
             payload=parsed_payload,
@@ -52,12 +74,75 @@ class GeminiProvider:
                 provider="gemini",
                 model=self.model,
                 raw_metadata={
-                    "finish_reason": self._finish_reason(raw_response),
+                    "finish_reason": finish_reason,
                     "usage_metadata": raw_response.get("usageMetadata", {}),
                     "schema_name": llm_request.schema_name,
                 },
             ),
         )
+
+    @staticmethod
+    def _collapse_phrase_loops(text: str) -> str:
+        """Collapse repeating phrase loops (e.g. 'and legacy and impact and influence') caused by LLM output hallucinations."""
+        import re
+        if not text:
+            return text
+
+        def _sub_loop(t: str) -> str:
+            # Matches any phrase of 1 to 8 words repeating 2 or more times
+            res = re.sub(
+                r'(\b[\w\-]+(?:\s+[\w\-]+){0,7}\b)(?:(?:\s*,\s*|\s+)\1){2,}',
+                r'\1',
+                t,
+                flags=re.IGNORECASE,
+            )
+            # Matches repeating sentence blocks (e.g. 4 sentences repeating 60 times)
+            res = re.sub(
+                r'([^"\\]{10,250}\.)(?:\s*\1){2,}',
+                r'\1',
+                res,
+                flags=re.IGNORECASE,
+            )
+            return res
+
+        prev = text
+        for _ in range(4):
+            curr = _sub_loop(prev)
+            if curr == prev:
+                break
+            prev = curr
+        return prev
+
+    @staticmethod
+    def _attempt_json_repair(text: str) -> str | None:
+        """Attempt simple repair for JSON cut off mid-string or mid-array."""
+        import re
+        cleaned = text.strip()
+        if not cleaned:
+            return None
+
+        # 1. Try closing open string quote and open array/object brackets directly
+        for suffix in ['"]}]}', '"]}', '"}]}', '"}', ']}', '}']:
+            candidate = cleaned + suffix
+            try:
+                json.loads(candidate)
+                return candidate
+            except json.JSONDecodeError:
+                continue
+
+        # 2. If a runaway string quote was cut off mid-sentence, truncate the runaway string to last complete word and close JSON
+        quote_pos = cleaned.rfind('"')
+        if quote_pos != -1:
+            truncated = cleaned[:quote_pos]
+            for suffix in ['"]}]}', '"]}', '"}]}', '"}', ']}', '}']:
+                candidate = truncated + suffix
+                try:
+                    json.loads(candidate)
+                    return candidate
+                except json.JSONDecodeError:
+                    continue
+
+        return None
 
     def _build_payload(self, llm_request: LLMJsonRequest) -> dict[str, Any]:
         system_instruction = self._system_instruction(llm_request.messages)

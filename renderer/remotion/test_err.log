@@ -1,0 +1,83 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+SymbolicateableError [TypeError]: Cannot read properties of undefined (reading 'label')
+    at StockVideo (http://localhost:3000/bundle.js:1008:188)
+    at renderWithHooks (http://localhost:3000/bundle.js:6146:21)
+    at updateFunctionComponent (http://localhost:3000/bundle.js:8292:15)
+    at beginWork (http://localhost:3000/bundle.js:9268:14)
+    at performUnitOfWork (http://localhost:3000/bundle.js:13100:14)
+    at workLoopSync (http://localhost:3000/bundle.js:12977:37)
+    at renderRootSync (http://localhost:3000/bundle.js:12958:7)
+    at performWorkOnRoot (http://localhost:3000/bundle.js:12523:40)
+    at performWorkOnRootViaSchedulerTask (http://localhost:3000/bundle.js:13873:3)
+    at MessagePort.performWorkUntilDeadline (http://localhost:3000/bundle.js:18915:44) {
+  stackFrame: [
+    {
+      columnNumber: 187,
+      fileName: 'http://localhost:3000/bundle.js',
+      functionName: 'StockVideo',
+      lineNumber: 1007
+    },
+    {
+      columnNumber: 20,
+      fileName: 'http://localhost:3000/bundle.js',
+      functionName: 'renderWithHooks',
+      lineNumber: 6145
+    },
+    {
+      columnNumber: 14,
+      fileName: 'http://localhost:3000/bundle.js',
+      functionName: 'updateFunctionComponent',
+      lineNumber: 8291
+    },
+    {
+      columnNumber: 13,
+      fileName: 'http://localhost:3000/bundle.js',
+      functionName: 'beginWork',
+      lineNumber: 9267
+    },
+    {
+      columnNumber: 13,
+      fileName: 'http://localhost:3000/bundle.js',
+      functionName: 'performUnitOfWork',
+      lineNumber: 13099
+    },
+    {
+      columnNumber: 36,
+      fileName: 'http://localhost:3000/bundle.js',
+      functionName: 'workLoopSync',
+      lineNumber: 12976
+    },
+    {
+      columnNumber: 6,
+      fileName: 'http://localhost:3000/bundle.js',
+      functionName: 'renderRootSync',
+      lineNumber: 12957
+    },
+    {
+      columnNumber: 39,
+      fileName: 'http://localhost:3000/bundle.js',
+      functionName: 'performWorkOnRoot',
+      lineNumber: 12522
+    },
+    {
+      columnNumber: 2,
+      fileName: 'http://localhost:3000/bundle.js',
+      functionName: 'performWorkOnRootViaSchedulerTask',
+      lineNumber: 13872
+    },
+    {
+      columnNumber: 43,
+      fileName: 'http://localhost:3000/bundle.js',
+      functionName: 'performWorkUntilDeadline',
+      lineNumber: 18914
+    }
+  ],
+  delayRenderCall: null,
+  frame: 621,
+  chunk: null
+}
+
+Node.js v22.22.3

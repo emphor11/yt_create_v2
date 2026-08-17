@@ -6,39 +6,11 @@ import {
   useVideoConfig,
 } from "remotion";
 
-type VisualPlanSide = {
-  role: string;
-  semantic_entity_id: string;
-  label: string;
-  raw: string;
-  value: number;
-  unit: string;
-};
-
-type SplitComparisonProps = {
-  left: VisualPlanSide;
-  right: VisualPlanSide;
-  attention_shift_event_id: string;
-};
-
-type RenderFrameSpan = {
-  event_id: string;
-  start_frame: number;
-  end_frame: number;
-  duration_frames: number;
-};
-
-export type SplitComparisonRenderSpec = {
-  scene_id: string;
-  composition: "SplitComparison";
-  fps: number;
-  duration_frames: number;
-  props: SplitComparisonProps;
-  frame_spans: RenderFrameSpan[];
-};
+import { type SplitComparisonRenderSpec, type RenderFrameSpan } from "./types";
+import { tokens } from "./design-tokens";
 
 function spanById(renderSpec: SplitComparisonRenderSpec, eventId: string) {
-  return renderSpec.frame_spans.find((span) => span.event_id === eventId);
+  return renderSpec.frame_spans?.find((span) => span.event_id === eventId);
 }
 
 function progressForSpan(frame: number, span: RenderFrameSpan | undefined) {
@@ -56,36 +28,55 @@ function progressForSpan(frame: number, span: RenderFrameSpan | undefined) {
   );
 }
 
-function formatValue(side: VisualPlanSide) {
-  return side.raw;
+function formatValue(side: any) {
+  return side?.raw || "";
 }
 
 export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const duration_frames = renderSpec.duration_frames || 180;
   const fullPriceSpan = spanById(renderSpec, "event_full_price");
   const monthlyPaymentSpan = spanById(renderSpec, "event_monthly_payment");
   const attentionShiftSpan = spanById(
     renderSpec,
-    renderSpec.props.attention_shift_event_id
+    renderSpec.props.attention_shift_event_id || ""
   );
-  const isClean = (renderSpec.props as any).leftLabel !== undefined;
-  const leftLabel = isClean ? (renderSpec.props as any).leftLabel : renderSpec.props.left?.label;
-  const leftRaw = isClean ? String((renderSpec.props as any).leftValue) : (renderSpec.props.left ? formatValue(renderSpec.props.left) : "");
 
-  const rightLabel = isClean ? (renderSpec.props as any).rightLabel : renderSpec.props.right?.label;
-  const rightRaw = isClean ? String((renderSpec.props as any).rightValue) : (renderSpec.props.right ? formatValue(renderSpec.props.right) : "");
+  const props = renderSpec.props as any;
 
-  const leftProgress = progressForSpan(frame, fullPriceSpan);
-  const rightProgress = progressForSpan(frame, monthlyPaymentSpan);
-  const shiftProgress = progressForSpan(frame, attentionShiftSpan);
+  // Extract roles, labels, values, and units safely
+  const leftRole = props.leftRole || props.left?.role || props.leftLabel || props.left?.label || "Before";
+  const leftLabel = props.leftLabel && props.leftLabel !== leftRole ? props.leftLabel : (props.left?.label || "");
+  const leftRawVal = props.leftValue !== undefined ? String(props.leftValue) : (formatValue(props.left) || "0");
+  const leftUnit = props.leftUnit || props.left?.unit || "";
+
+  const rightRole = props.rightRole || props.right?.role || props.rightLabel || props.right?.label || "After";
+  const rightLabel = props.rightLabel && props.rightLabel !== rightRole ? props.rightLabel : (props.right?.label || "");
+  const rightRawVal = props.rightValue !== undefined ? String(props.rightValue) : (formatValue(props.right) || "0");
+  const rightUnit = props.rightUnit || props.right?.unit || "";
+
+  const leftProgress = fullPriceSpan
+    ? progressForSpan(frame, fullPriceSpan)
+    : interpolate(frame, [0, 15], [0, 1], { extrapolateRight: "clamp" });
+
+  const rightStartFrame = monthlyPaymentSpan?.start_frame ?? Math.round(duration_frames * 0.25);
+  const rightProgress = monthlyPaymentSpan
+    ? progressForSpan(frame, monthlyPaymentSpan)
+    : interpolate(frame, [rightStartFrame, rightStartFrame + 15], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+
+  const shiftStartFrame = attentionShiftSpan?.start_frame ?? Math.round(duration_frames * 0.55);
+  const shiftProgress = attentionShiftSpan
+    ? progressForSpan(frame, attentionShiftSpan)
+    : interpolate(frame, [shiftStartFrame, shiftStartFrame + Math.round(duration_frames * 0.15)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+
   const leftSpring = spring({
     frame: Math.max(0, frame - (fullPriceSpan?.start_frame ?? 0)),
     fps,
     config: { damping: 18, stiffness: 110 },
   });
   const rightSpring = spring({
-    frame: Math.max(0, frame - (monthlyPaymentSpan?.start_frame ?? 0)),
+    frame: Math.max(0, frame - rightStartFrame),
     fps,
     config: { damping: 18, stiffness: 110 },
   });
@@ -95,10 +86,10 @@ export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
   return (
     <AbsoluteFill
       style={{
-        background:
-          "linear-gradient(135deg, #f5f7fb 0%, #e7f0ed 46%, #f8efe4 100%)",
-        color: "#172026",
-        fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        background: tokens.bg.base,
+        backdropFilter: "blur(4px)",
+        color: tokens.text.primary,
+        fontFamily: tokens.font.family,
         overflow: "hidden",
       }}
     >
@@ -107,7 +98,7 @@ export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
           position: "absolute",
           inset: 0,
           background:
-            "linear-gradient(90deg, rgba(23,32,38,0.045) 1px, transparent 1px), linear-gradient(0deg, rgba(23,32,38,0.035) 1px, transparent 1px)",
+            "linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(0deg, rgba(255,255,255,0.02) 1px, transparent 1px)",
           backgroundSize: "96px 96px",
         }}
       />
@@ -117,32 +108,35 @@ export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
           display: "grid",
           gridTemplateRows: "auto 1fr auto",
           height: "100%",
-          padding: "86px 104px 72px",
+          padding: tokens.spacing.padding,
         }}
       >
         <header>
           <div
             style={{
-              color: "#52616f",
-              fontSize: 30,
+              color: tokens.accent.cyan,
+              fontSize: tokens.font.eyebrow,
               fontWeight: 800,
-              letterSpacing: 0,
+              letterSpacing: 2,
               textTransform: "uppercase",
             }}
           >
-            EMI perception
+            {renderSpec.props.headerLabel || "COMPARISON"}
           </div>
-          <div
-            style={{
-              fontSize: 68,
-              fontWeight: 900,
-              lineHeight: 1.08,
-              marginTop: 18,
-              maxWidth: 1180,
-            }}
-          >
-            The same phone feels different when the price is split.
-          </div>
+          {renderSpec.props.title && (
+            <div
+              style={{
+                fontSize: 64,
+                fontWeight: 900,
+                lineHeight: 1.1,
+                marginTop: 16,
+                maxWidth: 1200,
+                color: tokens.text.primary,
+              }}
+            >
+              {renderSpec.props.title}
+            </div>
+          )}
         </header>
 
         <main
@@ -151,122 +145,125 @@ export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
             display: "grid",
             gap: 34,
             gridTemplateColumns: `${100 - focusWidth}% ${focusWidth}%`,
-            marginTop: 42,
+            marginTop: 32,
             transition: "grid-template-columns 200ms ease",
           }}
         >
+          {/* Left Panel - Dark Glass Red Accent */}
           <section
             style={{
-              border: "2px solid rgba(23, 32, 38, 0.14)",
-              borderRadius: 8,
-              background: "rgba(255, 255, 255, 0.78)",
-              boxShadow: "0 24px 70px rgba(23, 32, 38, 0.12)",
-              minHeight: 430,
+              border: "2px solid rgba(244, 63, 94, 0.35)",
+              borderRadius: 16,
+              background: tokens.bg.cardLeft,
+              boxShadow: "0 24px 70px rgba(0, 0, 0, 0.5)",
+              minHeight: 400,
               opacity: leftOpacity * leftProgress,
               padding: 44,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
               transform: `translateY(${(1 - leftSpring) * 40}px)`,
+              backdropFilter: "blur(8px)",
             }}
           >
-            <div
-              style={{
-                color: "#52616f",
-                fontSize: 32,
-                fontWeight: 900,
-                textTransform: "uppercase",
-              }}
-            >
-              {leftLabel}
+            <div>
+              <div
+                style={{
+                  color: tokens.accent.rose,
+                  fontSize: 28,
+                  fontWeight: 900,
+                  textTransform: "uppercase",
+                  letterSpacing: 1.5,
+                }}
+              >
+                {leftRole}
+              </div>
+              {leftLabel ? (
+                <div style={{ color: tokens.text.secondary, fontSize: 22, marginTop: 6, fontWeight: 600 }}>
+                  {leftLabel}
+                </div>
+              ) : null}
             </div>
             <div
               style={{
-                color: "#7a2730",
-                fontSize: 112,
+                color: tokens.accent.rose,
+                fontSize: 104,
                 fontWeight: 950,
                 lineHeight: 1,
-                marginTop: 58,
+                marginTop: 36,
+                textShadow: "0 0 30px rgba(244, 63, 94, 0.3)",
               }}
             >
-              {leftRaw}
-            </div>
-            <div
-              style={{
-                color: "#52616f",
-                fontSize: 34,
-                fontWeight: 700,
-                marginTop: 40,
-              }}
-            >
-              The actual cost arrives as one big number.
+              {leftRawVal}{leftUnit ? <span style={{ fontSize: 44, marginLeft: 10, color: tokens.text.secondary }}>{leftUnit}</span> : null}
             </div>
           </section>
 
+          {/* Right Panel - Dark Glass Emerald Accent */}
           <section
             style={{
-              border: "3px solid rgba(22, 102, 99, 0.36)",
-              borderRadius: 8,
-              background: "rgba(255, 255, 255, 0.92)",
-              boxShadow: `0 28px 86px rgba(22, 102, 99, ${0.14 + shiftProgress * 0.16})`,
-              minHeight: 430,
+              border: "3px solid rgba(16, 185, 129, 0.45)",
+              borderRadius: 16,
+              background: tokens.bg.cardRight,
+              boxShadow: `0 28px 86px rgba(16, 185, 129, ${0.15 + shiftProgress * 0.2})`,
+              minHeight: 400,
               opacity: rightProgress,
               padding: 44,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
               transform: `translateY(${(1 - rightSpring) * 44}px) scale(${
                 1 + shiftProgress * 0.035
               })`,
+              backdropFilter: "blur(8px)",
             }}
           >
-            <div
-              style={{
-                color: "#166663",
-                fontSize: 32,
-                fontWeight: 900,
-                textTransform: "uppercase",
-              }}
-            >
-              {rightLabel}
+            <div>
+              <div
+                style={{
+                  color: tokens.accent.emerald,
+                  fontSize: 28,
+                  fontWeight: 900,
+                  textTransform: "uppercase",
+                  letterSpacing: 1.5,
+                }}
+              >
+                {rightRole}
+              </div>
+              {rightLabel ? (
+                <div style={{ color: tokens.text.secondary, fontSize: 22, marginTop: 6, fontWeight: 600 }}>
+                  {rightLabel}
+                </div>
+              ) : null}
             </div>
             <div
               style={{
-                color: "#166663",
-                fontSize: 118,
+                color: tokens.accent.emerald,
+                fontSize: 110,
                 fontWeight: 950,
                 lineHeight: 1,
-                marginTop: 58,
+                marginTop: 36,
+                textShadow: "0 0 30px rgba(16, 185, 129, 0.4)",
               }}
             >
-              {rightRaw}
-            </div>
-            <div
-              style={{
-                color: "#52616f",
-                fontSize: 34,
-                fontWeight: 800,
-                marginTop: 40,
-              }}
-            >
-              Per month feels smaller, so the pain drops.
+              {rightRawVal}{rightUnit ? <span style={{ fontSize: 44, marginLeft: 10, color: tokens.text.secondary }}>{rightUnit}</span> : null}
             </div>
           </section>
         </main>
 
-        <footer
-          style={{
-            alignItems: "center",
-            color: "#172026",
-            display: "flex",
-            fontSize: 34,
-            fontWeight: 850,
-            gap: 20,
-            justifyContent: "center",
-            opacity: interpolate(shiftProgress, [0, 1], [0, 1], {
-              extrapolateLeft: "clamp",
-              extrapolateRight: "clamp",
-            }),
-          }}
-        >
-          <span>Full price</span>
-          <span style={{ color: "#166663" }}>gets reframed as</span>
-          <span>monthly comfort</span>
-        </footer>
+        {renderSpec.props.footerLabel ? (
+          <footer
+            style={{
+              alignItems: "center",
+              color: tokens.text.muted,
+              display: "flex",
+              fontSize: 26,
+              fontWeight: 700,
+              justifyContent: "center",
+            }}
+          >
+            <span>{renderSpec.props.footerLabel}</span>
+          </footer>
+        ) : null}
       </div>
     </AbsoluteFill>
   );

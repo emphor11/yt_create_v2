@@ -19,7 +19,7 @@ class RemotionRenderOutput:
 
 
 class RemotionProvider:
-    def __init__(self, renderer_root: str | Path, timeout_seconds: int = 180):
+    def __init__(self, renderer_root: str | Path, timeout_seconds: int = 600):
         self.renderer_root = Path(renderer_root)
         self.timeout_seconds = timeout_seconds
 

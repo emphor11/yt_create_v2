@@ -60,7 +60,7 @@ class ScriptVisualStrategyValidator:
                     else:
                         import re
                         cleaned_word = re.sub(r"[^\w]", "", beat.trigger_word.lower())
-                        cleaned_narration_words = [re.sub(r"[^\w]", "", w.lower()) for w in re.findall(r"\w+", idea.narration)]
+                        cleaned_narration_words = [re.sub(r"[^\w]", "", w.lower()) for w in idea.narration.split() if re.sub(r"[^\w]", "", w)]
                         if cleaned_word not in cleaned_narration_words:
                             errors.append(
                                 f"Visual beat '{beat.beat_id}' in idea '{idea.idea_id}' has trigger_word '{beat.trigger_word}' which does not exist in the narration text."
@@ -70,7 +70,7 @@ class ScriptVisualStrategyValidator:
                     if beat.trigger_word and beat.trigger_word.strip() and beat.trigger_word.lower() not in ("null", "none"):
                         import re
                         cleaned_word = re.sub(r"[^\w]", "", beat.trigger_word.lower())
-                        cleaned_narration_words = [re.sub(r"[^\w]", "", w.lower()) for w in re.findall(r"\w+", idea.narration)]
+                        cleaned_narration_words = [re.sub(r"[^\w]", "", w.lower()) for w in idea.narration.split() if re.sub(r"[^\w]", "", w)]
                         if cleaned_word not in cleaned_narration_words:
                             errors.append(
                                 f"Visual beat '{beat.beat_id}' in idea '{idea.idea_id}' has trigger_word '{beat.trigger_word}' which does not exist in the narration text."

@@ -196,7 +196,7 @@ def test_video_assembly_pipeline_stage(tmp_path):
     # Verify rendering-specific component props
     scenes = props["scenes"]
     assert scenes[0]["component"]["component_id"] == "Typography"
-    assert scenes[0]["component"]["props"]["text"] == "Clock animation zooming in."
+    assert scenes[0]["component"]["props"]["text"] == "Illusion of security"
     assert scenes[0]["component"]["props"]["subtitle"] == "First word second word third word."
 
     assert scenes[1]["component"]["component_id"] == "SplitComparison"

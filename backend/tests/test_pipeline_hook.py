@@ -201,3 +201,40 @@ def test_hook_stores_failed_artifact_on_provider_error(tmp_path) -> None:
     assert run.state == "failed"
     assert run.current_stage == "hook"
     assert "resulted in a non-advanceable status 'failed'" in run.error_message
+
+
+def test_hook_retries_after_failure(tmp_path) -> None:
+    # First request fails, second request succeeds
+    provider = ScriptedTestLLMProvider([
+        LLMProviderError("Gemini model is currently experiencing high demand"),
+        valid_hook_response_payload()
+    ])
+    client, store = make_client(tmp_path, llm_provider=provider)
+    _created, project_id, run_id = create_ai_project_with_narrative(client, store)
+
+    # 1. Run stage which fails
+    response = client.post(
+        f"/projects/{project_id}/runs/{run_id}/run/hook"
+    )
+    assert response.status_code == 200
+    artifact = response.json()["artifact"]
+    assert artifact["status"] == "failed"
+
+    # Verify run state is failed
+    run = store.get_run(project_id, run_id)
+    assert run.state == "failed"
+
+    # 2. Run stage again (retry)
+    response = client.post(
+        f"/projects/{project_id}/runs/{run_id}/run/hook"
+    )
+    assert response.status_code == 200
+    artifact_retry = response.json()["artifact"]
+    assert artifact_retry["status"] == "valid"
+    assert artifact_retry["payload_json"]["conceptual_hook"] == "Anchor vs Engine comparison"
+
+    # Verify run state is now running again
+    run = store.get_run(project_id, run_id)
+    assert run.state == "running"
+    assert run.current_stage == "hook"
+
