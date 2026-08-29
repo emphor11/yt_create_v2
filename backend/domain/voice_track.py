@@ -5,6 +5,8 @@ class WordTimestamp(BaseModel):
     word: str
     start_ms: int
     end_ms: int
+    start_char: int | None = None
+    end_char: int | None = None
 
 
 class VoiceTrack(BaseModel):

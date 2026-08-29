@@ -25,3 +25,5 @@ npm-debug.log*
 # Remotion output
 out/
 renders/
+renderer/remotion/public/run_*
+backend/.data/

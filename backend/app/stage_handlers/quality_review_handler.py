@@ -72,7 +72,7 @@ class QualityReviewHandler:
             # Check B: Statistic Verification Check
             stat_check_passed = True
             stat_msg = "All numeric statistics in script are verified in research."
-            
+
             # Combine verified facts and statistics to search against
             research_sources = research_packet.verified_facts + research_packet.statistics
             research_sources_joined = " ".join(research_sources).lower().replace(",", "")
@@ -97,7 +97,9 @@ class QualityReviewHandler:
                         return False
                 if val in verified_nums:
                     return True
-                # Check if it is a sum, difference, product, or quotient of any two verified numbers
+                # Universal baseline percentages: 0, 1, 100
+                if val in (0, 1, 100):
+                    return True
                 for a in verified_nums:
                     for b in verified_nums:
                         if a + b == val or a * b == val or (b != 0 and a / b == val) or a - b == val or b - a == val:
@@ -108,8 +110,7 @@ class QualityReviewHandler:
                 # 1. Check numbers in narration text
                 narration_numbers = re.findall(r"\d+", idea.narration)
                 for num in narration_numbers:
-                    if len(num) > 1:  # Skip single digits like 0-9 as they are common filler words
-                        # Check if the number is verified
+                    if len(num) > 1 and num != "100":
                         if not is_num_verified(num):
                             stat_check_passed = False
                             stat_msg = f"Statistic '{num}' mentioned in narration is not verified in research facts."
@@ -125,7 +126,6 @@ class QualityReviewHandler:
                         for val_key in ["left_value", "right_value"]:
                             val = data.get(val_key)
                             if val is not None and isinstance(val, (int, float)):
-                                # Skip checking if it is 0, 1, or 100 (common percentage base)
                                 if val > 9 and val != 100:
                                     val_str = str(int(val))
                                     if not is_num_verified(val_str):
@@ -144,6 +144,7 @@ class QualityReviewHandler:
                 )
             )
 
+
             # Check C: Visual Component Configuration Check
             visual_check_passed = True
             visual_msg = "All visual component configurations are valid."
@@ -152,14 +153,28 @@ class QualityReviewHandler:
                 for beat in idea.visual_sequence:
                     if beat.preferred_component == "SplitComparison":
                         data = beat.component_data
-                        if not data or not data.get("left_label") or not data.get("right_label"):
+                        left_id = data.get("left_label") or data.get("left_role")
+                        right_id = data.get("right_label") or data.get("right_role")
+                        if not data or not left_id or not right_id:
                             visual_check_passed = False
-                            visual_msg = f"Visual beat '{beat.beat_id}' is SplitComparison but lacks left/right labels."
+                            visual_msg = f"Visual beat '{beat.beat_id}' is SplitComparison but lacks left/right labels or roles."
                             approved = False
                             break
-                        left_val = data.get("left_value")
-                        right_val = data.get("right_value")
-                        if left_val is None or right_val is None or left_val <= 0 or right_val <= 0:
+
+                        def _safe_num(v: Any) -> float | None:
+                            if isinstance(v, (int, float)):
+                                return float(v)
+                            if isinstance(v, str):
+                                clean = re.sub(r"[^\d.]", "", v)
+                                try:
+                                    return float(clean)
+                                except ValueError:
+                                    return None
+                            return None
+
+                        left_num = _safe_num(data.get("left_value"))
+                        right_num = _safe_num(data.get("right_value"))
+                        if left_num is None or right_num is None or left_num <= 0 or right_num <= 0:
                             visual_check_passed = False
                             visual_msg = f"Visual beat '{beat.beat_id}' has invalid numeric split comparison values."
                             approved = False

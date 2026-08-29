@@ -42,8 +42,12 @@ def setup_project_ready_for_assembly(store: ArtifactStore) -> tuple[str, str]:
             "visual_directives": [
                 {
                     "beat_id": "hook_beat_1",
+                    "preferred_component": "Typography",
                     "visual_instruction": "Clock animation zooming in.",
-                    "onscreen_text": "Illusion of security"
+                    "component_data": {
+                        "text": "Illusion of security",
+                        "subtitle": "First word second word third word."
+                    }
                 }
             ]
         },

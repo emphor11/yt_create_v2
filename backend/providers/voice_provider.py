@@ -61,15 +61,17 @@ class PollyVoiceProvider:
                     continue
                 mark = json.loads(line)
                 if mark.get("type") == "word":
-                    # Polly returns time offset in milliseconds from start
+                    # Polly returns time offset in milliseconds and character byte/char offsets
                     start_ms = mark["time"]
-                    # Estimate end time of this word (we will look ahead or approximate word length in ms)
+                    start_char = mark.get("start")
+                    end_char = mark.get("end")
                     word_timestamps.append(
                         WordTimestamp(
                             word=mark["value"],
                             start_ms=start_ms,
-                            # End time can be approximated or completed during pass 2 below
                             end_ms=start_ms + max(100, len(mark["value"]) * 45),
+                            start_char=start_char,
+                            end_char=end_char,
                         )
                     )
 

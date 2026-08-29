@@ -124,13 +124,11 @@ def valid_hook_response_payload() -> dict:
             {
                 "beat_id": "beat_01",
                 "visual_instruction": "Show heavy ship anchor sinking",
-                "onscreen_text": "RENTING = WASTED?",
                 "trigger_word": None,
             },
             {
                 "beat_id": "beat_02",
                 "visual_instruction": "Show rocket engine taking off",
-                "onscreen_text": "THE RENT ENGINE",
                 "trigger_word": "numbers",
             },
         ],

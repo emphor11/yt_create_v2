@@ -47,6 +47,7 @@ def create_project(
 
         gen_req = GenerateVideoRequest(
             topic=topic,
+            angle=request.angle.strip(),
             audience=audience,
             language=language,
             style=style,

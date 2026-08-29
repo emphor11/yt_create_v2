@@ -8,6 +8,7 @@ export const tokens = {
   },
   accent: {
     primary: "#3b82f6",   // Vibrant Blue
+    blue: "#3b82f6",      // Blue Accent
     cyan: "#38bdf8",      // Sky Blue
     emerald: "#10b981",   // Emerald Green
     purple: "#a855f7",    // Purple Accent

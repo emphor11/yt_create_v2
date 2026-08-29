@@ -13,20 +13,27 @@ from providers.llm_provider import (
 )
 
 
+import os
+
 class GeminiProvider:
     def __init__(
         self,
         *,
         api_key: str,
-        model: str = "gemini-3.5-flash",
+        model: str | None = None,
         api_base_url: str = "https://generativelanguage.googleapis.com/v1beta",
-        timeout_seconds: int = 60,
+        timeout_seconds: int = 120,
     ):
         normalized_api_key = api_key.strip()
         if not normalized_api_key:
             raise ValueError("Gemini API key is required.")
+        
+        target_model = (model or os.getenv("GEMINI_MODEL", "")).strip()
+        if not target_model:
+            target_model = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip()
+            
         self.api_key = normalized_api_key
-        self.model = model
+        self.model = target_model
         self.api_base_url = api_base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
 

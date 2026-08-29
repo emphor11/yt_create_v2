@@ -7,7 +7,6 @@ class VisualDirective(BaseModel):
     preferred_component: str | None = None
     visual_goal: str | None = None
     visual_instruction: str | None = None  # Backward compatibility field
-    onscreen_text: str | None = None
     asset_query: str | None = None
     notes: str | None = None
     trigger_word: str | None = None

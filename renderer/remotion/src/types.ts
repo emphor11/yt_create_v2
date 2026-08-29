@@ -97,6 +97,42 @@ export interface MediaComponentProps {
   right?: { label?: string; raw?: string };
 }
 
+export interface AssetReference {
+  asset_id: string;
+  asset_type: "image" | "video";
+  source: string;
+  query: string;
+  local_path: string;
+  url: string | null;
+  asset_status: string;
+}
+
+export interface ComponentSpec {
+  component_id: string;
+  props: any;
+}
+
+export interface SceneSpec {
+  scene_id: string;
+  start_frame: number;
+  end_frame: number;
+  duration_frames: number;
+  component: ComponentSpec;
+  asset: AssetReference | null;
+  narration_text: string | null;
+}
+
+export interface AudioSpec {
+  audio_file_name: string;
+  local_path: string;
+  duration_seconds: number;
+}
+
+export interface VideoAssemblyProps {
+  scenes: SceneSpec[];
+  audio: AudioSpec;
+}
+
 export type TypographyRenderSpec = BaseRenderSpec<TypographyProps>;
 export type NumberCounterRenderSpec = BaseRenderSpec<NumberCounterProps>;
 export type TimelineRenderSpec = BaseRenderSpec<TimelineProps>;
@@ -105,3 +141,4 @@ export type SplitComparisonRenderSpec = BaseRenderSpec<SplitComparisonProps>;
 export type StockImageRenderSpec = BaseRenderSpec<MediaComponentProps>;
 export type StockVideoRenderSpec = BaseRenderSpec<MediaComponentProps>;
 export type IconAnimationRenderSpec = BaseRenderSpec<MediaComponentProps>;
+export type VideoAssemblyRenderSpec = BaseRenderSpec<VideoAssemblyProps>;

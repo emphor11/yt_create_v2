@@ -1,6 +1,6 @@
 import pytest
 
-from domain.research_packet import ResearchPacket
+from domain.generate_video_request import GenerateVideoRequest
 from domain.narrative_plan import NarrativePlan, SceneBeat
 from engines.hook_engine import HookEngine, HookEngineError
 from providers.llm_provider import LLMJsonRequest, LLMJsonResponse, LLMProviderMetadata
@@ -30,13 +30,11 @@ def valid_hook_payload() -> dict:
             {
                 "beat_id": "beat_01",
                 "visual_instruction": "Show anchor sliding down",
-                "onscreen_text": "RENT IS WASTED?",
                 "trigger_word": None,
             },
             {
                 "beat_id": "beat_02",
                 "visual_instruction": "Show engine blasting off",
-                "onscreen_text": "THE RENT ENGINE",
                 "trigger_word": "rent",
             },
         ],
@@ -48,14 +46,11 @@ def test_hook_engine_returns_valid_hook() -> None:
     engine = HookEngine(provider)
 
     result = engine.run(
-        ResearchPacket(
-            topic="Renting vs Buying",
-            audience="young professionals",
-            channel="FinanceShorts",
-            verified_facts=["Fact 1", "Fact 2", "Fact 3"],
-            statistics=["Stat 1"],
-            concepts=["Concept 1", "Concept 2"],
-            trusted_sources=["Source 1"],
+        GenerateVideoRequest(
+            topic="Why Renting a Home is Often Smarter Than Buying",
+            angle="Rent as growth capital",
+            audience="retail investors",
+            channel="FinanceChannel",
         ),
         NarrativePlan(
             thesis="Renting is smarter",
@@ -87,14 +82,11 @@ def test_hook_engine_raises_error_for_invalid_shape() -> None:
 
     with pytest.raises(HookEngineError, match="invalid Hook JSON") as exc:
         engine.run(
-            ResearchPacket(
-                topic="Renting vs Buying",
-                audience="young professionals",
-                channel="FinanceShorts",
-                verified_facts=["Fact 1", "Fact 2", "Fact 3"],
-                statistics=["Stat 1"],
-                concepts=["Concept 1", "Concept 2"],
-                trusted_sources=["Source 1"],
+            GenerateVideoRequest(
+                topic="Why Renting a Home is Often Smarter Than Buying",
+                angle="Rent as growth capital",
+                audience="retail investors",
+                channel="FinanceChannel",
             ),
             NarrativePlan(
                 thesis="Renting is smarter",

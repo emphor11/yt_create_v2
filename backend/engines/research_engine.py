@@ -100,6 +100,7 @@ class ResearchEngine:
                     role="user",
                     content=(
                         f"Topic: {request.topic}\n"
+                        f"Angle: {request.angle}\n"
                         f"Audience: {request.audience}\n"
                         f"Channel: {request.channel}\n"
                         "Generate a highly detailed research packet."

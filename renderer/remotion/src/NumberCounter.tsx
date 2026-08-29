@@ -2,7 +2,6 @@ import {
   AbsoluteFill,
   Easing,
   interpolate,
-  spring,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
@@ -14,11 +13,15 @@ export function NumberCounter(renderSpec: NumberCounterRenderSpec) {
   const { fps } = useVideoConfig();
 
   const duration_frames = renderSpec.duration_frames || 180;
-  const isClean = renderSpec.props.startValue !== undefined;
-  const startValue = isClean ? renderSpec.props.startValue! : (renderSpec.props.left?.value || 0);
-  const endValue = isClean ? renderSpec.props.endValue! : (renderSpec.props.right?.value || 100);
-  const label = isClean ? (renderSpec.props.label || "Metric") : `${renderSpec.props.left?.label || ""} ➔ ${renderSpec.props.right?.label || ""}`;
-  const unit = renderSpec.props.unit || (renderSpec.props.left?.unit || "");
+  const props = renderSpec.props as any;
+
+  // Extract exact component properties
+  const headerLabel = props.headerLabel || "";
+  const label = props.label || "";
+  const startValue = typeof props.startValue === "number" ? props.startValue : (parseFloat(String(props.startValue || 0)) || 0);
+  const endValue = typeof props.endValue === "number" ? props.endValue : (parseFloat(String(props.endValue || 100)) || 100);
+  const unit = props.unit || "";
+  const footerLabel = props.footerLabel || "";
 
   // Counter animation scales dynamically across 75% of scene duration
   const countProgress = interpolate(
@@ -32,7 +35,7 @@ export function NumberCounter(renderSpec: NumberCounterRenderSpec) {
     }
   );
 
-  const currentValue = Math.round(interpolate(countProgress, [0, 1], [startValue, endValue]));
+  const currentValue = Math.round(startValue + (endValue - startValue) * countProgress);
 
   // Living motion: subtle breathing pulse to keep long scene holds dynamic
   const pulse = 1 + Math.sin((frame / duration_frames) * Math.PI * 4) * 0.02;
@@ -58,30 +61,21 @@ export function NumberCounter(renderSpec: NumberCounterRenderSpec) {
           textAlign: "center",
         }}
       >
-        <header>
-          <div
-            style={{
-              color: tokens.accent.purple,
-              fontSize: tokens.font.eyebrow,
-              fontWeight: 800,
-              textTransform: "uppercase",
-              letterSpacing: 2,
-            }}
-          >
-            {renderSpec.props.headerLabel || "KEY METRIC"}
-          </div>
-          {renderSpec.props.title && (
+        {headerLabel ? (
+          <header>
             <div
               style={{
-                fontSize: 54,
-                fontWeight: 900,
-                marginTop: 16,
+                color: tokens.accent.purple,
+                fontSize: tokens.font.eyebrow,
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: 2,
               }}
             >
-              {renderSpec.props.title}
+              {headerLabel}
             </div>
-          )}
-        </header>
+          </header>
+        ) : null}
 
         <main
           style={{
@@ -89,17 +83,20 @@ export function NumberCounter(renderSpec: NumberCounterRenderSpec) {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
+            flex: 1,
           }}
         >
-          <div style={{ color: tokens.text.secondary, fontSize: 26, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1.5 }}>
-            {label}
-          </div>
+          {label ? (
+            <div style={{ color: tokens.text.secondary, fontSize: 26, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1.5 }}>
+              {label}
+            </div>
+          ) : null}
           <div
             style={{
               display: "flex",
               alignItems: "baseline",
               justifyContent: "center",
-              marginTop: 20,
+              marginTop: label ? 20 : 0,
               transform: `scale(${pulse})`,
             }}
           >
@@ -140,9 +137,9 @@ export function NumberCounter(renderSpec: NumberCounterRenderSpec) {
           </div>
         </main>
 
-        {renderSpec.props.footerLabel ? (
+        {footerLabel ? (
           <footer style={{ fontSize: 26, color: "#9ca3af", fontWeight: 600 }}>
-            {renderSpec.props.footerLabel}
+            {footerLabel}
           </footer>
         ) : null}
       </div>

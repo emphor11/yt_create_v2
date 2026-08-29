@@ -74,7 +74,7 @@ def setup_project_ready_for_voice(store: ArtifactStore) -> tuple[str, str]:
         payload_json={
             "conceptual_hook": "Hook",
             "script_text": "Is salary a drug?",
-            "visual_directives": [{"beat_id": "beat_01", "visual_instruction": "Instruction", "onscreen_text": "TEXT"}],
+            "visual_directives": [{"beat_id": "beat_01", "visual_instruction": "Instruction"}],
         },
         parent_artifact_roles_json={"research_packet": res_art.id, "narrative_plan": plan_art.id},
         validation_json=ValidationResult(status="valid"),

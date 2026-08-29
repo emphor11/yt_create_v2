@@ -6,82 +6,36 @@ import {
   useVideoConfig,
 } from "remotion";
 
-import { type SplitComparisonRenderSpec, type RenderFrameSpan } from "./types";
+import { type SplitComparisonRenderSpec } from "./types";
 import { tokens } from "./design-tokens";
-
-function spanById(renderSpec: SplitComparisonRenderSpec, eventId: string) {
-  return renderSpec.frame_spans?.find((span) => span.event_id === eventId);
-}
-
-function progressForSpan(frame: number, span: RenderFrameSpan | undefined) {
-  if (!span) {
-    return 0;
-  }
-  return interpolate(
-    frame,
-    [span.start_frame, span.start_frame + Math.min(24, span.duration_frames)],
-    [0, 1],
-    {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-    }
-  );
-}
-
-function formatValue(side: any) {
-  return side?.raw || "";
-}
 
 export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const duration_frames = renderSpec.duration_frames || 180;
-  const fullPriceSpan = spanById(renderSpec, "event_full_price");
-  const monthlyPaymentSpan = spanById(renderSpec, "event_monthly_payment");
-  const attentionShiftSpan = spanById(
-    renderSpec,
-    renderSpec.props.attention_shift_event_id || ""
-  );
 
   const props = renderSpec.props as any;
 
-  // Extract roles, labels, values, and units safely
-  const leftRole = props.leftRole || props.left?.role || props.leftLabel || props.left?.label || "Before";
-  const leftLabel = props.leftLabel && props.leftLabel !== leftRole ? props.leftLabel : (props.left?.label || "");
-  const leftRawVal = props.leftValue !== undefined ? String(props.leftValue) : (formatValue(props.left) || "0");
-  const leftUnit = props.leftUnit || props.left?.unit || "";
+  // Extract exact component properties
+  const headerLabel = props.headerLabel || "";
+  const leftRole = props.leftRole || "";
+  const leftLabel = props.leftLabel || "";
+  const leftRawVal = props.leftValue !== undefined ? String(props.leftValue) : "0";
+  const leftUnit = props.leftUnit || "";
 
-  const rightRole = props.rightRole || props.right?.role || props.rightLabel || props.right?.label || "After";
-  const rightLabel = props.rightLabel && props.rightLabel !== rightRole ? props.rightLabel : (props.right?.label || "");
-  const rightRawVal = props.rightValue !== undefined ? String(props.rightValue) : (formatValue(props.right) || "0");
-  const rightUnit = props.rightUnit || props.right?.unit || "";
+  const rightRole = props.rightRole || "";
+  const rightLabel = props.rightLabel || "";
+  const rightRawVal = props.rightValue !== undefined ? String(props.rightValue) : "0";
+  const rightUnit = props.rightUnit || "";
 
-  const leftProgress = fullPriceSpan
-    ? progressForSpan(frame, fullPriceSpan)
-    : interpolate(frame, [0, 15], [0, 1], { extrapolateRight: "clamp" });
-
-  const rightStartFrame = monthlyPaymentSpan?.start_frame ?? Math.round(duration_frames * 0.25);
-  const rightProgress = monthlyPaymentSpan
-    ? progressForSpan(frame, monthlyPaymentSpan)
-    : interpolate(frame, [rightStartFrame, rightStartFrame + 15], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-
-  const shiftStartFrame = attentionShiftSpan?.start_frame ?? Math.round(duration_frames * 0.55);
-  const shiftProgress = attentionShiftSpan
-    ? progressForSpan(frame, attentionShiftSpan)
-    : interpolate(frame, [shiftStartFrame, shiftStartFrame + Math.round(duration_frames * 0.15)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-
-  const leftSpring = spring({
-    frame: Math.max(0, frame - (fullPriceSpan?.start_frame ?? 0)),
+  // Synchronized entrance animation for both cards simultaneously
+  const entranceSpring = spring({
+    frame,
     fps,
     config: { damping: 18, stiffness: 110 },
   });
-  const rightSpring = spring({
-    frame: Math.max(0, frame - rightStartFrame),
-    fps,
-    config: { damping: 18, stiffness: 110 },
+  const entranceOpacity = interpolate(frame, [0, 15], [0, 1], {
+    extrapolateRight: "clamp",
   });
-  const focusWidth = interpolate(shiftProgress, [0, 1], [46, 64]);
-  const leftOpacity = interpolate(shiftProgress, [0, 1], [1, 0.58]);
 
   return (
     <AbsoluteFill
@@ -93,6 +47,7 @@ export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
         overflow: "hidden",
       }}
     >
+      {/* Background Grid Accent */}
       <div
         style={{
           position: "absolute",
@@ -111,42 +66,29 @@ export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
           padding: tokens.spacing.padding,
         }}
       >
-        <header>
-          <div
-            style={{
-              color: tokens.accent.cyan,
-              fontSize: tokens.font.eyebrow,
-              fontWeight: 800,
-              letterSpacing: 2,
-              textTransform: "uppercase",
-            }}
-          >
-            {renderSpec.props.headerLabel || "COMPARISON"}
-          </div>
-          {renderSpec.props.title && (
+        {headerLabel ? (
+          <header>
             <div
               style={{
-                fontSize: 64,
-                fontWeight: 900,
-                lineHeight: 1.1,
-                marginTop: 16,
-                maxWidth: 1200,
-                color: tokens.text.primary,
+                color: tokens.accent.cyan,
+                fontSize: tokens.font.eyebrow,
+                fontWeight: 800,
+                letterSpacing: 2,
+                textTransform: "uppercase",
               }}
             >
-              {renderSpec.props.title}
+              {headerLabel}
             </div>
-          )}
-        </header>
+          </header>
+        ) : null}
 
         <main
           style={{
             alignItems: "center",
             display: "grid",
-            gap: 34,
-            gridTemplateColumns: `${100 - focusWidth}% ${focusWidth}%`,
-            marginTop: 32,
-            transition: "grid-template-columns 200ms ease",
+            gap: 40,
+            gridTemplateColumns: "1fr 1fr",
+            marginTop: headerLabel ? 32 : 0,
           }}
         >
           {/* Left Panel - Dark Glass Red Accent */}
@@ -156,28 +98,30 @@ export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
               borderRadius: 16,
               background: tokens.bg.cardLeft,
               boxShadow: "0 24px 70px rgba(0, 0, 0, 0.5)",
-              minHeight: 400,
-              opacity: leftOpacity * leftProgress,
+              minHeight: 420,
+              opacity: entranceOpacity,
               padding: 44,
               display: "flex",
               flexDirection: "column",
               justifyContent: "space-between",
-              transform: `translateY(${(1 - leftSpring) * 40}px)`,
+              transform: `translateY(${(1 - entranceSpring) * 40}px)`,
               backdropFilter: "blur(8px)",
             }}
           >
             <div>
-              <div
-                style={{
-                  color: tokens.accent.rose,
-                  fontSize: 28,
-                  fontWeight: 900,
-                  textTransform: "uppercase",
-                  letterSpacing: 1.5,
-                }}
-              >
-                {leftRole}
-              </div>
+              {leftRole ? (
+                <div
+                  style={{
+                    color: tokens.accent.rose,
+                    fontSize: 28,
+                    fontWeight: 900,
+                    textTransform: "uppercase",
+                    letterSpacing: 1.5,
+                  }}
+                >
+                  {leftRole}
+                </div>
+              ) : null}
               {leftLabel ? (
                 <div style={{ color: tokens.text.secondary, fontSize: 22, marginTop: 6, fontWeight: 600 }}>
                   {leftLabel}
@@ -194,41 +138,46 @@ export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
                 textShadow: "0 0 30px rgba(244, 63, 94, 0.3)",
               }}
             >
-              {leftRawVal}{leftUnit ? <span style={{ fontSize: 44, marginLeft: 10, color: tokens.text.secondary }}>{leftUnit}</span> : null}
+              {leftRawVal}
+              {leftUnit ? (
+                <span style={{ fontSize: 44, marginLeft: 10, color: tokens.text.secondary }}>
+                  {leftUnit}
+                </span>
+              ) : null}
             </div>
           </section>
 
           {/* Right Panel - Dark Glass Emerald Accent */}
           <section
             style={{
-              border: "3px solid rgba(16, 185, 129, 0.45)",
+              border: "2px solid rgba(16, 185, 129, 0.35)",
               borderRadius: 16,
               background: tokens.bg.cardRight,
-              boxShadow: `0 28px 86px rgba(16, 185, 129, ${0.15 + shiftProgress * 0.2})`,
-              minHeight: 400,
-              opacity: rightProgress,
+              boxShadow: "0 24px 70px rgba(0, 0, 0, 0.5)",
+              minHeight: 420,
+              opacity: entranceOpacity,
               padding: 44,
               display: "flex",
               flexDirection: "column",
               justifyContent: "space-between",
-              transform: `translateY(${(1 - rightSpring) * 44}px) scale(${
-                1 + shiftProgress * 0.035
-              })`,
+              transform: `translateY(${(1 - entranceSpring) * 40}px)`,
               backdropFilter: "blur(8px)",
             }}
           >
             <div>
-              <div
-                style={{
-                  color: tokens.accent.emerald,
-                  fontSize: 28,
-                  fontWeight: 900,
-                  textTransform: "uppercase",
-                  letterSpacing: 1.5,
-                }}
-              >
-                {rightRole}
-              </div>
+              {rightRole ? (
+                <div
+                  style={{
+                    color: tokens.accent.emerald,
+                    fontSize: 28,
+                    fontWeight: 900,
+                    textTransform: "uppercase",
+                    letterSpacing: 1.5,
+                  }}
+                >
+                  {rightRole}
+                </div>
+              ) : null}
               {rightLabel ? (
                 <div style={{ color: tokens.text.secondary, fontSize: 22, marginTop: 6, fontWeight: 600 }}>
                   {rightLabel}
@@ -238,14 +187,19 @@ export function SplitComparison(renderSpec: SplitComparisonRenderSpec) {
             <div
               style={{
                 color: tokens.accent.emerald,
-                fontSize: 110,
+                fontSize: 104,
                 fontWeight: 950,
                 lineHeight: 1,
                 marginTop: 36,
-                textShadow: "0 0 30px rgba(16, 185, 129, 0.4)",
+                textShadow: "0 0 30px rgba(16, 185, 129, 0.3)",
               }}
             >
-              {rightRawVal}{rightUnit ? <span style={{ fontSize: 44, marginLeft: 10, color: tokens.text.secondary }}>{rightUnit}</span> : null}
+              {rightRawVal}
+              {rightUnit ? (
+                <span style={{ fontSize: 44, marginLeft: 10, color: tokens.text.secondary }}>
+                  {rightUnit}
+                </span>
+              ) : null}
             </div>
           </section>
         </main>

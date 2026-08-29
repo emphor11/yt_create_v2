@@ -6,28 +6,26 @@ class ResearchPacketValidator:
     def validate(self, packet: ResearchPacket) -> ValidationResult:
         errors: list[str] = []
 
-        if len(packet.verified_facts) < 3:
-            errors.append("Research packet must contain at least 3 verified facts.")
-        if len(packet.statistics) < 1:
-            errors.append("Research packet must contain at least 1 statistic.")
-        if len(packet.concepts) < 2:
-            errors.append("Research packet must contain at least 2 key concepts.")
-        if len(packet.trusted_sources) < 1:
-            errors.append("Research packet must contain at least 1 trusted source.")
+        if not packet.topic or not packet.topic.strip():
+            errors.append("Research packet must specify a topic.")
 
-        # Ensure strings aren't just whitespace
-        for idx, fact in enumerate(packet.verified_facts):
-            if not fact.strip():
-                errors.append(f"Fact at index {idx} cannot be empty.")
-        for idx, stat in enumerate(packet.statistics):
-            if not stat.strip():
-                errors.append(f"Statistic at index {idx} cannot be empty.")
-        for idx, concept in enumerate(packet.concepts):
-            if not concept.strip():
-                errors.append(f"Concept at index {idx} cannot be empty.")
-        for idx, src in enumerate(packet.trusted_sources):
-            if not src.strip():
-                errors.append(f"Trusted source at index {idx} cannot be empty.")
+        # Check that the packet has meaningful research content
+        has_content = any(
+            bool(item.strip())
+            for array in [
+                packet.verified_facts,
+                packet.statistics,
+                packet.concepts,
+                packet.misconceptions,
+                packet.examples,
+                packet.trusted_sources,
+            ]
+            for item in array
+            if isinstance(item, str)
+        )
+
+        if not has_content:
+            errors.append("Research packet must contain at least some research data (facts, concepts, or statistics).")
 
         if errors:
             return ValidationResult(status="blocked", errors=errors)

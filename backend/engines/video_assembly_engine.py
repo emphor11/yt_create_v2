@@ -42,17 +42,15 @@ class VideoAssemblyEngine:
                 directive = hook.visual_directives[interval.beat_index]
                 preferred_component = directive.preferred_component
                 visual_goal = directive.visual_goal or directive.visual_instruction or ""
-                onscreen_text = directive.onscreen_text
                 asset_query = directive.asset_query
                 notes = directive.notes or visual_goal
-                component_data = directive.component_data or ({"onscreen_text": directive.onscreen_text} if directive.onscreen_text else {})
+                component_data = directive.component_data
                 narration_text = hook.script_text
             else:
                 idea = strategy.ideas[interval.section_index]
                 beat = idea.visual_sequence[interval.beat_index]
                 preferred_component = beat.preferred_component
                 visual_goal = beat.visual_goal
-                onscreen_text = beat.onscreen_text
                 asset_query = beat.asset_query
                 notes = beat.notes
                 component_data = beat.component_data
@@ -70,7 +68,6 @@ class VideoAssemblyEngine:
             comp_spec = self.component_resolver.resolve_component(
                 preferred_component=preferred_component,
                 visual_goal=visual_goal,
-                onscreen_text=onscreen_text,
                 component_data=component_data,
                 narration_text=narration_text,
             )

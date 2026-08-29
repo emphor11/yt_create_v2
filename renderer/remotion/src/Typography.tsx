@@ -13,8 +13,13 @@ export function Typography(renderSpec: TypographyRenderSpec) {
   const { fps } = useVideoConfig();
 
   const duration_frames = renderSpec.duration_frames || 180;
-  const text = renderSpec.props.text || renderSpec.props.left?.raw || renderSpec.props.left?.label || "";
-  const subtitle = renderSpec.props.subtitle || renderSpec.props.right?.raw || "";
+  const props = renderSpec.props as any;
+
+  // Extract exact component properties
+  const headerLabel = props.headerLabel || "";
+  const text = props.text || "";
+  const subtitle = props.subtitle || "";
+  const footerLabel = props.footerLabel || "";
 
   const titleSpring = spring({
     frame,
@@ -44,19 +49,21 @@ export function Typography(renderSpec: TypographyRenderSpec) {
           justifyContent: "space-between",
         }}
       >
-        <header>
-          <div
-            style={{
-              color: tokens.accent.rose,
-              fontSize: tokens.font.eyebrow,
-              fontWeight: 800,
-              textTransform: "uppercase",
-              letterSpacing: 2,
-            }}
-          >
-            {renderSpec.props.headerLabel || "KEY INSIGHT"}
-          </div>
-        </header>
+        {headerLabel ? (
+          <header>
+            <div
+              style={{
+                color: tokens.accent.rose,
+                fontSize: tokens.font.eyebrow,
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: 2,
+              }}
+            >
+              {headerLabel}
+            </div>
+          </header>
+        ) : null}
 
         <main
           style={{
@@ -69,7 +76,7 @@ export function Typography(renderSpec: TypographyRenderSpec) {
         >
           <div
             style={{
-              fontSize: 90,
+              fontSize: 84,
               fontWeight: 950,
               lineHeight: 1.1,
               letterSpacing: -2,
@@ -79,11 +86,26 @@ export function Typography(renderSpec: TypographyRenderSpec) {
           >
             {text}
           </div>
+          {subtitle && (
+            <div
+              style={{
+                fontSize: 34,
+                fontWeight: 500,
+                color: tokens.text.secondary,
+                marginTop: 24,
+                lineHeight: 1.35,
+                maxWidth: "1200px",
+                opacity: titleSpring,
+              }}
+            >
+              {subtitle}
+            </div>
+          )}
         </main>
 
-        {renderSpec.props.footerLabel ? (
+        {footerLabel ? (
           <footer style={{ fontSize: 24, color: "#71717a", fontWeight: 600 }}>
-            {renderSpec.props.footerLabel}
+            {footerLabel}
           </footer>
         ) : null}
       </div>

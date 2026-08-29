@@ -12,8 +12,13 @@ export function IconAnimation(renderSpec: IconAnimationRenderSpec) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const isClean = renderSpec.props.text !== undefined;
-  const headlineText = isClean ? renderSpec.props.text : (renderSpec.props.left?.raw || renderSpec.props.left?.label || "");
+  const props = renderSpec.props as any;
+
+  // Extract exact component properties
+  const headerLabel = props.headerLabel || "";
+  const icon = props.icon || "💡";
+  const label = props.label || "";
+  const footerLabel = props.footerLabel || "";
 
   const iconSpring = spring({
     frame,
@@ -42,31 +47,21 @@ export function IconAnimation(renderSpec: IconAnimationRenderSpec) {
           justifyContent: "space-between",
         }}
       >
-        <header>
-          <div
-            style={{
-              color: tokens.accent.purple,
-              fontSize: tokens.font.eyebrow,
-              fontWeight: 800,
-              textTransform: "uppercase",
-              letterSpacing: 2,
-            }}
-          >
-            {renderSpec.props.headerLabel || "ICON CONCEPT"}
-          </div>
-          {renderSpec.props.title && (
+        {headerLabel ? (
+          <header>
             <div
               style={{
-                fontSize: 54,
-                fontWeight: 900,
-                marginTop: 16,
-                lineHeight: 1.1,
+                color: tokens.accent.purple,
+                fontSize: tokens.font.eyebrow,
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: 2,
               }}
             >
-              {renderSpec.props.title}
+              {headerLabel}
             </div>
-          )}
-        </header>
+          </header>
+        ) : null}
 
         <main
           style={{
@@ -121,29 +116,31 @@ export function IconAnimation(renderSpec: IconAnimationRenderSpec) {
                 zIndex: 1,
               }}
             >
-              {renderSpec.props.icon || "💡"}
+              {icon}
             </div>
 
-            <div
-              style={{
-                marginTop: 36,
-                fontSize: 48,
-                fontWeight: 950,
-                color: tokens.text.primary,
-                textAlign: "center",
-                maxWidth: "900px",
-                lineHeight: 1.2,
-                zIndex: 1,
-              }}
-            >
-              {headlineText}
-            </div>
+            {label ? (
+              <div
+                style={{
+                  marginTop: 36,
+                  fontSize: 48,
+                  fontWeight: 950,
+                  color: tokens.text.primary,
+                  textAlign: "center",
+                  maxWidth: "900px",
+                  lineHeight: 1.2,
+                  zIndex: 1,
+                }}
+              >
+                {label}
+              </div>
+            ) : null}
           </div>
         </main>
 
-        {renderSpec.props.footerLabel ? (
+        {footerLabel ? (
           <footer style={{ textAlign: "center", fontSize: 24, color: tokens.text.muted, fontWeight: 600 }}>
-            {renderSpec.props.footerLabel}
+            {footerLabel}
           </footer>
         ) : null}
       </div>

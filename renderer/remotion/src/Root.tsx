@@ -1,5 +1,5 @@
 import { Composition } from "remotion";
-import { SplitComparison, type SplitComparisonRenderSpec } from "./SplitComparison";
+import { SplitComparison } from "./SplitComparison";
 import { Timeline } from "./Timeline";
 import { NumberCounter } from "./NumberCounter";
 import { Charts } from "./Charts";
@@ -8,6 +8,7 @@ import { StockVideo } from "./StockVideo";
 import { Typography } from "./Typography";
 import { IconAnimation } from "./IconAnimation";
 import { VideoAssembly } from "./VideoAssembly";
+import { type SplitComparisonRenderSpec, type VideoAssemblyRenderSpec } from "./types";
 
 const defaultProps: SplitComparisonRenderSpec = {
   scene_id: "scene_01",
@@ -60,79 +61,79 @@ export function RemotionRoot() {
     <>
       <Composition
         id="SplitComparison"
-        component={SplitComparison}
+        component={SplitComparison as any}
         durationInFrames={240}
         fps={30}
         width={1920}
         height={1080}
-        defaultProps={defaultProps}
+        defaultProps={defaultProps as any}
       />
       <Composition
         id="Timeline"
-        component={Timeline}
+        component={Timeline as any}
         durationInFrames={240}
         fps={30}
         width={1920}
         height={1080}
-        defaultProps={defaultProps}
+        defaultProps={defaultProps as any}
       />
       <Composition
         id="NumberCounter"
-        component={NumberCounter}
+        component={NumberCounter as any}
         durationInFrames={240}
         fps={30}
         width={1920}
         height={1080}
-        defaultProps={defaultProps}
+        defaultProps={defaultProps as any}
       />
       <Composition
         id="Charts"
-        component={Charts}
+        component={Charts as any}
         durationInFrames={240}
         fps={30}
         width={1920}
         height={1080}
-        defaultProps={defaultProps}
+        defaultProps={defaultProps as any}
       />
       <Composition
         id="StockImage"
-        component={StockImage}
+        component={StockImage as any}
         durationInFrames={240}
         fps={30}
         width={1920}
         height={1080}
-        defaultProps={defaultProps}
+        defaultProps={defaultProps as any}
       />
       <Composition
         id="StockVideo"
-        component={StockVideo}
+        component={StockVideo as any}
         durationInFrames={240}
         fps={30}
         width={1920}
         height={1080}
-        defaultProps={defaultProps}
+        defaultProps={defaultProps as any}
       />
       <Composition
         id="Typography"
-        component={Typography}
+        component={Typography as any}
         durationInFrames={240}
         fps={30}
         width={1920}
         height={1080}
-        defaultProps={defaultProps}
+        defaultProps={defaultProps as any}
       />
       <Composition
         id="IconAnimation"
-        component={IconAnimation}
+        component={IconAnimation as any}
         durationInFrames={240}
         fps={30}
         width={1920}
         height={1080}
-        defaultProps={defaultProps}
+        defaultProps={defaultProps as any}
       />
       <Composition
         id="VideoAssembly"
-        component={VideoAssembly}
+        component={VideoAssembly as any}
         durationInFrames={18000}
         fps={30}
         width={1920}

@@ -56,6 +56,27 @@ def test_research_engine_returns_valid_research_packet() -> None:
     assert provider.last_request.messages[0].role == "system"
 
 
+def test_research_engine_includes_angle_in_user_prompt() -> None:
+    provider = StaticTestLLMProvider(valid_research_payload())
+    engine = ResearchEngine(provider)
+
+    engine.run(
+        GenerateVideoRequest(
+            topic="Tax Savings on Home Loans",
+            angle="Hidden interest deduction traps",
+            audience="young professionals",
+            channel="FinanceShorts",
+        )
+    )
+
+    assert provider.last_request is not None
+    user_msg = provider.last_request.messages[1].content
+    assert "Topic: Tax Savings on Home Loans" in user_msg
+    assert "Angle: Hidden interest deduction traps" in user_msg
+    assert "Audience: young professionals" in user_msg
+    assert "Channel: FinanceShorts" in user_msg
+
+
 def test_research_engine_raises_error_for_invalid_shape() -> None:
     # Missing required keys
     provider = StaticTestLLMProvider({"topic": "Tax Savings on Home Loans"})

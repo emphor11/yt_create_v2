@@ -7,8 +7,8 @@ def test_validator_accepts_valid_hook() -> None:
         conceptual_hook="Anchor vs Engine comparison",
         script_text="Are you renting? You might think you're throwing money away. You're not.",
         visual_directives=[
-            VisualDirective(beat_id="beat_01", visual_instruction="Show heavy metal anchor falling in water", onscreen_text="RENTING = WASTED MONEY?", trigger_word=None),
-            VisualDirective(beat_id="beat_02", visual_instruction="Show rocket engine firing upward", onscreen_text="THE LIQUID ENGINE", trigger_word="throwing"),
+            VisualDirective(beat_id="beat_01", visual_instruction="Show heavy metal anchor falling in water", trigger_word=None),
+            VisualDirective(beat_id="beat_02", visual_instruction="Show rocket engine firing upward", trigger_word="throwing"),
         ],
     )
     result = HookValidator().validate(hook)

@@ -8,48 +8,7 @@ import { StockVideo } from "./StockVideo";
 import { Typography } from "./Typography";
 import { IconAnimation } from "./IconAnimation";
 import { tokens } from "./design-tokens";
-
-interface AssetReference {
-  asset_id: string;
-  asset_type: "image" | "video";
-  source: string;
-  query: string;
-  local_path: string;
-  url: string | null;
-  asset_status: string;
-}
-
-interface ComponentSpec {
-  component_id: string;
-  props: any;
-}
-
-interface SceneSpec {
-  scene_id: string;
-  start_frame: number;
-  end_frame: number;
-  duration_frames: number;
-  component: ComponentSpec;
-  asset: AssetReference | null;
-  narration_text: string | null;
-}
-
-interface AudioSpec {
-  audio_file_name: string;
-  local_path: string;
-  duration_seconds: number;
-}
-
-export interface VideoAssemblyRenderSpec {
-  scene_id: string;
-  composition: string;
-  fps: number;
-  duration_frames: number;
-  props: {
-    scenes: SceneSpec[];
-    audio: AudioSpec;
-  };
-}
+import { type VideoAssemblyRenderSpec } from "./types";
 
 export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
   const frame = useCurrentFrame();
@@ -73,8 +32,7 @@ export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
       <Series>
         {scenes.map((scene) => {
           const compId = scene.component.component_id;
-          // Tuned B-roll opacity so background footage is clearly visible behind glass cards
-          const assetOpacity = (compId === "StockVideo" || compId === "StockImage") ? 0.90 : 0.65;
+          const isStockMedia = compId === "StockVideo" || compId === "StockImage";
           
           // Reconstruct standard composition props
           const childProps = {
@@ -92,19 +50,19 @@ export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
               durationInFrames={scene.duration_frames}
             >
               <AbsoluteFill>
-                {/* Render resolved background stock asset if present */}
-                {scene.asset && scene.asset.asset_type === "video" && scene.asset.local_path && (
+                {/* Render full-screen stock media when this scene is StockVideo or StockImage */}
+                {isStockMedia && scene.asset && scene.asset.asset_type === "video" && scene.asset.local_path && (
                   <Video
                     src={staticFile(scene.asset.local_path)}
-                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: assetOpacity }}
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 1.0 }}
                     loop
                     muted
                   />
                 )}
-                {scene.asset && scene.asset.asset_type === "image" && scene.asset.local_path && (
+                {isStockMedia && scene.asset && scene.asset.asset_type === "image" && scene.asset.local_path && (
                   <Img
                     src={staticFile(scene.asset.local_path)}
-                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: assetOpacity }}
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 1.0 }}
                   />
                 )}
 

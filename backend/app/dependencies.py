@@ -69,7 +69,10 @@ def _default_media_root() -> Path:
 
 def _default_gemini_model() -> str:
     _load_backend_dotenv()
-    return os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+    model = os.getenv("GEMINI_MODEL", "").strip()
+    if not model:
+        raise ValueError("GEMINI_MODEL is required. Please set GEMINI_MODEL in your backend/.env file.")
+    return model
 
 
 def _default_grok_model() -> str:
@@ -105,9 +108,11 @@ def get_llm_provider() -> LLMProvider | None:
         or os.getenv("GOOGLE_API_KEY", "").strip()
     )
     if gemini_api_key:
+        timeout_sec = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "120"))
         return GeminiProvider(
             api_key=gemini_api_key,
             model=_default_gemini_model(),
+            timeout_seconds=timeout_sec,
         )
 
     return None

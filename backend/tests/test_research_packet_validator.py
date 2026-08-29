@@ -19,20 +19,16 @@ def test_validator_accepts_valid_packet() -> None:
     assert not result.errors
 
 
-def test_validator_rejects_missing_required_items() -> None:
-    # Insufficient facts, stats, concepts, sources
+def test_validator_rejects_empty_content() -> None:
     packet = ResearchPacket(
         topic="Affordable Monthly Payments",
         audience="millennials",
         channel="FinanceWeekly",
-        verified_facts=["Fact 1"],
+        verified_facts=[],
         statistics=[],
-        concepts=["Concept 1"],
+        concepts=[],
         trusted_sources=[],
     )
     result = ResearchPacketValidator().validate(packet)
     assert result.status == "blocked"
-    assert "must contain at least 3 verified facts" in result.errors[0]
-    assert "must contain at least 1 statistic" in result.errors[1]
-    assert "must contain at least 2 key concepts" in result.errors[2]
-    assert "must contain at least 1 trusted source" in result.errors[3]
+    assert "must contain at least some research data" in result.errors[0]

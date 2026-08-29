@@ -13,16 +13,12 @@ export function Timeline(renderSpec: TimelineRenderSpec) {
   const { fps } = useVideoConfig();
 
   const duration_frames = renderSpec.duration_frames || 180;
+  const props = renderSpec.props as any;
   
-  // Extract steps array cleanly (support N steps)
-  const rawSteps = renderSpec.props.steps;
-  const isClean = rawSteps !== undefined && Array.isArray(rawSteps) && rawSteps.length > 0;
-  const stepsList: string[] = isClean
-    ? rawSteps!
-    : [
-        renderSpec.props.left?.raw || renderSpec.props.left?.label || "Step 1",
-        renderSpec.props.right?.raw || renderSpec.props.right?.label || "Step 2",
-      ].filter(Boolean);
+  // Extract exact component properties
+  const headerLabel = props.headerLabel || "";
+  const stepsList: string[] = Array.isArray(props.steps) ? props.steps : [];
+  const footerLabel = props.footerLabel || "";
 
   const stepCount = stepsList.length;
 
@@ -46,31 +42,21 @@ export function Timeline(renderSpec: TimelineRenderSpec) {
           justifyContent: "space-between",
         }}
       >
-        <header>
-          <div
-            style={{
-              color: tokens.accent.blue,
-              fontSize: tokens.font.eyebrow,
-              fontWeight: 800,
-              textTransform: "uppercase",
-              letterSpacing: 2,
-            }}
-          >
-            {renderSpec.props.headerLabel || "PROGRESSION"}
-          </div>
-          {renderSpec.props.title && (
+        {headerLabel ? (
+          <header>
             <div
               style={{
-                fontSize: 54,
-                fontWeight: 900,
-                marginTop: 16,
-                lineHeight: 1.1,
+                color: tokens.accent.blue,
+                fontSize: tokens.font.eyebrow,
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: 2,
               }}
             >
-              {renderSpec.props.title}
+              {headerLabel}
             </div>
-          )}
-        </header>
+          </header>
+        ) : null}
 
         <main
           style={{

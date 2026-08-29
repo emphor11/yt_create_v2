@@ -7,6 +7,7 @@ from domain.voice_track import VoiceTrack
 # Constant for minimum beat duration in frames (30fps: 15 frames = 0.5s)
 MIN_BEAT_DURATION_FRAMES = 15
 
+
 def _is_word_match(polly_raw: str, trigger_raw: str) -> bool:
     p_clean = re.sub(r"[^\w]", "", polly_raw.lower())
     t_clean = re.sub(r"[^\w]", "", trigger_raw.lower())
@@ -14,7 +15,7 @@ def _is_word_match(polly_raw: str, trigger_raw: str) -> bool:
         return False
     if p_clean == t_clean:
         return True
-    
+
     # 1. Check token-based exact matching first
     p_tokens = [re.sub(r"[^\w]", "", pt) for pt in re.split(r"[^a-zA-Z0-9]", polly_raw.lower()) if re.sub(r"[^\w]", "", pt)]
     t_tokens = [re.sub(r"[^\w]", "", tt) for tt in re.split(r"[^a-zA-Z0-9]", trigger_raw.lower()) if re.sub(r"[^\w]", "", tt)]
@@ -25,20 +26,66 @@ def _is_word_match(polly_raw: str, trigger_raw: str) -> bool:
                     return True
 
     # 2. Check safe substring matching:
-    # Trigger inside Polly word (e.g. trigger "106" inside Polly "106inr")
     if t_clean in p_clean:
         if len(t_clean) >= 3 or (t_clean.isdigit() and len(t_clean) >= 2):
             return True
-            
-    # Polly word inside Trigger (e.g. Polly "30" inside trigger "30-year")
+
     if p_clean in t_clean:
         if len(p_clean) >= 3 or (p_clean.isdigit() and len(p_clean) >= 2):
             return True
-            
+
     return False
 
+
+def _find_trigger_index(
+    timestamps: list[Any],
+    trigger_raw: str,
+    section_text: str,
+    prev_start_idx: int,
+) -> int:
+    """
+    Finds the index in timestamps corresponding to trigger_raw.
+    Dual-Strategy:
+    1. Primary: Character-Offset Span Matching (Exact ground truth for numbers, currencies, compounds).
+    2. Secondary: Token & Phonetic Substring Matching (Legacy / Mock fallback).
+    Returns -1 if not found.
+    """
+    if not timestamps or not trigger_raw or not trigger_raw.strip():
+        return -1
+
+    t_clean = re.sub(r"[^\w]", "", trigger_raw.lower())
+
+    # 1. Primary Strategy: Character-Offset Span Matching
+    has_char_offsets = any(getattr(ts, "start_char", None) is not None for ts in timestamps)
+    if has_char_offsets and section_text:
+        prev_char_threshold = 0
+        if prev_start_idx < len(timestamps) and getattr(timestamps[prev_start_idx], "start_char", None) is not None:
+            prev_char_threshold = getattr(timestamps[prev_start_idx], "start_char") or 0
+
+        char_pos = section_text.lower().find(trigger_raw.lower(), prev_char_threshold)
+        if char_pos == -1 and t_clean:
+            char_pos = section_text.lower().find(t_clean, prev_char_threshold)
+
+        if char_pos != -1:
+            for idx in range(prev_start_idx, len(timestamps)):
+                sc = getattr(timestamps[idx], "start_char", None)
+                ec = getattr(timestamps[idx], "end_char", None)
+                if sc is not None and ec is not None:
+                    if sc <= char_pos <= ec or sc >= char_pos:
+                        return idx
+
+    # 2. Secondary Strategy: Token & Substring Matching
+    for idx in range(prev_start_idx, len(timestamps)):
+        word = getattr(timestamps[idx], "word", "")
+        if _is_word_match(word, trigger_raw):
+            return idx
+
+    return -1
+
+
 class TimelineBuilderError(Exception):
-    """Raised when timeline generation fails, e.g. when a trigger word is missing."""
+    """Raised when timeline generation fails."""
+
 
 class TimedBeatInterval(NamedTuple):
     beat_id: str
@@ -48,6 +95,7 @@ class TimedBeatInterval(NamedTuple):
     section_type: Literal["hook", "body"]
     section_index: int
     beat_index: int
+
 
 class TimelineBuilder:
     def __init__(self, fps: int = 30):
@@ -72,7 +120,7 @@ class TimelineBuilder:
 
         # 3. Align Polly words to sections using a sequential needle-pointer approach
         section_timestamps: list[list[Any]] = [[] for _ in section_texts]
-        
+
         # Map word indices of the overall script to sections
         all_section_word_mappings = []
         for s_idx, text in enumerate(section_texts):
@@ -91,7 +139,7 @@ class TimelineBuilder:
                 s_idx = all_section_word_mappings[sect_idx]
                 section_timestamps[s_idx].append(word_timestamps[polly_idx])
                 polly_idx += 1
-            
+
             # Clamp remaining Polly words to the last section
             while polly_idx < polly_len:
                 section_timestamps[-1].append(word_timestamps[polly_idx])
@@ -105,7 +153,6 @@ class TimelineBuilder:
         hook_beats = hook.visual_directives
         hook_beats_count = len(hook_beats)
         if hook_beats_count > 0:
-            # Align hook beats using trigger words (same as body sections)
             hook_start_indices = [0]
             for b_idx in range(1, hook_beats_count):
                 trigger = hook_beats[b_idx].trigger_word
@@ -113,23 +160,17 @@ class TimelineBuilder:
                     raise TimelineBuilderError(
                         f"Beat '{hook_beats[b_idx].beat_id}' in hook requires trigger_word."
                     )
-                
-                cleaned_trigger = re.sub(r"[^\w]", "", trigger.lower())
-                
-                # Find matching word in hook timestamps starting from the last matched word
-                match_idx = -1
-                prev_start = hook_start_indices[-1]
-                for idx in range(prev_start, len(hook_timestamps)):
-                    if _is_word_match(hook_timestamps[idx].word, trigger):
-                        match_idx = idx
-                        break
-                
+                match_idx = _find_trigger_index(
+                    timestamps=hook_timestamps,
+                    trigger_raw=trigger,
+                    section_text=hook.script_text,
+                    prev_start_idx=hook_start_indices[-1],
+                )
                 if match_idx == -1:
                     raise TimelineBuilderError(
                         f"Trigger word '{trigger}' for beat '{hook_beats[b_idx].beat_id}' in hook "
                         f"was not found in the voice track words."
                     )
-                
                 hook_start_indices.append(match_idx)
 
             hook_start_indices.append(len(hook_timestamps))
@@ -138,7 +179,7 @@ class TimelineBuilder:
             for b_idx in range(hook_beats_count):
                 start_idx = hook_start_indices[b_idx]
                 end_idx = hook_start_indices[b_idx + 1]
-                
+
                 if start_idx < end_idx and start_idx < len(hook_timestamps):
                     start_ms = float(hook_timestamps[start_idx].start_ms)
                     actual_end_idx = min(end_idx - 1, len(hook_timestamps) - 1)
@@ -157,47 +198,34 @@ class TimelineBuilder:
             if M == 0:
                 continue
 
-            # Build list of transition points (indices in the timestamps list)
-            # Start of beat 0 is always start of section (timestamp index 0)
             beat_start_indices = [0]
-            
-            # Look up trigger words for subsequent beats
             for b_idx in range(1, M):
                 trigger = beats[b_idx].trigger_word
                 if not trigger or not trigger.strip():
                     raise TimelineBuilderError(
                         f"Beat '{beats[b_idx].beat_id}' in idea '{idea.idea_id}' requires trigger_word."
                     )
-                
-                cleaned_trigger = re.sub(r"[^\w]", "", trigger.lower())
-                
-                # Find matching word in section timestamps starting from the last matched word
-                match_idx = -1
-                prev_start = beat_start_indices[-1]
-                for idx in range(prev_start, len(timestamps)):
-                    if _is_word_match(timestamps[idx].word, trigger):
-                        match_idx = idx
-                        break
-                
+                match_idx = _find_trigger_index(
+                    timestamps=timestamps,
+                    trigger_raw=trigger,
+                    section_text=idea.narration,
+                    prev_start_idx=beat_start_indices[-1],
+                )
                 if match_idx == -1:
                     raise TimelineBuilderError(
                         f"Trigger word '{trigger}' for beat '{beats[b_idx].beat_id}' in idea '{idea.idea_id}' "
                         f"was not found in the voice track words."
                     )
-                
                 beat_start_indices.append(match_idx)
 
-            # Append total length as the end boundary
             beat_start_indices.append(len(timestamps))
 
-            # Assign bounds to each beat
             for b_idx in range(M):
                 start_idx = beat_start_indices[b_idx]
                 end_idx = beat_start_indices[b_idx + 1]
-                
+
                 if start_idx < end_idx and start_idx < len(timestamps):
                     start_ms = float(timestamps[start_idx].start_ms)
-                    # End time is end of the word before next starts, or end of section
                     actual_end_idx = min(end_idx - 1, len(timestamps) - 1)
                     end_ms = float(timestamps[actual_end_idx].end_ms)
                     beat_time_bounds.append((start_ms, end_ms))
@@ -205,6 +233,7 @@ class TimelineBuilder:
                     raise TimelineBuilderError(
                         f"Invalid trigger word order or empty range for beat '{beats[b_idx].beat_id}' in idea '{idea.idea_id}'."
                     )
+
 
         # 5. Build contiguous and non-overlapping intervals
         total_duration_frames = int(round(voice_track.duration_seconds * self.fps))
@@ -255,7 +284,7 @@ class TimelineBuilder:
                     duration_frames=duration_frames,
                     section_type=section_type,
                     section_index=s_idx,
-                    beat_index=b_idx
+                    beat_index=b_idx,
                 )
             )
 
@@ -269,7 +298,8 @@ class TimelineBuilder:
                 duration_frames=total_duration_frames - last.start_frame,
                 section_type=last.section_type,
                 section_index=last.section_index,
-                beat_index=last.beat_index
+                beat_index=last.beat_index,
             )
 
         return timed_intervals
+

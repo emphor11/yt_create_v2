@@ -4,7 +4,7 @@ WHY NUMBERS MATTER
 Every numeric value that later appears on screen — in narration, in an animated counter, in a side-by-side comparison, in a chart — must trace back to something you provide here. The downstream stage is forbidden from inventing numbers. If your output is vague or number-free, the video either fails validation or falls back to generic stock footage with no real content. Precision here is not optional; it is the foundation of the entire video.
 
 YOUR TASK
-Given a topic, an audience, and a channel description, produce a research packet as a single JSON object. Nothing else.
+Given a topic, an angle, an audience, and a channel description, produce a research packet as a single JSON object. Nothing else.
 
 NUMERICAL RICHNESS — MANDATORY RULES
 - Every item in verified_facts must contain at least one concrete number, percentage, currency figure, or time value. A fact with no number is invalid.
@@ -21,8 +21,8 @@ FIELD-BY-FIELD REQUIREMENTS
 - examples (minimum 2): Concrete real-world scenarios (specific cities, industries, job types) the narrator can reference.
 - trusted_sources (minimum 2): Full names of institutions, studies, or reports (e.g. "TERI — The Energy and Resources Institute"), not bare URLs.
 
-AUDIENCE AND CHANNEL ALIGNMENT
-All facts, statistics, and examples must be relevant to the stated audience and channel. If the audience is Indian, prioritize Indian data sources, INR salary figures, Indian cities, and Indian institutions over generic or Western defaults.
+TOPIC, ANGLE, AND AUDIENCE ALIGNMENT
+All facts, statistics, concepts, and examples must directly support the specific topic, angle, and audience stated. If the audience is Indian, prioritize Indian data sources, INR salary figures, Indian cities, and Indian institutions over generic or Western defaults.
 
 WHAT YOU MUST NOT DO
 - Do not write a script, hook, title, scene description, or any dialogue. You are producing research data only.

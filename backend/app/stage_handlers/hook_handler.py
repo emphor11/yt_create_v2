@@ -4,7 +4,7 @@ from typing import Any
 from artifact_store.models import ArtifactRecord
 from artifact_store.sqlite_store import ArtifactStore
 from app.stage_logger import StageLogger
-from domain.research_packet import ResearchPacket
+from domain.generate_video_request import GenerateVideoRequest
 from domain.narrative_plan import NarrativePlan
 from domain.validation import ValidationResult
 from domain.validators.hook_validator import HookValidator
@@ -32,20 +32,20 @@ class HookHandler:
 
         start = self.stage_logger.log_start(project_id, run_id, "hook")
         try:
-            # 1. Retrieve the prerequisite artifacts
+            # 1. Retrieve the prerequisite artifacts from Stage 0 and Stage 3
+            req_artifact = self.store.require_artifact(
+                project_id, run_id, "generate_video_request", for_stage="hook"
+            )
+            request = GenerateVideoRequest.model_validate(req_artifact.payload_json)
+
             narrative_artifact = self.store.require_artifact(
                 project_id, run_id, "narrative_plan", for_stage="hook"
             )
             narrative_plan = NarrativePlan.model_validate(narrative_artifact.payload_json)
 
-            res_artifact = self.store.require_artifact(
-                project_id, run_id, "research_packet", for_stage="hook"
-            )
-            research_packet = ResearchPacket.model_validate(res_artifact.payload_json)
-
             # 2. Execute the engine
             try:
-                result = self.hook_engine.run(research_packet, narrative_plan)
+                result = self.hook_engine.run(request, narrative_plan)
             except HookEngineError as error:
                 # Save a failed validation artifact record on LLM/validation errors
                 artifact = self._save_failed_hook(
@@ -69,8 +69,8 @@ class HookHandler:
                 schema_version=hook.schema_version,
                 payload_json=payload_json,
                 parent_artifact_roles_json={
+                    "generate_video_request": req_artifact.id,
                     "narrative_plan": narrative_artifact.id,
-                    "research_packet": res_artifact.id,
                 },
                 validation_json=validation,
             )

@@ -70,10 +70,9 @@ def test_strategy_engine_returns_valid_strategy() -> None:
             topic="Renting vs Buying",
             audience="young professionals",
             channel="FinanceShorts",
-            verified_facts=["Fact 1", "Fact 2", "Fact 3"],
-            statistics=["Stat 1"],
-            concepts=["Concept 1", "Concept 2"],
-            trusted_sources=["Source 1"],
+            verified_facts=["Rent cost is lower in initial years."],
+            statistics=["Rental yield is 2-3%"],
+            concepts=["Opportunity Cost"],
         ),
         NarrativePlan(
             thesis="Renting is smarter",
@@ -116,10 +115,9 @@ def test_strategy_engine_raises_error_for_invalid_shape() -> None:
                 topic="Renting vs Buying",
                 audience="young professionals",
                 channel="FinanceShorts",
-                verified_facts=["Fact 1", "Fact 2", "Fact 3"],
-                statistics=["Stat 1"],
-                concepts=["Concept 1", "Concept 2"],
-                trusted_sources=["Source 1"],
+                verified_facts=["Rent cost is lower in initial years."],
+                statistics=["Rental yield is 2-3%"],
+                concepts=["Opportunity Cost"],
             ),
             NarrativePlan(
                 thesis="Renting is smarter",
@@ -144,6 +142,7 @@ def test_strategy_engine_raises_error_for_invalid_shape() -> None:
                 ],
             ),
         )
+
 
     assert exc.value.raw_payload == {"ideas": []}
     assert exc.value.provider_metadata is not None
