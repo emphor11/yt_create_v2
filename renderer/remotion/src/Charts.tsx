@@ -2,31 +2,51 @@ import {
   AbsoluteFill,
   Easing,
   interpolate,
+  spring,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { type ChartsRenderSpec } from "./types";
+import { type ChartsProps } from "./types";
 import { tokens } from "./design-tokens";
 
-export function Charts(renderSpec: ChartsRenderSpec) {
+/**
+ * Format numeric value with unit
+ */
+function formatChartVal(val: number, unit?: string): string {
+  const isFloat = val % 1 !== 0;
+  const numStr = isFloat ? val.toFixed(1) : Math.round(val).toLocaleString();
+  if (!unit) return numStr;
+  if (unit.startsWith("$") || unit.startsWith("₹") || unit.startsWith("€")) {
+    return `${unit.charAt(0)}${numStr}${unit.slice(1)}`;
+  }
+  return `${numStr} ${unit}`;
+}
+
+export function Charts(props: ChartsProps | any) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const duration_frames = renderSpec.duration_frames || 180;
-  const props = renderSpec.props as any;
+  // Normalize boundary props wrapper
+  const resolvedProps: ChartsProps = props.props
+    ? props.props
+    : props.chartType || props.labels
+    ? props
+    : (props as any).renderSpec?.props || props;
 
-  // Extract exact component properties
-  const headerLabel = props.headerLabel || "";
-  const chartType = (props.chartType || "bar").toLowerCase();
-  const rawLabels: string[] = props.labels || [];
-  const rawValues: (number | string)[] = props.values || [];
-  const unit = props.unit || "";
-  const footerLabel = props.footerLabel || "";
+  const duration_frames = (props as any).duration_frames || 180;
+
+  const headerLabel = resolvedProps.headerLabel || "";
+  const chartType = (resolvedProps.chartType || "bar").toLowerCase();
+  const rawLabels: string[] = resolvedProps.labels || [];
+  const rawValues: (number | string)[] = resolvedProps.values || [];
+  const unit = resolvedProps.unit || "";
+  const footerLabel = resolvedProps.footerLabel || "";
+  const annotation = resolvedProps.annotation || "";
 
   const count = Math.max(rawLabels.length, rawValues.length, 1);
-  const labels = Array.from({ length: count }, (_, idx) => rawLabels[idx] ?? "");
+  const labels = Array.from({ length: count }, (_, idx) => rawLabels[idx] ?? `Point ${idx + 1}`);
 
-  // Parse numeric values safely for proportional scaling
+  // Safely parse numeric values
   const numericValues: number[] = Array.from({ length: count }, (_, idx) => {
     const v = rawValues[idx];
     if (typeof v === "number") return v;
@@ -36,34 +56,39 @@ export function Charts(renderSpec: ChartsRenderSpec) {
     }
     return 0;
   });
-  const maxVal = Math.max(...numericValues, 1);
-  const totalSum = numericValues.reduce((acc, curr) => acc + curr, 0) || 1;
 
-  const barColors = [
-    { main: tokens.accent.emerald, glow: "rgba(16, 185, 129, 0.4)", gradient: "linear-gradient(0deg, #047857 0%, #10b981 100%)", hex: "#10b981" },
-    { main: tokens.accent.cyan, glow: "rgba(6, 182, 212, 0.4)", gradient: "linear-gradient(0deg, #0e7490 0%, #06b6d4 100%)", hex: "#06b6d4" },
-    { main: tokens.accent.blue, glow: "rgba(59, 130, 246, 0.4)", gradient: "linear-gradient(0deg, #1d4ed8 0%, #3b82f6 100%)", hex: "#3b82f6" },
-    { main: tokens.accent.purple, glow: "rgba(168, 85, 247, 0.4)", gradient: "linear-gradient(0deg, #7e22ce 0%, #a855f7 100%)", hex: "#a855f7" },
-    { main: tokens.accent.amber, glow: "rgba(245, 158, 11, 0.4)", gradient: "linear-gradient(0deg, #b45309 0%, #f59e0b 100%)", hex: "#f59e0b" },
-  ];
+  // Calculate Highlight Index
+  let highlightIdx = resolvedProps.highlightIndex;
+  if (highlightIdx === undefined && resolvedProps.highlightLabel) {
+    const found = labels.findIndex(
+      (l) => l.toLowerCase() === String(resolvedProps.highlightLabel).toLowerCase()
+    );
+    if (found !== -1) highlightIdx = found;
+  }
 
-  // Synchronized animation progress
-  const progress = interpolate(
+  // Min / Max for smart baseline calculation
+  const rawMin = Math.min(...numericValues, 0);
+  const rawMax = Math.max(...numericValues, 1);
+  const valRange = rawMax - rawMin || 1;
+
+  // Staggered Animation Timeline
+  const lineDrawProgress = interpolate(
     frame,
-    [0, Math.round(duration_frames * 0.35)],
+    [0, Math.round(duration_frames * 0.45)],
     [0, 1],
-    {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-      easing: Easing.bezier(0.16, 1, 0.3, 1),
-    }
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(0.16, 1, 0.3, 1) }
   );
+
+  const annotationSpring = spring({
+    frame: Math.max(0, frame - Math.round(duration_frames * 0.4)),
+    fps,
+    config: { damping: 12, stiffness: 110 },
+  });
 
   return (
     <AbsoluteFill
       style={{
         background: tokens.bg.base,
-        backdropFilter: "blur(4px)",
         color: tokens.text.primary,
         fontFamily: tokens.font.family,
         overflow: "hidden",
@@ -72,17 +97,19 @@ export function Charts(renderSpec: ChartsRenderSpec) {
     >
       <div
         style={{
+          position: "relative",
           display: "flex",
           flexDirection: "column",
           height: "100%",
           justifyContent: "space-between",
         }}
       >
+        {/* Header */}
         {headerLabel ? (
           <header>
             <div
               style={{
-                color: tokens.accent.emerald,
+                color: tokens.accent.blue,
                 fontSize: tokens.font.eyebrow,
                 fontWeight: 800,
                 textTransform: "uppercase",
@@ -94,214 +121,180 @@ export function Charts(renderSpec: ChartsRenderSpec) {
           </header>
         ) : null}
 
-        {/* 1. LINE CHART RENDERER */}
-        {chartType === "line" && (
+        {/* 1. HORIZONTAL BAR CHART (New Editorial Ranking Mode) */}
+        {chartType === "horizontal_bar" && (
           <main
             style={{
+              position: "relative",
               display: "flex",
               flexDirection: "column",
-              alignItems: "center",
               justifyContent: "center",
+              gap: count >= 5 ? "12px" : "18px",
               flex: 1,
-              margin: "20px 0",
-              position: "relative",
+              margin: "16px 0",
             }}
           >
-            <svg
-              viewBox="0 0 1100 450"
-              style={{ width: "100%", maxHeight: "450px", overflow: "visible" }}
-            >
-              <defs>
-                <linearGradient id="lineAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.45" />
-                  <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
+            {labels.map((label, idx) => {
+              const val = numericValues[idx];
+              const isHighlight = highlightIdx !== undefined ? highlightIdx === idx : idx === 0;
 
-              {/* Grid Lines */}
-              <line x1="60" y1="380" x2="1040" y2="380" stroke="rgba(255,255,255,0.15)" strokeWidth="2" />
-              <line x1="60" y1="230" x2="1040" y2="230" stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="6 6" />
-              <line x1="60" y1="80" x2="1040" y2="80" stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="6 6" />
+              const itemDelay = idx * 6;
+              const barSpring = spring({
+                frame: Math.max(0, frame - itemDelay),
+                fps,
+                config: { damping: 15, stiffness: 95 },
+              });
 
-              {/* Compute Points */}
-              {(() => {
-                const svgW = 980;
-                const svgH = 300;
-                const startX = 60;
-                const startY = 80;
-                const stepX = count > 1 ? svgW / (count - 1) : svgW / 2;
-
-                const points = numericValues.map((val, i) => {
-                  const x = startX + (count > 1 ? i * stepX : svgW / 2);
-                  const normY = (val / maxVal) * svgH * progress;
-                  const y = startY + svgH - normY;
-                  return { x, y, val: rawValues[i] ?? val, label: labels[i] };
-                });
-
-                const pathD = points.map((p, idx) => `${idx === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-                const areaD = `${pathD} L ${points[points.length - 1].x} 380 L ${points[0].x} 380 Z`;
-
-                return (
-                  <>
-                    {/* Area under curve */}
-                    <path d={areaD} fill="url(#lineAreaGrad)" />
-
-                    {/* Glowing Stroke line */}
-                    <path
-                      d={pathD}
-                      fill="none"
-                      stroke="#06b6d4"
-                      strokeWidth="5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      style={{ filter: "drop-shadow(0 0 12px rgba(6, 182, 212, 0.7))" }}
-                    />
-
-                    {/* Dots and Labels */}
-                    {points.map((p, idx) => {
-                      const displayVal = typeof p.val === "number" ? p.val.toLocaleString() : String(p.val);
-                      return (
-                        <g key={idx}>
-                          {/* Value above point */}
-                          <text
-                            x={p.x}
-                            y={p.y - 20}
-                            fill="#38bdf8"
-                            fontSize="26"
-                            fontWeight="900"
-                            textAnchor="middle"
-                            opacity={progress}
-                          >
-                            {displayVal}{unit ? ` ${unit}` : ""}
-                          </text>
-
-                          {/* Glowing node dot */}
-                          <circle
-                            cx={p.x}
-                            cy={p.y}
-                            r="8"
-                            fill="#06b6d4"
-                            stroke="#ffffff"
-                            strokeWidth="3"
-                            style={{ filter: "drop-shadow(0 0 8px #06b6d4)" }}
-                          />
-
-                          {/* X-axis Label below axis */}
-                          <text
-                            x={p.x}
-                            y={415}
-                            fill={tokens.text.secondary}
-                            fontSize="20"
-                            fontWeight="700"
-                            textAnchor="middle"
-                            letterSpacing="1"
-                          >
-                            {p.label}
-                          </text>
-                        </g>
-                      );
-                    })}
-                  </>
-                );
-              })()}
-            </svg>
-          </main>
-        )}
-
-        {/* 2. PIE / DONUT CHART RENDERER */}
-        {chartType === "pie" && (
-          <main
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-around",
-              flex: 1,
-              margin: "20px 0",
-              gap: 40,
-            }}
-          >
-            {/* Donut SVG */}
-            {(() => {
-              const radius = 140;
-              const circumference = 2 * Math.PI * radius;
-              let accumulatedPct = 0;
+              const targetWidthPercent = Math.max(6, (val / rawMax) * 100);
+              const barColor = isHighlight ? "#f59e0b" : "#3b82f6";
 
               return (
-                <div style={{ position: "relative", width: "360px", height: "360px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <svg viewBox="0 0 360 360" style={{ transform: "rotate(-90deg)", width: "100%", height: "100%" }}>
-                    {/* Background ring */}
-                    <circle cx="180" cy="180" r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="36" />
+                <div
+                  key={idx}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    opacity: barSpring,
+                    transform: `translateX(${(1 - barSpring) * -20}px)`,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span
+                      style={{
+                        fontSize: count >= 5 ? 20 : 24,
+                        fontWeight: isHighlight ? 900 : 700,
+                        color: isHighlight ? "#ffffff" : tokens.text.primary,
+                      }}
+                    >
+                      {label}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: count >= 5 ? 20 : 24,
+                        fontWeight: 900,
+                        color: isHighlight ? "#f59e0b" : tokens.text.primary,
+                      }}
+                    >
+                      {formatChartVal(val, unit)}
+                    </span>
+                  </div>
 
-                    {/* Donut Slices */}
-                    {numericValues.map((val, idx) => {
-                      const slicePct = val / totalSum;
-                      const strokeDasharray = `${slicePct * circumference * progress} ${circumference}`;
-                      const strokeDashoffset = -(accumulatedPct * circumference * progress);
-                      accumulatedPct += slicePct;
-                      const colorTheme = barColors[idx % barColors.length];
-
-                      return (
-                        <circle
-                          key={idx}
-                          cx="180"
-                          cy="180"
-                          r={radius}
-                          fill="none"
-                          stroke={colorTheme.hex}
-                          strokeWidth="36"
-                          strokeDasharray={strokeDasharray}
-                          strokeDashoffset={strokeDashoffset}
-                          style={{
-                            filter: `drop-shadow(0 0 10px ${colorTheme.glow})`,
-                            transition: "stroke-dasharray 0.2s ease",
-                          }}
-                        />
-                      );
-                    })}
-                  </svg>
-
-                  {/* Center Text inside Donut */}
-                  <div style={{ position: "absolute", textAlign: "center" }}>
-                    <div style={{ fontSize: 20, color: tokens.text.secondary, fontWeight: 700, textTransform: "uppercase" }}>
-                      Total
-                    </div>
-                    <div style={{ fontSize: 34, color: tokens.text.primary, fontWeight: 950, marginTop: 4 }}>
-                      {totalSum.toLocaleString()}{unit ? ` ${unit}` : ""}
-                    </div>
+                  {/* Horizontal Bar Track */}
+                  <div
+                    style={{
+                      width: "100%",
+                      height: isHighlight ? "12px" : "8px",
+                      background: "rgba(255, 255, 255, 0.08)",
+                      borderRadius: "6px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${barSpring * targetWidthPercent}%`,
+                        height: "100%",
+                        background: isHighlight
+                          ? "linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%)"
+                          : "linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)",
+                        borderRadius: "6px",
+                        boxShadow: isHighlight ? "0 0 12px rgba(245, 158, 11, 0.4)" : "none",
+                      }}
+                    />
                   </div>
                 </div>
               );
-            })()}
+            })}
+          </main>
+        )}
 
-            {/* Legend List */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: "340px" }}>
+        {/* 2. VERTICAL BAR CHART */}
+        {chartType === "bar" && (
+          <main
+            style={{
+              position: "relative",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              flex: 1,
+              margin: "20px 0",
+            }}
+          >
+            <div
+              style={{
+                position: "relative",
+                display: "flex",
+                alignItems: "flex-end",
+                justifyContent: "space-around",
+                height: "360px",
+                paddingBottom: "40px",
+                borderBottom: "2px solid rgba(255, 255, 255, 0.15)",
+              }}
+            >
               {labels.map((label, idx) => {
-                const rawVal = rawValues[idx] ?? numericValues[idx];
-                const displayVal = typeof rawVal === "number" ? rawVal.toLocaleString() : String(rawVal);
-                const pct = Math.round((numericValues[idx] / totalSum) * 100);
-                const colorTheme = barColors[idx % barColors.length];
+                const val = numericValues[idx];
+                const isHighlight = highlightIdx !== undefined ? highlightIdx === idx : false;
+
+                const itemDelay = idx * 6;
+                const barSpring = spring({
+                  frame: Math.max(0, frame - itemDelay),
+                  fps,
+                  config: { damping: 15, stiffness: 95 },
+                });
+
+                const heightPercent = Math.max(8, (val / rawMax) * 100);
+                const barColor = isHighlight ? "#f59e0b" : tokens.accent.blue;
 
                 return (
                   <div
                     key={idx}
                     style={{
+                      position: "relative",
                       display: "flex",
+                      flexDirection: "column",
                       alignItems: "center",
-                      justifyContent: "space-between",
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: 12,
-                      padding: "16px 24px",
-                      opacity: progress,
+                      height: "100%",
+                      justifyContent: "flex-end",
+                      flex: 1,
+                      maxWidth: "160px",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                      <div style={{ width: 16, height: 16, borderRadius: 4, background: colorTheme.hex, boxShadow: `0 0 8px ${colorTheme.glow}` }} />
-                      <span style={{ fontSize: 24, fontWeight: 800, color: tokens.text.primary }}>{label}</span>
+                    {/* Value Badge on top */}
+                    <div
+                      style={{
+                        fontSize: 22,
+                        fontWeight: 900,
+                        color: isHighlight ? "#f59e0b" : "#ffffff",
+                        marginBottom: 10,
+                        opacity: barSpring,
+                      }}
+                    >
+                      {formatChartVal(val, unit)}
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      <span style={{ fontSize: 24, fontWeight: 950, color: colorTheme.hex }}>{displayVal}{unit ? ` ${unit}` : ""}</span>
-                      <span style={{ fontSize: 18, color: tokens.text.secondary, marginLeft: 10, fontWeight: 600 }}>({pct}%)</span>
+
+                    {/* Bar */}
+                    <div
+                      style={{
+                        width: "60px",
+                        height: `${barSpring * heightPercent}%`,
+                        background: isHighlight
+                          ? "linear-gradient(0deg, #b45309 0%, #f59e0b 100%)"
+                          : "linear-gradient(0deg, #1d4ed8 0%, #3b82f6 100%)",
+                        borderRadius: "8px 8px 0 0",
+                        boxShadow: isHighlight ? "0 0 20px rgba(245, 158, 11, 0.4)" : "none",
+                      }}
+                    />
+
+                    {/* Label below axis */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        bottom: "-36px",
+                        fontSize: 18,
+                        fontWeight: 700,
+                        color: isHighlight ? "#ffffff" : tokens.text.secondary,
+                      }}
+                    >
+                      {label}
                     </div>
                   </div>
                 );
@@ -310,90 +303,242 @@ export function Charts(renderSpec: ChartsRenderSpec) {
           </main>
         )}
 
-        {/* 3. BAR CHART RENDERER (Default) */}
-        {chartType !== "line" && chartType !== "pie" && (
-          <main
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "flex-end",
-              flex: 1,
-              gap: count > 2 ? "60px" : "120px",
-              borderBottom: "3px solid rgba(255, 255, 255, 0.15)",
-              paddingBottom: "30px",
-              margin: "40px 0 20px",
-            }}
-          >
-            {Array.from({ length: count }).map((_, idx) => {
-              const rawVal = rawValues[idx] ?? 0;
-              const numericVal = numericValues[idx] ?? 0;
-              const label = labels[idx] ?? `Item ${idx + 1}`;
-              const targetHeightPct = (numericVal / maxVal) * 80;
+        {/* 3. LINE CHART (Chronological Drawing & Y-Axis Reference Ticks) */}
+        {chartType === "line" && (() => {
+          const width = 1100;
+          const height = 320;
+          const padding = 50;
 
-              const displayVal = typeof rawVal === "number" ? rawVal.toLocaleString() : String(rawVal);
-              const colorTheme = barColors[idx % barColors.length];
+          const points = numericValues.map((val, idx) => {
+            const x = padding + (idx / Math.max(1, count - 1)) * (width - 2 * padding);
+            const normalizedY = (val - rawMin) / valRange;
+            const y = height - padding - normalizedY * (height - 2 * padding);
+            return { x, y, val, label: labels[idx], idx };
+          });
 
-              return (
+          // SVG Path string
+          const pathD = points.reduce((acc, pt, idx) => {
+            return idx === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
+          }, "");
+
+          return (
+            <main
+              style={{
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flex: 1,
+                margin: "20px 0",
+              }}
+            >
+              <div style={{ position: "relative", width: `${width}px`, height: `${height}px` }}>
+                {/* Reference Grid Lines & Y-Axis Ticks */}
+                {[0, 0.5, 1].map((pct, i) => {
+                  const tickVal = rawMin + (1 - pct) * valRange;
+                  const lineY = padding + pct * (height - 2 * padding);
+
+                  return (
+                    <div key={i}>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: `${padding}px`,
+                          right: `${padding}px`,
+                          top: `${lineY}px`,
+                          height: "1px",
+                          background: "rgba(255, 255, 255, 0.1)",
+                        }}
+                      />
+                      <span
+                        style={{
+                          position: "absolute",
+                          left: "0px",
+                          top: `${lineY - 10}px`,
+                          fontSize: 14,
+                          color: tokens.text.muted,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {formatChartVal(tickVal, unit)}
+                      </span>
+                    </div>
+                  );
+                })}
+
+                {/* Line Path SVG */}
+                <svg width={width} height={height} style={{ overflow: "visible" }}>
+                  <path
+                    d={pathD}
+                    fill="none"
+                    stroke={tokens.accent.blue}
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    strokeDasharray="2000"
+                    strokeDashoffset={2000 * (1 - lineDrawProgress)}
+                  />
+
+                  {/* Data Points */}
+                  {points.map((pt, idx) => {
+                    const nodeRevealed = lineDrawProgress >= idx / Math.max(1, count - 1);
+                    const isHighlight = highlightIdx !== undefined ? highlightIdx === idx : idx === count - 1;
+
+                    return (
+                      <g key={idx} style={{ opacity: nodeRevealed ? 1 : 0, transition: "opacity 0.2s" }}>
+                        <circle
+                          cx={pt.x}
+                          cy={pt.y}
+                          r={isHighlight ? "9" : "6"}
+                          fill={isHighlight ? "#f59e0b" : "#ffffff"}
+                          stroke={tokens.accent.blue}
+                          strokeWidth="3"
+                        />
+
+                        {/* Value Text */}
+                        <text
+                          x={pt.x}
+                          y={pt.y - 18}
+                          textAnchor="middle"
+                          fill={isHighlight ? "#f59e0b" : "#ffffff"}
+                          fontSize={isHighlight ? "20" : "16"}
+                          fontWeight="900"
+                        >
+                          {formatChartVal(pt.val, unit)}
+                        </text>
+
+                        {/* X-Axis Label */}
+                        <text
+                          x={pt.x}
+                          y={height - 10}
+                          textAnchor="middle"
+                          fill={tokens.text.secondary}
+                          fontSize="16"
+                          fontWeight="700"
+                        >
+                          {pt.label}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+            </main>
+          );
+        })()}
+
+        {/* 4. DONUT / PIE CHART */}
+        {(chartType === "pie" || chartType === "donut") && (() => {
+          const totalSum = numericValues.reduce((acc, curr) => acc + curr, 0) || 1;
+          let currentAngle = 0;
+
+          return (
+            <main
+              style={{
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "60px",
+                flex: 1,
+                margin: "20px 0",
+              }}
+            >
+              {/* Donut Graphic */}
+              <div
+                style={{
+                  position: "relative",
+                  width: "280px",
+                  height: "280px",
+                  borderRadius: "50%",
+                  background: `conic-gradient(${numericValues
+                    .map((val, idx) => {
+                      const start = currentAngle;
+                      const pct = (val / totalSum) * 360;
+                      currentAngle += pct;
+                      const colors = ["#3b82f6", "#10b981", "#f59e0b", "#a855f7", "#06b6d4"];
+                      const c = colors[idx % colors.length];
+                      return `${c} ${start}deg ${currentAngle}deg`;
+                    })
+                    .join(", ")})`,
+                  boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
+                }}
+              >
+                {/* Donut Center Hole */}
                 <div
-                  key={idx}
                   style={{
+                    position: "absolute",
+                    inset: "40px",
+                    borderRadius: "50%",
+                    background: tokens.bg.base,
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    width: count > 3 ? "140px" : "180px",
-                    height: "100%",
-                    justifyContent: "flex-end",
+                    justifyContent: "center",
                   }}
                 >
-                  {/* Numeric Value Label above bar */}
-                  <div
-                    style={{
-                      fontSize: 36,
-                      fontWeight: 950,
-                      color: colorTheme.main,
-                      marginBottom: 16,
-                      opacity: progress,
-                    }}
-                  >
-                    {displayVal}{unit ? ` ${unit}` : ""}
+                  <div style={{ fontSize: 32, fontWeight: 900, color: "#ffffff" }}>
+                    {resolvedProps.centerValue || formatChartVal(totalSum, unit)}
                   </div>
-
-                  {/* Animated Growing Bar */}
-                  <div
-                    style={{
-                      width: "100%",
-                      height: `${targetHeightPct * progress}%`,
-                      minHeight: "8px",
-                      background: colorTheme.gradient,
-                      borderRadius: "12px 12px 0 0",
-                      boxShadow: `0 0 30px ${colorTheme.glow}`,
-                    }}
-                  />
-
-                  {/* Category X-Axis Label */}
-                  {label ? (
-                    <div
-                      style={{
-                        marginTop: 20,
-                        fontSize: 22,
-                        fontWeight: 800,
-                        color: tokens.text.secondary,
-                        textAlign: "center",
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                      }}
-                    >
-                      {label}
-                    </div>
-                  ) : null}
+                  <div style={{ fontSize: 14, color: tokens.text.muted, fontWeight: 700, textTransform: "uppercase" }}>
+                    {resolvedProps.centerLabel || "TOTAL"}
+                  </div>
                 </div>
-              );
-            })}
-          </main>
-        )}
+              </div>
 
+              {/* Editorial Legend */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {labels.map((lbl, idx) => {
+                  const colors = ["#3b82f6", "#10b981", "#f59e0b", "#a855f7", "#06b6d4"];
+                  const c = colors[idx % colors.length];
+                  const val = numericValues[idx];
+                  const pct = Math.round((val / totalSum) * 100);
+
+                  return (
+                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: c }} />
+                      <span style={{ fontSize: 20, fontWeight: 700, color: "#ffffff" }}>{lbl}</span>
+                      <span style={{ fontSize: 18, color: tokens.text.secondary, marginLeft: "auto" }}>
+                        {pct}% ({formatChartVal(val, unit)})
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </main>
+          );
+        })()}
+
+        {/* Floating Story Callout Annotation */}
+        {annotation ? (
+          <div
+            style={{
+              textAlign: "center",
+              opacity: annotationSpring,
+              transform: `translateY(${(1 - annotationSpring) * 15}px)`,
+              marginBottom: 10,
+            }}
+          >
+            <div
+              style={{
+                display: "inline-block",
+                fontSize: 20,
+                fontWeight: 900,
+                color: "#f59e0b",
+                background: "rgba(245, 158, 11, 0.15)",
+                border: "1px solid #f59e0b",
+                padding: "6px 20px",
+                borderRadius: "20px",
+                letterSpacing: 1,
+              }}
+            >
+              ▲ {annotation}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Footer */}
         {footerLabel ? (
-          <footer style={{ textAlign: "center", fontSize: 24, color: tokens.text.muted, fontWeight: 600 }}>
+          <footer style={{ textAlign: "center", fontSize: 20, color: tokens.text.muted, fontWeight: 600 }}>
             {footerLabel}
           </footer>
         ) : null}

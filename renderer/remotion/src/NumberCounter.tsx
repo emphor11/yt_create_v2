@@ -2,49 +2,92 @@ import {
   AbsoluteFill,
   Easing,
   interpolate,
+  spring,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { type NumberCounterRenderSpec } from "./types";
+import { type NumberCounterProps } from "./types";
 import { tokens } from "./design-tokens";
 
-export function NumberCounter(renderSpec: NumberCounterRenderSpec) {
+/**
+ * Format float number preserving precision
+ */
+function formatNumberWithPrecision(val: number, precision?: number): string {
+  if (precision !== undefined) {
+    return val.toFixed(precision);
+  }
+  const isFloat = val % 1 !== 0;
+  if (isFloat) {
+    // Keep 1 or 2 decimals
+    const str = val.toString();
+    const decimalPlaces = str.split(".")[1]?.length || 1;
+    return val.toFixed(Math.min(2, decimalPlaces));
+  }
+  return Math.round(val).toLocaleString();
+}
+
+export function NumberCounter(props: NumberCounterProps | any) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const duration_frames = renderSpec.duration_frames || 180;
-  const props = renderSpec.props as any;
+  // Normalize boundary props wrapper
+  const resolvedProps: NumberCounterProps = props.props ? props.props : props;
+  const duration_frames = (props as any).duration_frames || 180;
 
-  // Extract exact component properties
-  const headerLabel = props.headerLabel || "";
-  const label = props.label || "";
-  const startValue = typeof props.startValue === "number" ? props.startValue : (parseFloat(String(props.startValue || 0)) || 0);
-  const endValue = typeof props.endValue === "number" ? props.endValue : (parseFloat(String(props.endValue || 100)) || 100);
-  const unit = props.unit || "";
-  const footerLabel = props.footerLabel || "";
+  const headerLabel = resolvedProps.headerLabel || "";
+  const label = resolvedProps.label || "";
+  const startValue = typeof resolvedProps.startValue === "number" ? resolvedProps.startValue : 0;
+  const endValue = typeof resolvedProps.endValue === "number" ? resolvedProps.endValue : 100;
 
-  // Counter animation scales dynamically across 75% of scene duration
+  const prefix = resolvedProps.prefix || "";
+  const suffix = resolvedProps.suffix || resolvedProps.unit || "";
+  const precision = resolvedProps.precision;
+  const delta = resolvedProps.delta || "";
+  const subtitle = resolvedProps.subtitle || "";
+
+  // Auto-detect variant
+  const variant = resolvedProps.variant || (startValue !== 0 ? "change" : "single");
+
+  // Sequential Animation Timeline (NO CONTINUOUS PULSE!)
+  const labelSpring = spring({
+    frame,
+    fps,
+    config: { damping: 15, stiffness: 100 },
+  });
+
+  // Count-up progress over 60% of scene duration
   const countProgress = interpolate(
     frame,
-    [0, Math.round(duration_frames * 0.75)],
+    [Math.round(duration_frames * 0.15), Math.round(duration_frames * 0.65)],
     [0, 1],
     {
       extrapolateLeft: "clamp",
       extrapolateRight: "clamp",
-      easing: Easing.bezier(0.16, 1, 0.3, 1), // ease-out-expo
+      easing: Easing.bezier(0.16, 1, 0.3, 1),
     }
   );
 
-  const currentValue = Math.round(startValue + (endValue - startValue) * countProgress);
+  const currentRawVal = startValue + (endValue - startValue) * countProgress;
+  const displayVal = formatNumberWithPrecision(currentRawVal, precision);
 
-  // Living motion: subtle breathing pulse to keep long scene holds dynamic
-  const pulse = 1 + Math.sin((frame / duration_frames) * Math.PI * 4) * 0.02;
+  // Subtle impact scale landing when counter completes (65% - 75%)
+  const settleSpring = spring({
+    frame: Math.max(0, frame - Math.round(duration_frames * 0.65)),
+    fps,
+    config: { damping: 12, stiffness: 120 },
+  });
+
+  // Delta takeaway & subtitle entrance (75%+)
+  const deltaSpring = spring({
+    frame: Math.max(0, frame - Math.round(duration_frames * 0.72)),
+    fps,
+    config: { damping: 14, stiffness: 100 },
+  });
 
   return (
     <AbsoluteFill
       style={{
-        background: `linear-gradient(135deg, ${tokens.bg.cardLeft} 0%, ${tokens.bg.cardRight} 100%)`,
-        backdropFilter: "blur(4px)",
+        background: tokens.bg.base,
         color: tokens.text.primary,
         fontFamily: tokens.font.family,
         overflow: "hidden",
@@ -53,6 +96,7 @@ export function NumberCounter(renderSpec: NumberCounterRenderSpec) {
     >
       <div
         style={{
+          position: "relative",
           display: "flex",
           flexDirection: "column",
           height: "100%",
@@ -61,11 +105,17 @@ export function NumberCounter(renderSpec: NumberCounterRenderSpec) {
           textAlign: "center",
         }}
       >
+        {/* Header Eyebrow */}
         {headerLabel ? (
-          <header>
+          <header
+            style={{
+              opacity: labelSpring,
+              transform: `translateY(${(1 - labelSpring) * -15}px)`,
+            }}
+          >
             <div
               style={{
-                color: tokens.accent.purple,
+                color: tokens.accent.blue,
                 fontSize: tokens.font.eyebrow,
                 fontWeight: 800,
                 textTransform: "uppercase",
@@ -77,69 +127,152 @@ export function NumberCounter(renderSpec: NumberCounterRenderSpec) {
           </header>
         ) : null}
 
+        {/* Main Metric Hero Section */}
         <main
           style={{
+            position: "relative",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
             flex: 1,
+            margin: "20px 0",
           }}
         >
+          {/* Optional Metric Title / Category */}
           {label ? (
-            <div style={{ color: tokens.text.secondary, fontSize: 26, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1.5 }}>
+            <div
+              style={{
+                color: tokens.text.secondary,
+                fontSize: 26,
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: 2,
+                marginBottom: 16,
+                opacity: labelSpring,
+              }}
+            >
               {label}
             </div>
           ) : null}
+
+          {/* CHANGE VARIANT: Starting Point Indicator */}
+          {variant === "change" && startValue !== 0 ? (
+            <div
+              style={{
+                fontSize: 32,
+                fontWeight: 700,
+                color: tokens.text.muted,
+                marginBottom: 8,
+                opacity: labelSpring,
+              }}
+            >
+              {prefix}
+              {formatNumberWithPrecision(startValue, precision)}
+              {suffix}
+              <span style={{ margin: "0 12px", color: tokens.accent.blue }}>➔</span>
+            </div>
+          ) : null}
+
+          {/* HERO COUNTING NUMBER */}
           <div
             style={{
               display: "flex",
               alignItems: "baseline",
               justifyContent: "center",
-              marginTop: label ? 20 : 0,
-              transform: `scale(${pulse})`,
+              transform: `scale(${0.96 + settleSpring * 0.04})`,
             }}
           >
-            {/* Currency Prefix if INR or USD */}
-            {unit === "INR" || unit === "₹" ? (
-              <span style={{ fontSize: 72, fontWeight: 900, color: tokens.accent.purple, marginRight: 8 }}>₹</span>
-            ) : unit === "USD" || unit === "$" ? (
-              <span style={{ fontSize: 72, fontWeight: 900, color: tokens.accent.purple, marginRight: 8 }}>$</span>
-            ) : null}
-
-            {/* Main Numeric Counter */}
-            <span
-              style={{
-                fontSize: 144,
-                fontWeight: 950,
-                color: tokens.accent.purple,
-                lineHeight: 1,
-                textShadow: "0 0 40px rgba(168, 85, 247, 0.4)",
-              }}
-            >
-              {currentValue.toLocaleString()}
-            </span>
-
-            {/* Unit Suffix for non-currency units (e.g. months, years, %, GB) */}
-            {unit && unit !== "INR" && unit !== "₹" && unit !== "USD" && unit !== "$" ? (
+            {prefix ? (
               <span
                 style={{
-                  fontSize: 54,
-                  fontWeight: 800,
-                  color: tokens.text.secondary,
-                  marginLeft: 16,
-                  textTransform: "lowercase",
+                  fontSize: 84,
+                  fontWeight: 900,
+                  color: "#ffffff",
+                  marginRight: 6,
                 }}
               >
-                {unit}
+                {prefix}
+              </span>
+            ) : null}
+
+            <span
+              style={{
+                fontSize: 120,
+                fontWeight: 950,
+                lineHeight: 1,
+                letterSpacing: -3,
+                color: "#ffffff",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {displayVal}
+            </span>
+
+            {suffix ? (
+              <span
+                style={{
+                  fontSize: 76,
+                  fontWeight: 900,
+                  color: "#ffffff",
+                  marginLeft: 8,
+                }}
+              >
+                {suffix}
               </span>
             ) : null}
           </div>
+
+          {/* DELTA TAKEAWAY BADGE */}
+          {delta ? (
+            <div
+              style={{
+                marginTop: 24,
+                opacity: deltaSpring,
+                transform: `translateY(${(1 - deltaSpring) * 15}px)`,
+              }}
+            >
+              <div
+                style={{
+                  display: "inline-block",
+                  fontSize: 24,
+                  fontWeight: 900,
+                  color: delta.startsWith("-") ? "#ef4444" : "#10b981",
+                  background: delta.startsWith("-")
+                    ? "rgba(239, 68, 68, 0.15)"
+                    : "rgba(16, 185, 129, 0.15)",
+                  border: `1.5px solid ${delta.startsWith("-") ? "#ef4444" : "#10b981"}`,
+                  padding: "6px 24px",
+                  borderRadius: "20px",
+                  letterSpacing: 1,
+                }}
+              >
+                {delta.startsWith("-") || delta.startsWith("+") ? "" : "▲ "}
+                {delta}
+              </div>
+            </div>
+          ) : null}
+
+          {/* SUBTITLE / CONTEXT PERIOD */}
+          {subtitle ? (
+            <div
+              style={{
+                fontSize: 22,
+                fontWeight: 600,
+                color: tokens.text.secondary,
+                marginTop: 16,
+                opacity: deltaSpring,
+              }}
+            >
+              {subtitle}
+            </div>
+          ) : null}
         </main>
 
-        {footerLabel ? (
-          <footer style={{ fontSize: 26, color: "#9ca3af", fontWeight: 600 }}>
-            {footerLabel}
+        {/* Footer */}
+        {resolvedProps.footerLabel ? (
+          <footer style={{ textAlign: "center", fontSize: 20, color: tokens.text.muted, fontWeight: 600 }}>
+            {resolvedProps.footerLabel}
           </footer>
         ) : null}
       </div>

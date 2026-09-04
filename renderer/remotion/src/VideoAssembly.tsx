@@ -1,6 +1,13 @@
 import { AbsoluteFill, Series, Audio, Video, Img, staticFile, useCurrentFrame, useVideoConfig, interpolate } from "remotion";
 import { SplitComparison } from "./SplitComparison";
 import { Timeline } from "./Timeline";
+import { ProcessFlow } from "./ProcessFlow";
+import { KPIGrid } from "./KPIGrid";
+import { ProgressiveList } from "./ProgressiveList";
+import { RankedList } from "./RankedList";
+import { DataTable } from "./DataTable";
+import { BeforeAfter } from "./BeforeAfter";
+import { QuoteCallout } from "./QuoteCallout";
 import { NumberCounter } from "./NumberCounter";
 import { Charts } from "./Charts";
 import { StockImage } from "./StockImage";
@@ -72,6 +79,13 @@ export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
                   {compId === "StockVideo" && <StockVideo {...childProps} />}
                   {compId === "StockImage" && <StockImage {...childProps} />}
                   {compId === "Timeline" && <Timeline {...childProps} />}
+                  {compId === "ProcessFlow" && <ProcessFlow {...childProps} />}
+                  {compId === "KPIGrid" && <KPIGrid {...childProps} />}
+                  {compId === "ProgressiveList" && <ProgressiveList {...childProps} />}
+                  {compId === "RankedList" && <RankedList {...childProps} />}
+                  {compId === "DataTable" && <DataTable {...childProps} />}
+                  {compId === "BeforeAfter" && <BeforeAfter {...childProps} />}
+                  {compId === "QuoteCallout" && <QuoteCallout {...childProps} />}
                   {compId === "NumberCounter" && <NumberCounter {...childProps} />}
                   {compId === "Charts" && <Charts {...childProps} />}
                   {compId === "IconAnimation" && <IconAnimation {...childProps} />}

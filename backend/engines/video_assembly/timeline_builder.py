@@ -238,7 +238,6 @@ class TimelineBuilder:
         # 5. Build contiguous and non-overlapping intervals
         total_duration_frames = int(round(voice_track.duration_seconds * self.fps))
         timed_intervals: list[TimedBeatInterval] = []
-        last_end_frame = 0
 
         # Construct flat list of beats metadata for index references
         flat_beat_refs = []
@@ -253,17 +252,30 @@ class TimelineBuilder:
         for idx, (section_type, s_idx, b_idx, beat_id) in enumerate(flat_beat_refs):
             raw_start_ms, raw_end_ms = beat_time_bounds[idx]
 
-            start_frame = int(round((raw_start_ms / 1000.0) * self.fps))
-            end_frame = int(round((raw_end_ms / 1000.0) * self.fps))
+            exact_trigger_start_frame = int(round((raw_start_ms / 1000.0) * self.fps))
+            raw_end_frame = int(round((raw_end_ms / 1000.0) * self.fps))
 
-            # Maintain strict contiguity
             if idx == 0:
                 start_frame = 0
             else:
-                start_frame = last_end_frame
+                # Align start_frame to exact trigger word start time, enforcing minimum beat duration
+                prev_start = timed_intervals[-1].start_frame
+                start_frame = max(exact_trigger_start_frame, prev_start + MIN_BEAT_DURATION_FRAMES)
 
-            # Enforce minimum duration constant
-            end_frame = max(start_frame + MIN_BEAT_DURATION_FRAMES, end_frame)
+                # Extend previous beat's end_frame through the pause to this beat's start_frame
+                prev_beat = timed_intervals[-1]
+                timed_intervals[-1] = TimedBeatInterval(
+                    beat_id=prev_beat.beat_id,
+                    start_frame=prev_beat.start_frame,
+                    end_frame=start_frame,
+                    duration_frames=start_frame - prev_beat.start_frame,
+                    section_type=prev_beat.section_type,
+                    section_index=prev_beat.section_index,
+                    beat_index=prev_beat.beat_index,
+                )
+
+            # End frame defaults to raw_end_frame or start_frame + MIN_BEAT_DURATION_FRAMES
+            end_frame = max(start_frame + MIN_BEAT_DURATION_FRAMES, raw_end_frame)
 
             # Clamp the last beat to exact total duration
             if idx == len(flat_beat_refs) - 1:
@@ -274,7 +286,6 @@ class TimelineBuilder:
                 end_frame = total_duration_frames
 
             duration_frames = end_frame - start_frame
-            last_end_frame = end_frame
 
             timed_intervals.append(
                 TimedBeatInterval(

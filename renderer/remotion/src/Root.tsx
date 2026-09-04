@@ -1,6 +1,13 @@
 import { Composition } from "remotion";
 import { SplitComparison } from "./SplitComparison";
 import { Timeline } from "./Timeline";
+import { ProcessFlow } from "./ProcessFlow";
+import { KPIGrid } from "./KPIGrid";
+import { ProgressiveList } from "./ProgressiveList";
+import { RankedList } from "./RankedList";
+import { DataTable } from "./DataTable";
+import { BeforeAfter } from "./BeforeAfter";
+import { QuoteCallout } from "./QuoteCallout";
 import { NumberCounter } from "./NumberCounter";
 import { Charts } from "./Charts";
 import { StockImage } from "./StockImage";
@@ -71,6 +78,69 @@ export function RemotionRoot() {
       <Composition
         id="Timeline"
         component={Timeline as any}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps as any}
+      />
+      <Composition
+        id="ProcessFlow"
+        component={ProcessFlow as any}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps as any}
+      />
+      <Composition
+        id="KPIGrid"
+        component={KPIGrid as any}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps as any}
+      />
+      <Composition
+        id="ProgressiveList"
+        component={ProgressiveList as any}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps as any}
+      />
+      <Composition
+        id="RankedList"
+        component={RankedList as any}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps as any}
+      />
+      <Composition
+        id="DataTable"
+        component={DataTable as any}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps as any}
+      />
+      <Composition
+        id="BeforeAfter"
+        component={BeforeAfter as any}
+        durationInFrames={240}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps as any}
+      />
+      <Composition
+        id="QuoteCallout"
+        component={QuoteCallout as any}
         durationInFrames={240}
         fps={30}
         width={1920}

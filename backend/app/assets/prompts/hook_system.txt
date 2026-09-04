@@ -64,45 +64,52 @@ Use ONLY the keys listed. Do not add extra keys. Do not leave required keys empt
 ─────────────────────────────────────────
 4A. Typography
 ─────────────────────────────────────────
-For bold on-screen headline statements, provocative questions, or thesis reveals.
+For bold headline statements, provocative questions, key takeaways, metrics, or quotes.
+Fallback visual for text-based ideas that don't need a chart or diagram.
 
 {
-  "header_label": "OPTIONAL UPPERCASE BADGE",     ← optional, omit key if unused
-  "text": "Your Bold Headline Statement Here",     ← REQUIRED, string
-  "subtitle": "Optional supporting line"           ← optional, omit key if unused
+  "header_label": "THE BIG PICTURE",               ← optional eyebrow
+  "variant": "headline",                           ← optional ("headline", "question", "statement", "takeaway", "metric", "quote")
+  "text": "Tesla's valuation rose 20×",            ← REQUIRED, string
+  "highlight": "20×",                              ← optional keyword to highlight with accent pill
+  "subtitle": "The market was pricing in growth",  ← optional supporting line
+  "align": "center"                                ← optional ("left" or "center")
 }
 
 ─────────────────────────────────────────
 4B. SplitComparison
 ─────────────────────────────────────────
-For side-by-side contrasts: Rent vs Buy, Active vs Passive, Old vs New.
+For side-by-side contrasts: Apple vs Microsoft, Rent vs Buy, Bull vs Bear.
+Includes a prominent central "VS" badge, topic metric header, and optional delta callouts.
 
 {
-  "header_label": "OPTIONAL UPPERCASE BADGE",     ← optional
-  "left_role": "Rental Yield",                    ← REQUIRED, string label
-  "left_label": "Unrecoverable Cost",             ← optional subtitle
-  "left_value": 2.0,                              ← REQUIRED, number or string
-  "left_unit": "%",                                ← optional unit suffix
-  "right_role": "Mortgage Interest",              ← REQUIRED, string label
-  "right_label": "Bank Debt",                     ← optional subtitle
-  "right_value": 7.0,                             ← REQUIRED, number or string
-  "right_unit": "%"                                ← optional unit suffix
+  "header_label": "VALUATION COMPARISON",          ← optional
+  "comparison_label": "MARKET CAP",                ← optional topic metric (e.g. "REVENUE", "MARKET CAP")
+  "tone": "neutral",                               ← optional ("neutral" for company vs company, "positive_negative" for bull vs bear)
+  "left_role": "Apple",                            ← REQUIRED, string label
+  "left_value": "$3.8T",                           ← REQUIRED, number or string
+  "right_role": "Microsoft",                       ← REQUIRED, string label
+  "right_value": "$3.5T",                          ← REQUIRED, number or string
+  "delta": "+8.6%",                                 ← optional delta/difference
+  "winner": "left"                                 ← optional winner indicator ("left" or "right")
 }
-
-Values can be numbers (2.0, 3500) or formatted strings ("$3.5K", "10x").
-If the unit is embedded in the value string (e.g. "$3.5K"), leave the unit field empty or omit it.
 
 ─────────────────────────────────────────
 4C. NumberCounter
 ─────────────────────────────────────────
-For a dramatic rolling count-up to a single shocking number.
+For a high-impact financial metric reveal, growth transformation, or valuation change.
+Answers: "Here is the dramatic metric change." (Supports start_value -> end_value, prefix/suffix, and delta takeaway).
 
 {
-  "header_label": "OPTIONAL UPPERCASE BADGE",     ← optional
-  "label": "Lost to Hidden Fees",                 ← optional subtitle above number
-  "start_value": 0,                               ← REQUIRED, must be a number
-  "end_value": 25000,                             ← REQUIRED, must be a number
-  "unit": "$"                                      ← optional, "$", "%", "years", etc.
+  "header_label": "MARKET CAP",                    ← optional header
+  "variant": "change",                             ← optional ("single" or "change")
+  "label": "Tesla Valuation Growth",               ← optional metric label
+  "start_value": 600.0,                            ← optional start number
+  "end_value": 1.0,                                ← REQUIRED, target float or int number
+  "prefix": "$",                                   ← optional prefix ("$", "₹", "€")
+  "suffix": "T",                                   ← optional suffix ("B", "M", "T", "%", "years")
+  "delta": "+66.7%",                               ← optional delta/takeaway callout
+  "subtitle": "2021 Valuation"                    ← optional context subtitle
 }
 
 CRITICAL: Use "start_value" and "end_value" as plain numbers (int or float).
@@ -111,32 +118,150 @@ NEVER use "values" — that key belongs to Charts only and will cause a pipeline
 ─────────────────────────────────────────
 4D. Charts
 ─────────────────────────────────────────
-For animated data visualization. Supports bar, line, and pie/donut charts.
+For animated financial data visualization. Supports bar, horizontal_bar, line, and pie/donut.
+Answers: "Here is the key trend or comparison." (Supports highlight_index and story annotations).
 
 {
-  "header_label": "OPTIONAL UPPERCASE BADGE",     ← optional
-  "chart_type": "bar",                            ← REQUIRED, exactly "bar", "line", or "pie"
-  "labels": ["Label A", "Label B", "Label C"],    ← REQUIRED, list of strings
-  "values": [100, 250, 400],                      ← REQUIRED, list of numbers
-  "unit": "$"                                      ← optional
+  "header_label": "REVENUE GROWTH",                ← optional header
+  "chart_type": "line",                            ← REQUIRED, exactly "bar", "horizontal_bar", "line", or "pie"
+  "labels": ["2022", "2023", "2024", "2025"],     ← REQUIRED, list of strings
+  "values": [100, 200, 350, 480],                 ← REQUIRED, list of raw numbers
+  "unit": "$B",                                    ← optional unit suffix
+  "highlight_index": 3,                            ← optional index of key data point
+  "annotation": "+18% YoY"                         ← optional story callout annotation
 }
-
-• labels and values arrays MUST have the same length.
-• Keep 2–4 data points (more clutters the animation).
-• values must be numeric (int or float), not strings.
 
 ─────────────────────────────────────────
 4E. Timeline
 ─────────────────────────────────────────
-For step-by-step frameworks, chronological sequences, or phases.
+For chronological progression over time (2019 ── 2021 ── 2024 ── 2026).
+Answers: "What happened over time?" (Supports 2 to 5 date-anchored events on a horizontal track).
 
 {
-  "header_label": "OPTIONAL UPPERCASE BADGE",     ← optional
-  "steps": ["Step One", "Step Two", "Step Three"] ← REQUIRED, list of strings, 2–4 items
+  "header_label": "TESLA'S RISE",                  ← optional
+  "events": [
+    {"date": "2019", "title": "IPO Launch", "subtitle": "Public listing"},
+    {"date": "2021", "title": "$1T Valuation", "value": "$1.0T", "type": "major"},
+    {"date": "2024", "title": "Profitability", "subtitle": "Record cash flow", "type": "positive"},
+    {"date": "2026", "title": "Global Scale", "subtitle": "Worldwide expansion"}
+  ]                                                ← REQUIRED, list of 2–5 event objects
 }
 
 ─────────────────────────────────────────
-4F. IconAnimation
+4F. ProcessFlow
+─────────────────────────────────────────
+For causal mechanisms, cause-and-effect chains, or step-by-step explanatory flows.
+Answers: "What leads to what?" (Supports 2 to 5 steps, with optional connector relationship labels).
+
+{
+  "header_label": "HOW IT HAPPENS",               ← optional
+  "layout": "auto",                                ← optional ("horizontal" for 2-3 steps, "vertical" for 4-5 steps)
+  "steps": [
+    {"title": "Higher Interest Rates", "type": "cause", "subtitle": "Fed Policy", "connector_label": "increases"},
+    {"title": "Mortgage Payments", "type": "step", "value": "+$420/mo", "connector_label": "reduces"},
+    {"title": "Housing Demand", "type": "outcome", "subtitle": "Market Slowdown"}
+  ]                                                ← REQUIRED, list of 2–5 causal step objects
+}
+
+─────────────────────────────────────────
+4G. KPIGrid
+─────────────────────────────────────────
+For finance editorial metrics (1 featured primary KPI on top + supporting metrics below).
+
+{
+  "header_label": "MARKET SNAPSHOT",              ← optional
+  "featured_index": 0,                             ← optional index of primary KPI
+  "kpis": [
+    {"label": "Market Cap", "value": "$1.02T", "trend": "+24%", "subtitle": "Tesla Inc", "is_primary": true},
+    {"label": "Annual Revenue", "value": "$96.8B", "trend": "+12% YoY", "subtitle": "FY2025", "is_primary": false},
+    {"label": "Net Profit", "value": "$15.0B", "trend": "+18% YoY", "subtitle": "FY2025", "is_primary": false}
+  ]                                                ← REQUIRED, list of 2–4 KPI objects
+}
+
+─────────────────────────────────────────
+4H. ProgressiveList
+─────────────────────────────────────────
+For sequential point reveals, key takeaways, or contextual question answers.
+Answers: "Here are the important points." (Supports 2 to 5 items, compact or detailed).
+
+{
+  "header_label": "WHY DOES THIS MATTER?",          ← optional contextual question or eyebrow
+  "variant": "detailed",                           ← optional ("detailed" for title+subtitle, "compact" for single lines)
+  "items": [
+    {"title": "Higher borrowing costs", "subtitle": "Mortgages become more expensive"},
+    {"title": "Lower consumer demand", "subtitle": "People delay major purchases"},
+    {"title": "Tighter bank lending", "subtitle": "Credit becomes harder to access"}
+  ]                                                ← REQUIRED, list of 2–5 item objects
+}
+
+─────────────────────────────────────────
+4I. RankedList
+─────────────────────────────────────────
+For ordered leaderboards, top company/asset rankings, or tier lists with proportional magnitude bars.
+Answers: "Here is the ordered ranking and relative magnitude." (Supports 2 to 5 items).
+
+{
+  "header_label": "TOP 5 COMPANIES BY MARKET CAP",  ← optional header
+  "show_bars": true,                               ← optional (shows proportional magnitude bars)
+  "items": [
+    {"rank": 1, "title": "NVIDIA", "value": "$4.2T", "change": "+2"},
+    {"rank": 2, "title": "Apple", "value": "$3.8T"},
+    {"rank": 3, "title": "Microsoft", "value": "$3.6T", "change": "-1"},
+    {"rank": 4, "title": "Amazon", "value": "$2.4T"},
+    {"rank": 5, "title": "Alphabet", "value": "$2.3T"}
+  ]                                                ← REQUIRED, list of 2–5 ranked items
+}
+
+─────────────────────────────────────────
+4J. DataTable
+─────────────────────────────────────────
+For structured financial matrix tables (2–4 columns, 2–5 rows).
+Answers: "Here is the matrix comparison and key spotlight row." (Supports highlight_row and show_data_bars).
+
+{
+  "header_label": "TOP TECH MATRIX",                ← optional header
+  "variant": "standard",                           ← optional ("standard" or "comparison")
+  "columns": ["Company", "Revenue", "Margin"],
+  "rows": [
+    ["Apple", "$383B", "27%"],
+    ["Microsoft", "$245B", "36%"],
+    ["Amazon", "$575B", "8%"]
+  ],
+  "highlight_row": 1,                              ← optional index of target row to spotlight (e.g. Microsoft)
+  "annotation": "BEST OPERATING MARGIN"             ← optional story callout annotation
+}
+
+─────────────────────────────────────────
+4K. BeforeAfter
+─────────────────────────────────────────
+For visible progression & entity transformation over time (A became B).
+Answers: "How did this entity transform over time?" (Supports delta callouts like +20× or +1,900%).
+
+{
+  "header_label": "TESLA'S VALUATION",             ← optional header
+  "variant": "numeric",                            ← optional ("numeric" or "visual")
+  "tone": "neutral",                               ← optional ("neutral", "positive", "negative")
+  "before": {"label": "2020", "title": "Market Cap", "value": "$50B", "subtitle": "Niche EV Maker"},
+  "after": {"label": "2021", "title": "Market Cap", "value": "$1.0T", "subtitle": "Global Mass-Market"},
+  "delta": "+20×",                                 ← optional transformation delta callout
+  "delta_label": "in 1 year"                       ← optional context period
+}
+
+─────────────────────────────────────────
+4L. QuoteCallout
+─────────────────────────────────────────
+For expert quotes, testimonials, principles, or memorable takeaways.
+
+{
+  "header_label": "OPTIONAL UPPERCASE BADGE",     ← optional
+  "quote": "Rule No. 1: Never lose money. Rule No. 2: Never forget rule No. 1.",
+  "author": "Warren Buffett",                      ← optional
+  "role": "Chairman, Berkshire Hathaway",          ← optional
+  "avatar": "💬"                                   ← optional emoji badge
+}
+
+─────────────────────────────────────────
+4M. IconAnimation
 ─────────────────────────────────────────
 For a single core concept, rule, alert, or milestone badge.
 
@@ -147,7 +272,7 @@ For a single core concept, rule, alert, or milestone badge.
 }
 
 ─────────────────────────────────────────
-4G. StockVideo / StockImage
+4N. StockVideo / StockImage
 ─────────────────────────────────────────
 {} (empty object, zero keys)
 

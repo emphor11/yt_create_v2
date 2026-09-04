@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import socket
 from typing import Any
 from urllib import error, request
 
@@ -177,24 +179,55 @@ class GeminiProvider:
 
     @staticmethod
     def _clean_schema_for_gemini(schema: dict[str, Any]) -> dict[str, Any]:
-        """Recursively remove 'additionalProperties' from JSON schema since
-
-        Gemini API v1beta does not support it.
+        """Recursively dereference '$ref' pointers, remove '$defs'/'definitions',
+        and remove 'additionalProperties' since Gemini API v1beta does not support them.
         """
-        if not isinstance(schema, dict):
-            return schema
-        cleaned = {k: v for k, v in schema.items() if k != "additionalProperties"}
-        for k, v in cleaned.items():
-            if isinstance(v, dict):
-                cleaned[k] = GeminiProvider._clean_schema_for_gemini(v)
-            elif isinstance(v, list):
-                cleaned[k] = [
-                    GeminiProvider._clean_schema_for_gemini(item)
-                    if isinstance(item, dict)
-                    else item
-                    for item in v
-                ]
-        return cleaned
+        def _collect_defs(node: Any, defs_map: dict[str, dict[str, Any]]) -> None:
+            if isinstance(node, dict):
+                for def_key in ("$defs", "definitions"):
+                    if def_key in node and isinstance(node[def_key], dict):
+                        for k, v in node[def_key].items():
+                            if isinstance(v, dict):
+                                defs_map[k] = v
+                for v in node.values():
+                    _collect_defs(v, defs_map)
+            elif isinstance(node, list):
+                for item in node:
+                    _collect_defs(item, defs_map)
+
+        defs_map: dict[str, dict[str, Any]] = {}
+        _collect_defs(schema, defs_map)
+
+        def _resolve_and_clean(node: Any, visited_refs: set[str] | None = None) -> Any:
+            if visited_refs is None:
+                visited_refs = set()
+
+            if not isinstance(node, dict):
+                if isinstance(node, list):
+                    return [_resolve_and_clean(item, set(visited_refs)) for item in node]
+                return node
+
+            if "$ref" in node and isinstance(node["$ref"], str):
+                ref_str = node["$ref"]
+                ref_name = ref_str.split("/")[-1]
+                if ref_name in defs_map and ref_name not in visited_refs:
+                    target_def = defs_map[ref_name]
+                    merged_node = {k: v for k, v in node.items() if k != "$ref"}
+                    for k, v in target_def.items():
+                        if k not in merged_node:
+                            merged_node[k] = v
+                    return _resolve_and_clean(merged_node, visited_refs | {ref_name})
+
+            cleaned: dict[str, Any] = {}
+            for k, v in node.items():
+                if k in ("additionalProperties", "$defs", "definitions"):
+                    continue
+                cleaned[k] = _resolve_and_clean(v, set(visited_refs))
+
+            return cleaned
+
+        res = _resolve_and_clean(schema)
+        return res if isinstance(res, dict) else {}
 
     def _post_generate_content(self, payload: dict[str, Any]) -> dict[str, Any]:
         url = f"{self.api_base_url}/models/{self.model}:generateContent"
@@ -210,6 +243,10 @@ class GeminiProvider:
         try:
             with request.urlopen(http_request, timeout=self.timeout_seconds) as response:
                 response_body = response.read().decode("utf-8")
+        except (TimeoutError, socket.timeout) as timeout_err:
+            raise LLMProviderError(
+                f"Gemini API request timed out after {self.timeout_seconds} seconds."
+            ) from timeout_err
         except error.HTTPError as http_error:
             response_body = http_error.read().decode("utf-8", errors="replace")
             raise LLMProviderError(

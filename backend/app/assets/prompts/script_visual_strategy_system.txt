@@ -11,45 +11,158 @@ NARRATION RULES
 - Keep each idea's narration to roughly 40-70 words.
 - Always write numbers as digits, never spelled out.
 
-THE VISUAL TOOLBOX — preferred_component MUST be exactly one of these 8 strings, case-sensitive:
-SplitComparison, Timeline, NumberCounter, Charts, Stock Image, Stock Video, Typography, Icon Animation
+THE VISUAL TOOLBOX — preferred_component MUST be exactly one of these strings, case-sensitive:
+SplitComparison, Timeline, ProcessFlow, KPIGrid, ProgressiveList, RankedList, DataTable, BeforeAfter, QuoteCallout, NumberCounter, Charts, Stock Image, Stock Video, Typography, Icon Animation
 
 STRICT COMPONENT_DATA SCHEMAS BY TYPE
 Depending on the preferred_component you choose, the component_data dictionary must contain EXACTLY the keys and types specified in the examples below. No extra keys, no missing keys.
 
 1. If preferred_component is "SplitComparison":
 {
-  "left_role": "string (e.g., 'Renter')",
-  "left_label": "string (e.g., 'Unrecoverable Cost')",
-  "left_value": 3500.0,
-  "left_unit": "string (e.g., 'INR' or '%')",
-  "right_role": "string (e.g., 'Buyer')",
-  "right_label": "string (e.g., 'Interest + Taxes')",
-  "right_value": 5200.0,
-  "right_unit": "string (e.g., 'INR' or '%')"
+  "header_label": "string (e.g., 'VALUATION COMPARISON')",
+  "comparison_label": "string (e.g., 'MARKET CAP' or 'REVENUE')",
+  "tone": "string (optional: 'neutral', 'positive_negative', 'before_after')",
+  "left_role": "string (e.g., 'Apple')",
+  "left_value": 3.8,
+  "left_unit": "str (e.g., '$T')",
+  "right_role": "string (e.g., 'Microsoft')",
+  "right_value": 3.5,
+  "right_unit": "str (e.g., '$T')",
+  "delta": "string (e.g., '+8.6%')",
+  "winner": "string (optional: 'left' or 'right')"
 }
+Note: SplitComparison displays a side-by-side comparison with a central 'VS' badge and topic metric indicator.
 
 2. If preferred_component is "NumberCounter":
 {
-  "start_value": 0.0,
-  "end_value": 150000.0,
-  "label": "string (e.g., 'Yearly Savings')",
-  "unit": "string (e.g., 'INR' or '%')"
+  "header_label": "string (e.g., 'MARKET CAP')",
+  "variant": "string (optional: 'single' or 'change')",
+  "start_value": 600.0,
+  "end_value": 1.0,
+  "label": "string (e.g., 'Valuation Growth')",
+  "prefix": "string (e.g., '$')",
+  "suffix": "string (e.g., 'T')",
+  "delta": "string (optional takeaway: e.g., '+66.7%')",
+  "subtitle": "string (optional context: e.g., '2021 Valuation')"
 }
 
 3. If preferred_component is "Charts":
 {
-  "chart_type": "string (must be exactly 'bar', 'pie', or 'line')",
-  "labels": ["string1", "string2"],
-  "values": [120.0, 350.0]
+  "header_label": "string (e.g., 'REVENUE GROWTH')",
+  "chart_type": "string (must be 'bar', 'horizontal_bar', 'line', or 'pie')",
+  "labels": ["2022", "2023", "2024", "2025"],
+  "values": [100.0, 200.0, 350.0, 480.0],
+  "unit": "string (e.g., '$B')",
+  "highlight_index": 3,
+  "annotation": "string (optional callout: e.g., '+18% YoY')"
 }
 
 4. If preferred_component is "Timeline":
 {
-  "steps": ["step description 1", "step description 2", "step description 3"]
+  "header_label": "string (e.g., 'TESLA\\'S RISE')",
+  "events": [
+    {"date": "2019", "title": "IPO Launch", "subtitle": "Public listing"},
+    {"date": "2021", "title": "$1T Valuation", "value": "$1.0T", "type": "major"},
+    {"date": "2024", "title": "Profitability", "subtitle": "Record cash flow", "type": "positive"},
+    {"date": "2026", "title": "Global Scale", "subtitle": "Worldwide expansion"}
+  ]
+}
+Note: Timeline displays chronological progression over time (2 to 5 date-anchored events on a horizontal track).
+
+5. If preferred_component is "ProcessFlow":
+{
+  "header_label": "string (e.g., 'HOW IT HAPPENS')",
+  "layout": "string (optional: 'horizontal' or 'vertical')",
+  "steps": [
+    {"title": "Higher Interest Rates", "type": "cause", "subtitle": "Fed Policy", "connector_label": "increases"},
+    {"title": "Mortgage Payments", "type": "step", "value": "+$420/mo", "connector_label": "reduces"},
+    {"title": "Housing Demand", "type": "outcome", "subtitle": "Market Slowdown"}
+  ]
+}
+Note: ProcessFlow represents causal chains ("What leads to what?"). Supports 2 to 5 steps with optional connector_label (e.g., 'increases', 'reduces', 'triggers').
+
+6. If preferred_component is "KPIGrid":
+{
+  "header_label": "string (e.g., 'MARKET SNAPSHOT')",
+  "featured_index": 0,
+  "kpis": [
+    {"label": "Market Cap", "value": "$1.02T", "trend": "+24%", "subtitle": "Tesla Inc", "is_primary": true},
+    {"label": "Annual Revenue", "value": "$96.8B", "trend": "+12% YoY", "subtitle": "FY2025", "is_primary": false},
+    {"label": "Net Profit", "value": "$15.0B", "trend": "+18% YoY", "subtitle": "FY2025", "is_primary": false}
+  ]
+}
+Note: KPIGrid accepts 2 to 4 dynamic KPI cards. The first card or `is_primary: true` card acts as the dominant hero metric.
+
+7. If preferred_component is "ProgressiveList":
+{
+  "header_label": "string (e.g., 'WHY THIS MATTERS')",
+  "variant": "string (optional: 'compact' or 'detailed')",
+  "items": [
+    {"title": "Higher borrowing costs", "subtitle": "Mortgages become more expensive"},
+    {"title": "Lower consumer demand", "subtitle": "People delay major purchases"}
+  ]
+}
+Note: ProgressiveList presents sequential key takeaways or bullet points ("Here are the key points"). Supports 2 to 5 items with 01, 02 index anchors.
+
+8. If preferred_component is "RankedList":
+{
+  "header_label": "string (e.g., 'TOP 5 COMPANIES BY MARKET CAP')",
+  "show_bars": true,
+  "items": [
+    {"rank": 1, "title": "NVIDIA", "value": "$4.2T", "change": "+2"},
+    {"rank": 2, "title": "Apple", "value": "$3.8T"},
+    {"rank": 3, "title": "Microsoft", "value": "$3.6T", "change": "-1"}
+  ]
+}
+Note: RankedList creates an editorial leaderboard with proportional magnitude bars (2 to 5 ranked items). Supports rank shifts via `change` (e.g., '+2', '-1', 'NEW').
+
+9. If preferred_component is "DataTable":
+{
+  "header_label": "string (e.g., 'TOP TECH MATRIX')",
+  "variant": "string (optional: 'standard' or 'comparison')",
+  "columns": ["Company", "Revenue", "Margin"],
+  "rows": [
+    ["Apple", "$383B", "27%"],
+    ["Microsoft", "$245B", "36%"],
+    ["Amazon", "$575B", "8%"]
+  ],
+  "highlight_row": 1,
+  "annotation": "string (optional: 'BEST OPERATING MARGIN')"
+}
+Note: DataTable displays a financial matrix table (2 to 4 columns, 2 to 5 rows) with spotlight row focus.
+
+10. If preferred_component is "BeforeAfter":
+{
+  "header_label": "string (e.g., 'TESLA\\'S VALUATION')",
+  "variant": "string (optional: 'numeric' or 'visual')",
+  "tone": "string (optional: 'neutral', 'positive', 'negative')",
+  "before": {"label": "2020", "title": "Market Cap", "value": "$50B", "subtitle": "Niche EV Maker"},
+  "after": {"label": "2021", "title": "Market Cap", "value": "$1.0T", "subtitle": "Global Mass-Market"},
+  "delta": "string (optional callout: e.g., '+20×')",
+  "delta_label": "string (optional context: e.g., 'in 1 year')"
 }
 
-5. If preferred_component is "Typography", "Stock Image", "Stock Video", or "Icon Animation":
+11. If preferred_component is "QuoteCallout":
+{
+  "header_label": "string (e.g., 'Core Principle')",
+  "quote": "Rule No. 1: Never lose money. Rule No. 2: Never forget rule No. 1.",
+  "author": "Warren Buffett",
+  "role": "Chairman, Berkshire Hathaway",
+  "avatar": "💬"
+}
+
+12. If preferred_component is "Typography":
+{
+  "header_label": "string (e.g., 'THE BIG PICTURE')",
+  "variant": "string (optional: 'headline', 'question', 'statement', 'takeaway', 'metric', 'quote')",
+  "text": "string (e.g., 'Tesla\\'s valuation rose 20×')",
+  "highlight": "string (optional keyword to highlight, e.g. '20×')",
+  "subtitle": "string (optional subtitle)",
+  "align": "string (optional: 'left' or 'center')"
+}
+Note: Typography acts as the primary fallback visual for text-based ideas that don't need a chart or diagram.
+
+13. If preferred_component is "Stock Image", "Stock Video", or "Icon Animation":
 {}
 
 NUMERIC VALUE FORMAT — CRITICAL

@@ -206,3 +206,81 @@ def test_video_assembly_pipeline_stage(tmp_path):
     assert scenes[1]["component"]["component_id"] == "SplitComparison"
     assert scenes[1]["component"]["props"]["leftLabel"] == "Rent"
     assert scenes[1]["component"]["props"]["leftValue"] == 3000
+
+
+def test_timeline_builder_aligns_beats_to_exact_trigger_word_start() -> None:
+    from domain.hook import Hook, VisualDirective
+    from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea, VisualStrategyBeat
+    from domain.voice_track import VoiceTrack, WordTimestamp
+    from engines.video_assembly.timeline_builder import TimelineBuilder
+
+    hook = Hook(
+        conceptual_hook="Hook concept",
+        script_text="Welcome to the video.",
+        visual_directives=[
+            VisualDirective(beat_id="hook_beat_1", visual_instruction="Intro visual", trigger_word=None)
+        ],
+    )
+    strategy = ScriptVisualStrategy(
+        thesis="Thesis statement",
+        ideas=[
+            VideoIdea(
+                idea_id="idea_01",
+                title="Idea 1",
+                focus_concept="Concept",
+                core_teaching_point="Point",
+                narration="First sentence ends. Second sentence starts with trigger.",
+                visual_sequence=[
+                    VisualStrategyBeat(
+                        beat_id="body_beat_1",
+                        preferred_component="Typography",
+                        visual_goal="First body beat",
+                        trigger_word=None,
+                    ),
+                    VisualStrategyBeat(
+                        beat_id="body_beat_2",
+                        preferred_component="Typography",
+                        visual_goal="Second body beat",
+                        trigger_word="trigger",
+                    ),
+                ],
+            )
+        ],
+    )
+
+    timestamps = [
+        WordTimestamp(word="Welcome", start_ms=0, end_ms=300),
+        WordTimestamp(word="to", start_ms=300, end_ms=500),
+        WordTimestamp(word="the", start_ms=500, end_ms=700),
+        WordTimestamp(word="video", start_ms=700, end_ms=1000),
+        WordTimestamp(word="First", start_ms=1000, end_ms=1200),
+        WordTimestamp(word="sentence", start_ms=1200, end_ms=1400),
+        WordTimestamp(word="ends", start_ms=1400, end_ms=1600),
+        WordTimestamp(word="Second", start_ms=1800, end_ms=2000),
+        WordTimestamp(word="sentence", start_ms=2000, end_ms=2200),
+        WordTimestamp(word="starts", start_ms=2200, end_ms=2400),
+        WordTimestamp(word="with", start_ms=2400, end_ms=2600),
+        WordTimestamp(word="trigger", start_ms=2600, end_ms=3000),
+    ]
+
+    voice_track = VoiceTrack(
+        voice_id="Matthew",
+        audio_file_name="audio.mp3",
+        storage_key="audio.mp3",
+        duration_seconds=3.0,
+        full_script_text="Welcome to the video. First sentence ends. Second sentence starts with trigger.",
+        word_timestamps=timestamps,
+    )
+
+    builder = TimelineBuilder(fps=30)
+    intervals = builder.build_timeline(hook=hook, strategy=strategy, voice_track=voice_track)
+
+    assert len(intervals) == 3
+    body_beat_1 = intervals[1]
+    body_beat_2 = intervals[2]
+
+    # Verify body_beat_2 starts at EXACT frame 78 (2600ms / 1000 * 30) when "trigger" is spoken
+    assert body_beat_2.start_frame == 78
+    # Verify body_beat_1's end_frame is extended to frame 78 so there are 0 gaps
+    assert body_beat_1.end_frame == 78
+    assert body_beat_2.start_frame == body_beat_1.end_frame

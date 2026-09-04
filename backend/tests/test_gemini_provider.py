@@ -62,6 +62,44 @@ def test_gemini_provider_builds_structured_output_payload() -> None:
     }
 
 
+def test_gemini_provider_dereferences_schema_defs_and_refs() -> None:
+    schema_with_refs = {
+        "$defs": {
+            "ItemData": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "value": {"type": "number"},
+                },
+                "additionalProperties": False,
+            }
+        },
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/$defs/ItemData"
+                },
+            }
+        },
+        "additionalProperties": False,
+    }
+
+    cleaned = GeminiProvider._clean_schema_for_gemini(schema_with_refs)
+
+    assert "$defs" not in cleaned
+    assert "additionalProperties" not in cleaned
+    assert "$ref" not in cleaned["properties"]["items"]["items"]
+    assert cleaned["properties"]["items"]["items"] == {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string"},
+            "value": {"type": "number"},
+        },
+    }
+
+
 def test_gemini_provider_parses_json_text_response(monkeypatch) -> None:
     provider = GeminiProvider(api_key="test-key", model="gemini-test")
 

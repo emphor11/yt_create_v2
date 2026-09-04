@@ -5,36 +5,138 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { type TypographyRenderSpec } from "./types";
+import { type TypographyProps } from "./types";
 import { tokens } from "./design-tokens";
 
-export function Typography(renderSpec: TypographyRenderSpec) {
+/**
+ * Helper to highlight a specific keyword or phrase within a text string
+ */
+function renderHighlightedText(
+  fullText: string,
+  highlightStr: string | undefined,
+  accentColor: string,
+  baseFontSize: number
+) {
+  if (!highlightStr || !highlightStr.trim()) {
+    return fullText;
+  }
+
+  const strToMatch = highlightStr.trim();
+  const lowerFull = fullText.toLowerCase();
+  const lowerMatch = strToMatch.toLowerCase();
+
+  const matchIdx = lowerFull.indexOf(lowerMatch);
+  if (matchIdx === -1) {
+    return fullText;
+  }
+
+  const before = fullText.slice(0, matchIdx);
+  const matchedText = fullText.slice(matchIdx, matchIdx + strToMatch.length);
+  const after = fullText.slice(matchIdx + strToMatch.length);
+
+  return (
+    <>
+      {before}
+      <span
+        style={{
+          display: "inline-block",
+          color: "#ffffff",
+          background: `${accentColor}25`,
+          border: `1.5px solid ${accentColor}88`,
+          padding: "2px 14px",
+          borderRadius: "12px",
+          margin: "0 4px",
+          boxShadow: `0 4px 15px ${accentColor}33`,
+        }}
+      >
+        {matchedText}
+      </span>
+      {after}
+    </>
+  );
+}
+
+export function Typography(props: TypographyProps | any) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const duration_frames = renderSpec.duration_frames || 180;
-  const props = renderSpec.props as any;
+  // Normalize boundary props wrapper
+  const resolvedProps: TypographyProps = props.props
+    ? props.props
+    : props.text
+    ? props
+    : (props as any).renderSpec?.props || props;
 
-  // Extract exact component properties
-  const headerLabel = props.headerLabel || "";
-  const text = props.text || "";
-  const subtitle = props.subtitle || "";
-  const footerLabel = props.footerLabel || "";
+  const duration_frames = (props as any).duration_frames || 180;
 
-  const titleSpring = spring({
+  const headerLabel = resolvedProps.headerLabel || "";
+  const text = resolvedProps.text || resolvedProps.title || "";
+  const subtitle = resolvedProps.subtitle || "";
+  const footerLabel = resolvedProps.footerLabel || "";
+  const highlight = resolvedProps.highlight || "";
+  const val = resolvedProps.value || "";
+  const author = resolvedProps.author || "";
+
+  // Variant & Align Auto-Detection
+  let variant = resolvedProps.variant || "headline";
+  if (!resolvedProps.variant) {
+    if (text.trim().endsWith("?")) variant = "question";
+    else if (text.trim().startsWith('"') || text.trim().startsWith("'")) variant = "quote";
+    else if (val) variant = "metric";
+  }
+
+  const isCentered =
+    resolvedProps.align === "center" ||
+    (!resolvedProps.align && (variant === "question" || variant === "metric"));
+
+  // Staggered Motion Springs (NO CONTINUOUS PULSE!)
+  const headerSpring = spring({
     frame,
     fps,
-    config: { damping: 14, stiffness: 120 },
+    config: { damping: 15, stiffness: 100 },
   });
 
-  // Living motion pulse for long scene holds
-  const pulse = 1 + Math.sin((frame / duration_frames) * Math.PI * 2) * 0.015;
+  const mainSpring = spring({
+    frame: Math.max(0, frame - 10),
+    fps,
+    config: { damping: 14, stiffness: 95 },
+  });
+
+  const highlightSpring = spring({
+    frame: Math.max(0, frame - 25),
+    fps,
+    config: { damping: 12, stiffness: 110 },
+  });
+
+  const subtitleSpring = spring({
+    frame: Math.max(0, frame - 35),
+    fps,
+    config: { damping: 15, stiffness: 90 },
+  });
+
+  // Variant Accent Color
+  const accentColor =
+    variant === "question"
+      ? "#06b6d4"
+      : variant === "quote"
+      ? "#f59e0b"
+      : variant === "metric"
+      ? "#10b981"
+      : tokens.accent.blue;
+
+  const baseFontSize =
+    variant === "question"
+      ? 76
+      : variant === "metric"
+      ? 64
+      : variant === "quote"
+      ? 60
+      : 78;
 
   return (
     <AbsoluteFill
       style={{
         background: tokens.bg.base,
-        backdropFilter: "blur(4px)",
         color: tokens.text.primary,
         fontFamily: tokens.font.family,
         overflow: "hidden",
@@ -43,17 +145,25 @@ export function Typography(renderSpec: TypographyRenderSpec) {
     >
       <div
         style={{
+          position: "relative",
           display: "flex",
           flexDirection: "column",
           height: "100%",
           justifyContent: "space-between",
         }}
       >
+        {/* Header Eyebrow / Category Badge */}
         {headerLabel ? (
-          <header>
+          <header
+            style={{
+              textAlign: isCentered ? "center" : "left",
+              opacity: headerSpring,
+              transform: `translateY(${(1 - headerSpring) * -15}px)`,
+            }}
+          >
             <div
               style={{
-                color: tokens.accent.rose,
+                color: accentColor,
                 fontSize: tokens.font.eyebrow,
                 fontWeight: 800,
                 textTransform: "uppercase",
@@ -65,46 +175,109 @@ export function Typography(renderSpec: TypographyRenderSpec) {
           </header>
         ) : null}
 
+        {/* Main Editorial Text Body */}
         <main
           style={{
+            position: "relative",
             display: "flex",
             flexDirection: "column",
-            alignItems: "flex-start",
+            alignItems: isCentered ? "center" : "flex-start",
             justifyContent: "center",
+            textAlign: isCentered ? "center" : "left",
             flex: 1,
+            margin: "20px 0",
           }}
         >
-          <div
-            style={{
-              fontSize: 84,
-              fontWeight: 950,
-              lineHeight: 1.1,
-              letterSpacing: -2,
-              transform: `scale(${interpolate(titleSpring, [0, 1], [0.92, 1]) * pulse})`,
-              opacity: titleSpring,
-            }}
-          >
-            {text}
-          </div>
-          {subtitle && (
+          {/* METRIC VARIANT: Giant Number Callout */}
+          {variant === "metric" && val ? (
             <div
               style={{
-                fontSize: 34,
-                fontWeight: 500,
-                color: tokens.text.secondary,
-                marginTop: 24,
-                lineHeight: 1.35,
-                maxWidth: "1200px",
-                opacity: titleSpring,
+                fontSize: 96,
+                fontWeight: 950,
+                color: "#ffffff",
+                lineHeight: 1,
+                letterSpacing: -2,
+                marginBottom: 12,
+                opacity: mainSpring,
+                transform: `scale(${0.92 + mainSpring * 0.08})`,
               }}
             >
-              {subtitle}
+              <span
+                style={{
+                  background: "linear-gradient(135deg, #ffffff 0%, #60a5fa 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                }}
+              >
+                {val}
+              </span>
             </div>
-          )}
+          ) : null}
+
+          {/* QUOTE VARIANT: Quotation Mark Watermark */}
+          {variant === "quote" ? (
+            <div
+              style={{
+                position: "absolute",
+                top: "10%",
+                left: isCentered ? "50%" : "0%",
+                transform: isCentered ? "translateX(-50%)" : "none",
+                fontSize: 140,
+                fontFamily: "Georgia, serif",
+                color: "rgba(245, 158, 11, 0.12)",
+                lineHeight: 0,
+                pointerEvents: "none",
+              }}
+            >
+              “
+            </div>
+          ) : null}
+
+          {/* MAIN HEADLINE / QUESTION / STATEMENT BODY */}
+          <div
+            style={{
+              fontSize: baseFontSize,
+              fontWeight: 900,
+              lineHeight: 1.15,
+              letterSpacing: -1.5,
+              color: "#ffffff",
+              maxWidth: "1350px",
+              opacity: mainSpring,
+              transform: `translateY(${(1 - mainSpring) * 20}px)`,
+            }}
+          >
+            {renderHighlightedText(text, highlight, accentColor, baseFontSize)}
+          </div>
+
+          {/* SUBTITLE OR AUTHOR ATTRIBUTION */}
+          {subtitle || author ? (
+            <div
+              style={{
+                fontSize: 28,
+                fontWeight: 500,
+                color: variant === "quote" ? "#f59e0b" : tokens.text.secondary,
+                marginTop: 20,
+                lineHeight: 1.35,
+                maxWidth: "1100px",
+                opacity: subtitleSpring,
+                transform: `translateY(${(1 - subtitleSpring) * 15}px)`,
+              }}
+            >
+              {author ? `— ${author}` : subtitle}
+            </div>
+          ) : null}
         </main>
 
+        {/* Footer Attribution / Source */}
         {footerLabel ? (
-          <footer style={{ fontSize: 24, color: "#71717a", fontWeight: 600 }}>
+          <footer
+            style={{
+              textAlign: isCentered ? "center" : "left",
+              fontSize: 18,
+              color: tokens.text.muted,
+              fontWeight: 600,
+            }}
+          >
             {footerLabel}
           </footer>
         ) : null}
