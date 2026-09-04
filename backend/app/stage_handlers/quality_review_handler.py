@@ -97,8 +97,8 @@ class QualityReviewHandler:
                         return False
                 if val in verified_nums:
                     return True
-                # Universal baseline percentages: 0, 1, 100
-                if val in (0, 1, 100):
+                # Universal baseline percentages and financial constants (0, 1, 72 [Rule of 72], 100, 365, 360, 12, 24, 52)
+                if val in (0, 1, 12, 24, 52, 72, 100, 360, 365):
                     return True
                 for a in verified_nums:
                     for b in verified_nums:
