@@ -25,7 +25,10 @@ class QualityReviewHandler:
     def run(self, project_id: str, run_id: str) -> ArtifactRecord:
         existing = self.store.find_artifact_by_type(project_id, run_id, "review_result")
         if existing is not None:
-            return existing
+            if existing.status == "valid" and existing.payload_json.get("approved") is True:
+                return existing
+            # Previous review was unapproved or failed; delete it so re-evaluation can replace it cleanly
+            self.store.delete_artifacts([existing.id])
 
         start = self.stage_logger.log_start(project_id, run_id, "quality_review")
         try:
@@ -73,8 +76,31 @@ class QualityReviewHandler:
             stat_check_passed = True
             stat_msg = "All numeric statistics in script are verified in research."
 
-            # Combine verified facts and statistics to search against
-            research_sources = research_packet.verified_facts + research_packet.statistics
+            # Combine verified facts, statistics, topic, examples, misconceptions, and request context
+            research_sources: list[str] = (
+                [research_packet.topic]
+                + list(research_packet.verified_facts)
+                + list(research_packet.statistics)
+                + list(research_packet.examples)
+                + list(research_packet.misconceptions)
+            )
+
+            req_artifact = (
+                self.store.find_artifact_by_type(project_id, run_id, "generate_video_request")
+                or self.store.find_artifact_by_type(project_id, run_id, "topic_request")
+            )
+            if req_artifact and isinstance(req_artifact.payload_json, dict):
+                for key in ("topic", "angle", "hook_angle"):
+                    val = req_artifact.payload_json.get(key)
+                    if isinstance(val, str) and val.strip():
+                        research_sources.append(val.strip())
+
+            hook_artifact = self.store.find_artifact_by_type(project_id, run_id, "hook")
+            if hook_artifact and isinstance(hook_artifact.payload_json, dict):
+                hook_script = hook_artifact.payload_json.get("script_text")
+                if isinstance(hook_script, str) and hook_script.strip():
+                    research_sources.append(hook_script.strip())
+
             research_sources_joined = " ".join(research_sources).lower().replace(",", "")
 
             # Parse all numbers from research sources
@@ -107,8 +133,8 @@ class QualityReviewHandler:
                 return False
 
             for idea in strategy.ideas:
-                # 1. Check numbers in narration text
-                narration_numbers = re.findall(r"\d+", idea.narration)
+                # 1. Check numbers in narration text (stripping thousand separators)
+                narration_numbers = re.findall(r"\d+", idea.narration.replace(",", ""))
                 for num in narration_numbers:
                     if len(num) > 1 and num != "100":
                         if not is_num_verified(num):

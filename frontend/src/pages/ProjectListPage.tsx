@@ -16,6 +16,9 @@ import {
   runVoiceGeneration,
   runVideoAssembly,
   runRender,
+  runYoutubeMetadata,
+  runThumbnail,
+  runYoutubeUpload,
   type ArtifactRecord,
   type PipelineStageSummary,
   type PipelineRunRecord,
@@ -273,6 +276,58 @@ export function ProjectListPage() {
     }
   }
 
+  async function handleRunYoutubeMetadata() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      const response = await runYoutubeMetadata(selectedProject.id, selectedRun.id);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
+      await selectArtifact(response.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+    }
+  }
+
+  async function handleRunThumbnail() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      const response = await runThumbnail(selectedProject.id, selectedRun.id);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
+      await selectArtifact(response.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+    }
+  }
+
+  async function handleRunYoutubeUpload() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      const response = await runYoutubeUpload(selectedProject.id, selectedRun.id);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
+      await selectArtifact(response.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+    }
+  }
+
+
   async function handleRegenerateDescendants() {
     if (!selectedProject || !selectedRun || !selectedArtifact) {
       return;
@@ -372,6 +427,9 @@ export function ProjectListPage() {
           onRunVoiceGeneration={handleRunVoiceGeneration}
           onRunVideoAssembly={handleRunVideoAssembly}
           onRunRender={handleRunRender}
+          onRunYoutubeMetadata={handleRunYoutubeMetadata}
+          onRunThumbnail={handleRunThumbnail}
+          onRunYoutubeUpload={handleRunYoutubeUpload}
           onRegenerateDescendants={handleRegenerateDescendants}
           isRunningStage={isRunningStage}
         />

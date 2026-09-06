@@ -272,3 +272,38 @@ def test_validator_requires_trigger_word() -> None:
     assert "does not exist in the narration text" in result_err.errors[0]
 
 
+def test_validator_normalizes_first_beat_trigger_word() -> None:
+    # First beat of idea having extraneous trigger_word is normalized to None
+    strategy = ScriptVisualStrategy(
+        thesis="Renting is smart.",
+        ideas=[
+            VideoIdea(
+                idea_id="idea_01",
+                title="Security",
+                focus_concept="Opportunity Cost",
+                core_teaching_point="Explain cost",
+                narration="This is the narration text.",
+                visual_sequence=[
+                    VisualStrategyBeat(
+                        beat_id="beat_01",
+                        preferred_component="Typography",
+                        visual_goal="Goal 1",
+                        trigger_word="arbitrary_first_word",
+                    ),
+                    VisualStrategyBeat(
+                        beat_id="beat_02",
+                        preferred_component="Typography",
+                        visual_goal="Goal 2",
+                        trigger_word="narration",
+                    ),
+                ],
+            )
+        ],
+    )
+    result = ScriptVisualStrategyValidator().validate(strategy)
+    assert result.status == "valid"
+    assert strategy.ideas[0].visual_sequence[0].trigger_word is None
+    assert strategy.ideas[0].visual_sequence[1].trigger_word == "narration"
+
+
+

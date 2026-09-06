@@ -210,3 +210,94 @@ def test_quality_review_fails_on_unverified_statistics(tmp_path) -> None:
     run = store.get_run(project_id, run_id)
     assert run.state == "failed"
     assert run.current_stage == "quality_review"
+
+
+def test_quality_review_verifies_topic_and_examples_and_re_runs_failed_review(tmp_path) -> None:
+    client, store = make_client(tmp_path)
+    project = store.create_project("Review Test Project")
+    run = store.create_run(project.id, mode="ai")
+
+    res_art = store.save_artifact(
+        project_id=project.id,
+        run_id=run.id,
+        artifact_type="research_packet",
+        schema_version="1",
+        payload_json={
+            "topic": "The ₹50,000 Salary Rule That Keeps You Broke",
+            "audience": "investors",
+            "channel": "Mindshift",
+            "verified_facts": ["Indian employers projected 9.8% salary increase."],
+            "statistics": ["Rent is ₹22,000."],
+            "concepts": ["Lifestyle Creep"],
+            "examples": ["Salary increased from ₹50,000 to ₹1,10,000."],
+            "misconceptions": ["Earning ₹1,00,000 guarantees wealth."],
+            "trusted_sources": ["Source"],
+        },
+        parent_artifact_roles_json={},
+        validation_json=ValidationResult(status="valid"),
+    )
+
+    hook_art = store.save_artifact(
+        project_id=project.id,
+        run_id=run.id,
+        artifact_type="hook",
+        schema_version="1",
+        payload_json={
+            "conceptual_hook": "Hook",
+            "script_text": "Is ₹50,000 salary enough?",
+            "visual_directives": [{"beat_id": "beat_01", "visual_instruction": "Instruction"}],
+        },
+        parent_artifact_roles_json={"research_packet": res_art.id},
+        validation_json=ValidationResult(status="valid"),
+    )
+
+    store.save_artifact(
+        project_id=project.id,
+        run_id=run.id,
+        artifact_type="script_visual_strategy",
+        schema_version="1",
+        payload_json={
+            "thesis": "Thesis statement",
+            "ideas": [
+                {
+                    "idea_id": "idea_01",
+                    "title": "The ₹50,000 Illusion",
+                    "focus_concept": "Lifestyle Creep",
+                    "core_teaching_point": "Expenses expand to meet income.",
+                    "narration": "Doubling salary from 50000 to 100000 rupees will not help. Even with 9.8% hike, rent is 22000.",
+                    "visual_sequence": [
+                        {
+                            "beat_id": "beat_01",
+                            "preferred_component": "SplitComparison",
+                            "visual_goal": "Compare salaries",
+                            "component_data": {
+                                "left_role": "Old Salary",
+                                "left_label": "Old Salary",
+                                "left_value": 50000,
+                                "right_role": "New Salary",
+                                "right_label": "New Salary",
+                                "right_value": 100000,
+                            },
+                        }
+                    ],
+                }
+            ],
+        },
+        parent_artifact_roles_json={
+            "hook": hook_art.id,
+            "research_packet": res_art.id,
+        },
+        validation_json=ValidationResult(status="valid"),
+    )
+
+    # First execute review - should pass with 50000, 100000, 22000 all verified
+    response = client.post(f"/projects/{project.id}/runs/{run.id}/run/quality_review")
+    assert response.status_code == 200
+    artifact = response.json()["artifact"]
+    assert artifact["status"] == "valid"
+    assert artifact["payload_json"]["approved"] is True
+
+    # Check that calling run again is idempotent
+    response_again = client.post(f"/projects/{project.id}/runs/{run.id}/run/quality_review")
+    assert response_again.status_code == 200
+    assert response_again.json()["artifact"]["id"] == artifact["id"]

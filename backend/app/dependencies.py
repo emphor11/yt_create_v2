@@ -108,7 +108,7 @@ def get_llm_provider() -> LLMProvider | None:
         or os.getenv("GOOGLE_API_KEY", "").strip()
     )
     if gemini_api_key:
-        timeout_sec = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "120"))
+        timeout_sec = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "360"))
         return GeminiProvider(
             api_key=gemini_api_key,
             model=_default_gemini_model(),
@@ -116,6 +116,15 @@ def get_llm_provider() -> LLMProvider | None:
         )
 
     return None
+
+
+from providers.image_generation_provider import ImageGenerationProvider, build_image_generation_provider
+
+
+@lru_cache
+def get_image_generation_provider() -> ImageGenerationProvider:
+    _load_backend_dotenv()
+    return build_image_generation_provider()
 
 
 def get_pipeline_service() -> PipelineService:
@@ -128,4 +137,5 @@ def get_pipeline_service() -> PipelineService:
         get_artifact_store(),
         render_engine=render_engine,
         llm_provider=get_llm_provider(),
+        image_generation_provider=get_image_generation_provider(),
     )

@@ -27,6 +27,9 @@ from app.stage_handlers.quality_review_handler import QualityReviewHandler
 from app.stage_handlers.voice_generation_handler import VoiceGenerationHandler
 from app.stage_handlers.video_assembly_handler import VideoAssemblyHandler
 from app.stage_handlers.render_handler import RenderHandler
+from app.stage_handlers.youtube_metadata_handler import YoutubeMetadataHandler
+from app.stage_handlers.thumbnail_handler import ThumbnailHandler
+from app.stage_handlers.youtube_upload_handler import YoutubeUploadHandler
 
 from engines.render_engine import RenderEngine
 from engines.research_engine import ResearchEngine
@@ -34,6 +37,9 @@ from engines.narrative_plan_engine import NarrativePlanEngine
 from engines.hook_engine import HookEngine
 from engines.script_visual_strategy_engine import ScriptVisualStrategyEngine
 from engines.video_assembly_engine import VideoAssemblyEngine
+from engines.youtube_metadata_engine import YoutubeMetadataEngine
+from engines.thumbnail_engine import ThumbnailEngine
+from engines.youtube_upload_engine import YoutubeUploadEngine
 
 from domain.validators.research_packet_validator import ResearchPacketValidator
 from domain.validators.narrative_plan_validator import NarrativePlanValidator
@@ -43,12 +49,17 @@ from domain.validators.review_result_validator import ReviewResultValidator
 from domain.validators.voice_track_validator import VoiceTrackValidator
 from domain.validators.render_spec_validator import RenderSpecValidator
 from domain.validators.video_validator import VideoValidator
+from domain.validators.youtube_metadata_validator import YoutubeMetadataValidator
+from domain.validators.thumbnail_validator import ThumbnailValidator
+from domain.validators.youtube_upload_validator import YoutubeUploadValidator
 
 from providers.llm_provider import LLMProvider
 from providers.media_storage import LocalMediaStorage
 from providers.voice_provider import PollyVoiceProvider
 from providers.remotion_provider import RemotionProvider
+from providers.youtube_provider import YouTubeProvider
 from registries.component_registry import ComponentRegistry
+
 
 
 class PipelineServiceError(Exception):
@@ -65,6 +76,9 @@ AI_STAGE_DEFINITIONS: list[tuple[str, str]] = [
     ("voice_generation",        "voice_track"),
     ("video_assembly",          "render_spec"),
     ("render",                  "video"),
+    ("youtube_metadata",        "youtube_metadata"),
+    ("thumbnail",               "thumbnail"),
+    ("youtube_upload",          "youtube_upload"),
 ]
 
 NEXT_STAGE_BY_ARTIFACT_TYPE: dict[str, str | None] = {
@@ -76,8 +90,12 @@ NEXT_STAGE_BY_ARTIFACT_TYPE: dict[str, str | None] = {
     "review_result":          "voice_generation",
     "voice_track":            "video_assembly",
     "render_spec":            "render",
-    "video":                  None,
+    "video":                  "youtube_metadata",
+    "youtube_metadata":       "thumbnail",
+    "thumbnail":              "youtube_upload",
+    "youtube_upload":         None,
 }
+
 
 
 class PipelineService:
@@ -205,6 +223,7 @@ def build_pipeline_service(
     *,
     render_engine: RenderEngine | None = None,
     llm_provider: LLMProvider | None = None,
+    image_generation_provider: Any = None,
 ) -> PipelineService:
     from pathlib import Path
 
@@ -217,11 +236,32 @@ def build_pipeline_service(
 
     voice_provider = PollyVoiceProvider()
 
+    remotion_provider = RemotionProvider(repo_root / "renderer" / "remotion")
     if render_engine is None:
         render_engine = RenderEngine(
             media_storage=media_storage,
-            remotion_provider=RemotionProvider(repo_root / "renderer" / "remotion"),
+            remotion_provider=remotion_provider,
         )
+
+    from providers.image_generation_provider import ImageGenerationProvider, build_image_generation_provider
+    from engines.thumbnail_prompt_engine import ThumbnailPromptEngine
+
+    if image_generation_provider is None:
+        image_generation_provider = build_image_generation_provider()
+
+    youtube_provider = YouTubeProvider()
+    thumbnail_engine = ThumbnailEngine(
+        media_storage=media_storage,
+        image_provider=image_generation_provider,
+        prompt_engine=ThumbnailPromptEngine(llm_provider),
+    )
+    youtube_metadata_engine = (
+        YoutubeMetadataEngine(llm_provider) if llm_provider is not None else None
+    )
+    youtube_upload_engine = YoutubeUploadEngine(
+        youtube_provider=youtube_provider,
+        media_storage=media_storage,
+    )
 
     handlers = {
         PipelineStage.RESEARCH: ResearchHandler(
@@ -272,6 +312,24 @@ def build_pipeline_service(
             media_storage=media_storage,
             assembly_engine=VideoAssemblyEngine(),
             render_spec_validator=RenderSpecValidator(),
+            stage_logger=stage_logger,
+        ),
+        PipelineStage.YOUTUBE_METADATA: YoutubeMetadataHandler(
+            store=store,
+            metadata_engine=youtube_metadata_engine,
+            metadata_validator=YoutubeMetadataValidator(),
+            stage_logger=stage_logger,
+        ),
+        PipelineStage.THUMBNAIL: ThumbnailHandler(
+            store=store,
+            thumbnail_engine=thumbnail_engine,
+            thumbnail_validator=ThumbnailValidator(),
+            stage_logger=stage_logger,
+        ),
+        PipelineStage.YOUTUBE_UPLOAD: YoutubeUploadHandler(
+            store=store,
+            upload_engine=youtube_upload_engine,
+            upload_validator=YoutubeUploadValidator(),
             stage_logger=stage_logger,
         ),
     }

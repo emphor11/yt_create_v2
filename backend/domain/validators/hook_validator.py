@@ -48,16 +48,8 @@ class HookValidator:
                     else:
                         beat.trigger_word = cleaned_word
             else:
-                if beat.trigger_word and beat.trigger_word.strip() and beat.trigger_word.lower() not in ("null", "none"):
-                    import re
-                    cleaned_word = re.sub(r"[^\w]", "", beat.trigger_word.lower())
-                    cleaned_script_words = [re.sub(r"[^\w]", "", w.lower()) for w in hook.script_text.split() if re.sub(r"[^\w]", "", w)]
-                    if cleaned_word not in cleaned_script_words:
-                        errors.append(
-                            f"Visual directive '{beat.beat_id}' in hook has trigger_word '{beat.trigger_word}' which does not exist in the script text."
-                        )
-                    else:
-                        beat.trigger_word = cleaned_word
+                # First beat starts automatically at frame 0; always normalize to None
+                beat.trigger_word = None
 
             # Polymorphic Component Data Validation & Normalization
             if comp and ComponentRegistry.is_supported(comp):

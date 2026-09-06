@@ -1,4 +1,4 @@
-import { AbsoluteFill, Series, Audio, Video, Img, staticFile, useCurrentFrame, useVideoConfig, interpolate } from "remotion";
+import { AbsoluteFill, Series, Audio, OffthreadVideo, Img, staticFile, useCurrentFrame, useVideoConfig, interpolate } from "remotion";
 import { SplitComparison } from "./SplitComparison";
 import { Timeline } from "./Timeline";
 import { ProcessFlow } from "./ProcessFlow";
@@ -59,10 +59,9 @@ export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
               <AbsoluteFill>
                 {/* Render full-screen stock media when this scene is StockVideo or StockImage */}
                 {isStockMedia && scene.asset && scene.asset.asset_type === "video" && scene.asset.local_path && (
-                  <Video
+                  <OffthreadVideo
                     src={staticFile(scene.asset.local_path)}
                     style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 1.0 }}
-                    loop
                     muted
                   />
                 )}

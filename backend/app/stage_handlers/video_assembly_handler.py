@@ -80,7 +80,7 @@ class VideoAssemblyHandler:
                         if asset_source.exists():
                             # Extract extension
                             ext = asset_source.suffix.lstrip(".") or ("mp4" if scene.asset.asset_type == "video" else "jpg")
-                            asset_public_filename = f"{run_id}_{scene.asset.asset_id}.{ext}"
+                            asset_public_filename = f"{run_id}_{scene.scene_id}_{scene.asset.asset_id}.{ext}"
                             asset_public_path = remotion_public_dir / asset_public_filename
                             shutil.copy2(asset_source, asset_public_path)
                             

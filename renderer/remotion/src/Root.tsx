@@ -15,6 +15,7 @@ import { StockVideo } from "./StockVideo";
 import { Typography } from "./Typography";
 import { IconAnimation } from "./IconAnimation";
 import { VideoAssembly } from "./VideoAssembly";
+import { Thumbnail, defaultThumbnailProps } from "./Thumbnail";
 import { type SplitComparisonRenderSpec, type VideoAssemblyRenderSpec } from "./types";
 
 const defaultProps: SplitComparisonRenderSpec = {
@@ -209,6 +210,15 @@ export function RemotionRoot() {
         width={1920}
         height={1080}
         defaultProps={defaultAssemblyProps as any}
+      />
+      <Composition
+        id="Thumbnail"
+        component={Thumbnail as any}
+        durationInFrames={1}
+        fps={30}
+        width={1280}
+        height={720}
+        defaultProps={defaultThumbnailProps as any}
       />
     </>
   );

@@ -208,6 +208,34 @@ export function runRender(
   });
 }
 
+export function runYoutubeMetadata(
+  projectId: string,
+  runId: string
+): Promise<RunStageResponse> {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/youtube_metadata`, {
+    method: "POST",
+  });
+}
+
+export function runThumbnail(
+  projectId: string,
+  runId: string
+): Promise<RunStageResponse> {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/thumbnail`, {
+    method: "POST",
+  });
+}
+
+export function runYoutubeUpload(
+  projectId: string,
+  runId: string
+): Promise<RunStageResponse> {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/youtube_upload`, {
+    method: "POST",
+  });
+}
+
+
 export function mediaUrl(storageKey: string): string {
   return `${API_BASE_URL}/media/${storageKey}`;
 }

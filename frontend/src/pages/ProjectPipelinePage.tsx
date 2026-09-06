@@ -27,6 +27,9 @@ type ProjectPipelinePageProps = {
   onRunVoiceGeneration: () => void;
   onRunVideoAssembly: () => void;
   onRunRender: () => void;
+  onRunYoutubeMetadata: () => void;
+  onRunThumbnail: () => void;
+  onRunYoutubeUpload: () => void;
   onRegenerateDescendants: () => void;
   isRunningStage: boolean;
 };
@@ -50,6 +53,9 @@ export function ProjectPipelinePage({
   onRunVoiceGeneration,
   onRunVideoAssembly,
   onRunRender,
+  onRunYoutubeMetadata,
+  onRunThumbnail,
+  onRunYoutubeUpload,
   onRegenerateDescendants,
   isRunningStage,
 }: ProjectPipelinePageProps) {
@@ -193,6 +199,30 @@ export function ProjectPipelinePage({
             type="button"
           >
             Run Render
+          </button>
+          <button
+            className="primary-button secondary"
+            disabled={!selectedRun || isRunningStage}
+            onClick={onRunYoutubeMetadata}
+            type="button"
+          >
+            Run YT Metadata
+          </button>
+          <button
+            className="primary-button secondary"
+            disabled={!selectedRun || isRunningStage}
+            onClick={onRunThumbnail}
+            type="button"
+          >
+            Run Thumbnail
+          </button>
+          <button
+            className="primary-button secondary"
+            disabled={!selectedRun || isRunningStage}
+            onClick={onRunYoutubeUpload}
+            type="button"
+          >
+            Run Upload
           </button>
           <button
             className="primary-button secondary"

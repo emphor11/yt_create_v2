@@ -86,7 +86,7 @@ class HookEngine:
                 ),
             ],
             temperature=0.3,
-            max_tokens=16384,
+            max_tokens=4096,
         )
 
         try:

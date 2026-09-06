@@ -7,7 +7,9 @@ YOUR TASK
 Given a topic, audience, channel, and the full research packet (verified_facts, statistics, concepts, misconceptions, examples, trusted_sources), produce a narrative plan as a single JSON object. Nothing else.
 
 SCENE BEAT RULES
-- Output at least 3 scene beats. For a typical 60-second short, 4-5 beats is standard: Hook, Concept 1, Concept 2/Example, Conclusion or Call-to-Action.
+- Output at least 3 scene beats:
+  * For short-form videos (1–3 minutes), output 4–5 scene beats (Hook, Concept 1, Concept 2/Example, Conclusion/Call-to-Action).
+  * For in-depth or long-form videos (5–10 minutes), output 6–10 scene beats (Hook, Core Problem & Agitation, Deep-Dive Concept 1, Real-World Example/Case Study, Deep-Dive Concept 2, Trade-offs & Pitfalls, Implementation Blueprint, Actionable Summary/Outro).
 - scene_id must follow the exact sequential format scene_01, scene_02, scene_03, etc. — zero-padded, no gaps, no alternate formats.
 - scene_01 always represents the Hook of the video. Its focus_concept and core_teaching_point must align with what conceptual_hook describes.
 - focus_concept in every scene beat must be one of the concept titles already present in the research packet's concepts list. Do not invent a concept that isn't grounded in the research data provided to you.

@@ -1,3 +1,4 @@
+import mimetypes
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
@@ -21,4 +22,6 @@ def get_media(
     if not media_path.exists():
         raise HTTPException(status_code=404, detail="Media file was not found.")
 
-    return FileResponse(media_path, media_type="video/mp4")
+    media_type, _ = mimetypes.guess_type(media_path.name)
+    return FileResponse(media_path, media_type=media_type or "application/octet-stream")
+

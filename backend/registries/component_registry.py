@@ -223,6 +223,18 @@ class ComponentRegistry:
         "StockImage": StockMediaData,
     }
 
+    # Lightweight subset used exclusively for the fast 15-30s hook stage
+    HOOK_COMPONENTS = {
+        "Typography": TypographyData,
+        "SplitComparison": SplitComparisonData,
+        "NumberCounter": NumberCounterData,
+        "Charts": ChartsData,
+        "Timeline": TimelineData,
+        "IconAnimation": IconAnimationData,
+        "StockVideo": StockMediaData,
+        "StockImage": StockMediaData,
+    }
+
     # Alias mapping for space-separated variants
     ALIASES = {
         "Stock Video": "StockVideo",
@@ -767,7 +779,8 @@ class ComponentRegistry:
     def get_polymorphic_beat_schema(cls, is_hook: bool = False) -> list[dict[str, Any]]:
         """Generates dynamic, polymorphic anyOf schemas for visual beats."""
         variants = []
-        for canonical, model_cls in cls.CANONICAL_COMPONENTS.items():
+        components_map = cls.HOOK_COMPONENTS if is_hook else cls.CANONICAL_COMPONENTS
+        for canonical, model_cls in components_map.items():
             data_schema = model_cls.model_json_schema()
             data_schema.pop("title", None)
             
@@ -775,16 +788,14 @@ class ComponentRegistry:
                 "beat_id": {"type": "string"},
                 "preferred_component": {"type": "string", "enum": [canonical]},
                 "visual_goal": {"type": "string"},
-                "asset_query": {"type": "string"},
-                "trigger_word": {"type": "string"},
+                "asset_query": {"type": "string", "nullable": True},
+                "trigger_word": {"type": "string", "nullable": True},
                 "component_data": data_schema,
             }
-            if is_hook:
-                beat_props["visual_instruction"] = {"type": "string"}
 
             variants.append({
                 "type": "object",
                 "properties": beat_props,
-                "required": ["beat_id", "preferred_component", "visual_goal", "trigger_word", "component_data"],
+                "required": ["beat_id", "preferred_component", "visual_goal", "component_data"],
             })
         return variants

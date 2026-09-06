@@ -57,8 +57,9 @@ class VideoAssemblyEngine:
                 narration_text = idea.narration
 
             # Download/Cache background assets if needed
+            unique_asset_id = f"asset_{interval.section_type}_{interval.section_index}_{interval.beat_index}_{interval.beat_id}"
             asset_ref = self.asset_resolver.resolve_asset(
-                asset_id=f"asset_{interval.beat_id}",
+                asset_id=unique_asset_id,
                 preferred_component=preferred_component or "Typography",
                 asset_query=asset_query,
             )
