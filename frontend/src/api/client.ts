@@ -103,6 +103,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export type DurationProfile = "short_2min" | "long_5min";
+
 export function listProjects(): Promise<ProjectRecord[]> {
   return request<ProjectRecord[]>("/projects");
 }
@@ -110,11 +112,12 @@ export function listProjects(): Promise<ProjectRecord[]> {
 export function createProject(
   topic: string,
   angle: string,
-  mode: RunMode = "deterministic"
+  mode: RunMode = "ai",
+  durationProfile: DurationProfile = "short_2min"
 ): Promise<CreateProjectResponse> {
   return request<CreateProjectResponse>("/projects", {
     method: "POST",
-    body: JSON.stringify({ topic, angle, mode }),
+    body: JSON.stringify({ topic, angle, mode, duration_profile: durationProfile }),
   });
 }
 

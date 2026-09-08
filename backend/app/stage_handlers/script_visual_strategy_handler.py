@@ -53,9 +53,22 @@ class ScriptVisualStrategyHandler:
             )
             research_packet = ResearchPacket.model_validate(res_artifact.payload_json)
 
+            req_artifact = (
+                self.store.find_artifact_by_type(project_id, run_id, "generate_video_request")
+                or self.store.find_artifact_by_type(project_id, run_id, "topic_request")
+            )
+            duration_profile = "short_2min"
+            if req_artifact and isinstance(req_artifact.payload_json, dict):
+                duration_profile = req_artifact.payload_json.get("duration_profile", "short_2min")
+
             # 2. Run the Engine
             try:
-                result = self.strategy_engine.run(research_packet, narrative_plan, hook)
+                result = self.strategy_engine.run(
+                    research_packet,
+                    narrative_plan,
+                    hook,
+                    duration_profile=duration_profile,
+                )
             except ScriptVisualStrategyEngineError as error:
                 # Save a failed validation artifact record on LLM/validation errors
                 artifact = self._save_failed_strategy(

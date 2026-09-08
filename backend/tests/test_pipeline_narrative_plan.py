@@ -173,3 +173,58 @@ def test_narrative_plan_stores_failed_artifact_on_provider_error(tmp_path) -> No
     assert run.state == "failed"
     assert run.current_stage == "narrative_plan"
     assert "resulted in a non-advanceable status 'failed'" in run.error_message
+
+
+def test_narrative_plan_passes_duration_profile_from_generate_video_request(tmp_path) -> None:
+    provider = ScriptedTestLLMProvider([valid_narrative_plan_response_payload()])
+    client, store = make_client(tmp_path, llm_provider=provider)
+
+    # 1. Create project with long_5min
+    response = client.post(
+        "/projects",
+        json={
+            "topic": "The 4% Rule",
+            "mode": "ai",
+            "audience": "corporate employees",
+            "language": "English",
+            "style": "analytical",
+            "channel": "FinanceChannel",
+            "duration_profile": "long_5min",
+        },
+    )
+    assert response.status_code == 200
+    created = response.json()
+    project_id = created["project"]["id"]
+    run_id = created["run"]["id"]
+
+    # Seed research_packet
+    from domain.validation import ValidationResult
+    from domain.research_packet import ResearchPacket
+
+    gen_req_id = created["generate_video_request_artifact"]["id"]
+    store.save_artifact(
+        project_id=project_id,
+        run_id=run_id,
+        artifact_type="research_packet",
+        schema_version="1",
+        payload_json=ResearchPacket(
+            topic="The 4% Rule",
+            audience="corporate employees",
+            channel="FinanceChannel",
+            verified_facts=["Fact 1"],
+            statistics=["Stat 1"],
+            concepts=["Opportunity Cost"],
+        ).model_dump(),
+        parent_artifact_roles_json={"generate_video_request": gen_req_id},
+        validation_json=ValidationResult(status="valid"),
+    )
+
+    # 2. Run narrative_plan
+    resp = client.post(f"/projects/{project_id}/runs/{run_id}/run/narrative_plan")
+    assert resp.status_code == 200
+
+    # 3. Assert provider was called with 5-minute prompt instruction
+    assert provider.last_request is not None
+    user_content = provider.last_request.messages[1].content
+    assert "Target Duration: 5 minutes" in user_content
+    assert "7 to 8 scene beats" in user_content

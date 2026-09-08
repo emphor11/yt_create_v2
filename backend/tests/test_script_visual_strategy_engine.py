@@ -146,3 +146,57 @@ def test_strategy_engine_raises_error_for_invalid_shape() -> None:
 
     assert exc.value.raw_payload == {"ideas": []}
     assert exc.value.provider_metadata is not None
+
+
+def test_strategy_engine_5min_profile_prompts_budget_and_beats() -> None:
+    from domain.generate_video_request import DurationProfile
+
+    provider = StaticTestLLMProvider(valid_strategy_payload())
+    engine = ScriptVisualStrategyEngine(provider)
+
+    packet = ResearchPacket(
+        topic="Renting vs Buying",
+        audience="young professionals",
+        channel="FinanceShorts",
+        verified_facts=["Rent cost is lower in initial years."],
+        statistics=["Rental yield is 2-3%"],
+        concepts=["Opportunity Cost"],
+    )
+    plan = NarrativePlan(
+        thesis="Renting is smarter",
+        target_pain_point="Anxiety",
+        conceptual_hook="Anchor vs Engine",
+        narrative_arc_type="PSA",
+        scene_beats=[
+            SceneBeat(
+                scene_id="scene_01",
+                title="Intro",
+                focus_concept="Opportunity Cost",
+                core_teaching_point="Introduce opportunity cost",
+            )
+        ],
+    )
+    hook = Hook(
+        conceptual_hook="Anchor vs Engine",
+        script_text="Is renting throwing money away?",
+        visual_directives=[
+            HookVisualDirective(beat_id="beat_01", visual_instruction="Show anchor sinking"),
+        ],
+    )
+
+    # 1. Default (short_2min)
+    engine.run(packet, plan, hook)
+    assert provider.last_request is not None
+    user_msg_short = provider.last_request.messages[1].content
+    assert "Keep each idea's narration to roughly 40-70 words." in user_msg_short
+    assert "5-MINUTE BUDGET" not in user_msg_short
+
+    # 2. Long 5min profile
+    engine.run(packet, plan, hook, duration_profile=DurationProfile.LONG_5MIN)
+    assert provider.last_request is not None
+    user_msg_long = provider.last_request.messages[1].content
+    assert "5-MINUTE BUDGET" in user_msg_long
+    assert "85 to 95 words" in user_msg_long
+    assert "700-800 narration words" in user_msg_long
+    assert "5 to 7 visual beats per idea" in user_msg_long
+    assert "40 to 55 visual beats total" in user_msg_long

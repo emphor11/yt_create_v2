@@ -306,4 +306,42 @@ def test_validator_normalizes_first_beat_trigger_word() -> None:
     assert strategy.ideas[0].visual_sequence[1].trigger_word == "narration"
 
 
+def test_validator_strictly_rejects_inflected_trigger_word() -> None:
+    # Verifies invariant: no stemming or lemmatization is allowed (e.g. 'calculates' vs 'calculate')
+    strategy = ScriptVisualStrategy(
+        thesis="Strict trigger word invariant",
+        ideas=[
+            VideoIdea(
+                idea_id="idea_01",
+                title="Exact Trigger Required",
+                focus_concept="Opportunity Cost",
+                core_teaching_point="Explain cost",
+                narration="Credit card issuers calculate this minimum payment every single month.",
+                visual_sequence=[
+                    VisualStrategyBeat(
+                        beat_id="beat_01",
+                        preferred_component="Typography",
+                        visual_goal="Goal 1",
+                    ),
+                    VisualStrategyBeat(
+                        beat_id="beat_02",
+                        preferred_component="NumberCounter",
+                        visual_goal="Goal 2",
+                        trigger_word="calculates",  # Narration only has "calculate"
+                        component_data={
+                            "start_value": 0,
+                            "end_value": 10,
+                            "label": "Rate",
+                            "unit": "%",
+                        },
+                    ),
+                ],
+            )
+        ],
+    )
+    result = ScriptVisualStrategyValidator().validate(strategy)
+    assert result.status == "blocked"
+    assert "has trigger_word 'calculates' which does not exist in the narration text" in result.errors[0]
+
+
 

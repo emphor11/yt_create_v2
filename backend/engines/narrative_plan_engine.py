@@ -3,6 +3,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from domain.generate_video_request import DurationProfile
 from domain.research_packet import ResearchPacket
 from domain.narrative_plan import NarrativePlan
 from providers.llm_provider import (
@@ -69,8 +70,25 @@ class NarrativePlanEngine:
     def __init__(self, llm_provider: LLMProvider):
         self.llm_provider = llm_provider
 
-    def run(self, research_packet: ResearchPacket) -> NarrativePlanResult:
+    def run(
+        self,
+        research_packet: ResearchPacket,
+        duration_profile: DurationProfile = DurationProfile.SHORT_2MIN,
+    ) -> NarrativePlanResult:
         system_content = load_prompt("narrative_plan_system.txt")
+        is_long_5min = (
+            str(duration_profile) == str(DurationProfile.LONG_5MIN)
+            or duration_profile == "long_5min"
+        )
+        if is_long_5min:
+            duration_instruction = (
+                "Target Duration: 5 minutes (in-depth educational video).\n"
+                "Generate a highly structured 5-minute narrative plan targeting approximately 7 to 8 scene beats "
+                "(typically 7–9 beats) to establish complete narrative progression for a 700-800 word video."
+            )
+        else:
+            duration_instruction = "Generate a highly structured narrative plan."
+
         llm_request = LLMJsonRequest(
             schema_name="NarrativePlan",
             response_schema=NARRATIVE_PLAN_RESPONSE_SCHEMA,
@@ -91,7 +109,7 @@ class NarrativePlanEngine:
                         f"Misconceptions: {research_packet.misconceptions}\n"
                         f"Examples: {research_packet.examples}\n"
                         f"Trusted Sources: {research_packet.trusted_sources}\n"
-                        "Generate a highly structured narrative plan."
+                        f"{duration_instruction}"
                     ),
                 ),
             ],

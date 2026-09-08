@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from app.dependencies import get_artifact_store
 from artifact_store.models import ArtifactRecord, PipelineRunRecord, ProjectRecord, RunMode
 from artifact_store.sqlite_store import ArtifactStore, RecordNotFoundError
-from domain.generate_video_request import GenerateVideoRequest
+from domain.generate_video_request import DurationProfile, GenerateVideoRequest
 from domain.validators.generate_video_request_validator import GenerateVideoRequestValidator
 
 
@@ -20,6 +20,7 @@ class CreateProjectRequest(BaseModel):
     language: str = ""
     style: str = ""
     channel: str = ""
+    duration_profile: DurationProfile = DurationProfile.SHORT_2MIN
 
 
 class CreateProjectResponse(BaseModel):
@@ -52,6 +53,7 @@ def create_project(
             language=language,
             style=style,
             channel=channel,
+            duration_profile=request.duration_profile,
         )
         validation = GenerateVideoRequestValidator().validate(gen_req)
         generate_video_request_artifact = store.save_artifact(

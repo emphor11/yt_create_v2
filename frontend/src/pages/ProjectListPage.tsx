@@ -20,6 +20,7 @@ import {
   runThumbnail,
   runYoutubeUpload,
   type ArtifactRecord,
+  type DurationProfile,
   type PipelineStageSummary,
   type PipelineRunRecord,
   type ProjectRecord,
@@ -40,7 +41,8 @@ export function ProjectListPage() {
   const [children, setChildren] = useState<ArtifactRecord[]>([]);
   const [topic, setTopic] = useState("");
   const [angle, setAngle] = useState("");
-  const [runMode, setRunMode] = useState<RunMode>("deterministic");
+  const [runMode, setRunMode] = useState<RunMode>("ai");
+  const [durationProfile, setDurationProfile] = useState<DurationProfile>("short_2min");
   const [isBusy, setIsBusy] = useState(false);
   const [isRunningStage, setIsRunningStage] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,12 +75,13 @@ export function ProjectListPage() {
     setIsBusy(true);
     setError(null);
     try {
-      const created = await createProject(topic, angle, runMode);
+      const created = await createProject(topic, angle, runMode, durationProfile);
       const nextProjects = await listProjects();
       setProjects(nextProjects);
       setTopic("");
       setAngle("");
-      setRunMode("deterministic");
+      setRunMode("ai");
+      setDurationProfile("short_2min");
       await selectProject(created.project);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -375,10 +378,12 @@ export function ProjectListPage() {
             topic={topic}
             angle={angle}
             runMode={runMode}
+            durationProfile={durationProfile}
             isBusy={isBusy}
             onTopicChange={setTopic}
             onAngleChange={setAngle}
             onRunModeChange={setRunMode}
+            onDurationProfileChange={setDurationProfile}
             onSubmit={handleCreateProject}
           />
           <section className="panel">

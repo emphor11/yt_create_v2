@@ -1,0 +1,209 @@
+{
+  "project_id": "project_7da15e8a6da646ba9e5f45d382dc68c9",
+  "run_id": "run_037fbcb7ba2e4471a87f6687bb2c5b05",
+  "topic": "The Death of the 4% Retirement Rule: Why Safe Withdrawal Math Just Broke",
+  "angle": "A deep dive into how inflation spikes, bond market shifts, and rising longevity have broken William Bengen's 1994 Trinity study math, forcing retirees from 4% down to 2.8% to avoid running out of money before age 90.",
+  "stages": {
+    "research": {
+      "duration_seconds": 3.445,
+      "status": "valid",
+      "validation": {
+        "status": "valid",
+        "errors": [],
+        "warnings": []
+      },
+      "artifact_id": "artifact_ff58d6b5ed1d4df4a668fdd7566f03e3",
+      "verified_facts_count": 5,
+      "statistics_count": 4,
+      "concepts_count": 4,
+      "payload_chars": 2748
+    },
+    "narrative_plan": {
+      "duration_seconds": 2.568,
+      "status": "valid",
+      "validation": {
+        "status": "valid",
+        "errors": [],
+        "warnings": []
+      },
+      "artifact_id": "artifact_c7ff5d910bbd489a8b38af566b7955c3",
+      "scene_beats_count": 4,
+      "scene_titles": [
+        "The Broken Promise",
+        "Anatomy of the Failure",
+        "The 40-Year Trap",
+        "Building a Modern Strategy"
+      ],
+      "thesis": "The traditional 4% retirement withdrawal rule is fundamentally broken due to modern inflation spikes, lower bond yields, and longer retirement horizons, requiring a shift to dynamic withdrawal strategies."
+    },
+    "hook": {
+      "duration_seconds": 2.959,
+      "status": "valid",
+      "validation": {
+        "status": "valid",
+        "errors": [],
+        "warnings": []
+      },
+      "artifact_id": "artifact_b4c7e3c2dda64d03a9fe8b1953b6f699",
+      "hook_word_count": 56,
+      "hook_char_count": 322,
+      "visual_directives_count": 3
+    },
+    "script_visual_strategy": {
+      "duration_seconds": 6.166,
+      "status": "valid",
+      "validation": {
+        "status": "valid",
+        "errors": [],
+        "warnings": []
+      },
+      "artifact_id": "artifact_8df97a60f9cb47b893535ee312ae8c8e",
+      "ideas_count": 4,
+      "total_narration_words": 144,
+      "total_narration_chars": 961,
+      "total_visual_beats": 9,
+      "components_used": [
+        "Typography",
+        "NumberCounter",
+        "SplitComparison",
+        "NumberCounter",
+        "StockVideo",
+        "NumberCounter",
+        "NumberCounter",
+        "Typography",
+        "StockVideo"
+      ]
+    },
+    "quality_review": {
+      "duration_seconds": 0.011,
+      "status": "valid",
+      "validation": {
+        "status": "valid",
+        "errors": [],
+        "warnings": []
+      },
+      "artifact_id": "artifact_50d65c78ad5b46e9927dfbe0cc40abd4",
+      "approved": true,
+      "checks_count": 0
+    },
+    "voice_generation": {
+      "duration_seconds": 7.062,
+      "status": "valid",
+      "validation": {
+        "status": "valid",
+        "errors": [],
+        "warnings": []
+      },
+      "artifact_id": "artifact_d57f19d7073d47bd8c7332dd4353722e",
+      "master_duration_seconds": 73.44,
+      "total_speech_marks": 200,
+      "chunks_count": 5,
+      "chunk_summaries": [
+        {
+          "chunk_id": "chunk_001",
+          "sequence": 1,
+          "source_id": "hook",
+          "char_count": 322,
+          "duration_ms": 19464,
+          "word_count": 56
+        },
+        {
+          "chunk_id": "chunk_002",
+          "sequence": 2,
+          "source_id": "idea_01",
+          "char_count": 279,
+          "duration_ms": 16416,
+          "word_count": 43
+        },
+        {
+          "chunk_id": "chunk_003",
+          "sequence": 3,
+          "source_id": "idea_02",
+          "char_count": 200,
+          "duration_ms": 11328,
+          "word_count": 32
+        },
+        {
+          "chunk_id": "chunk_004",
+          "sequence": 4,
+          "source_id": "idea_03",
+          "char_count": 252,
+          "duration_ms": 14280,
+          "word_count": 38
+        },
+        {
+          "chunk_id": "chunk_005",
+          "sequence": 5,
+          "source_id": "idea_04",
+          "char_count": 230,
+          "duration_ms": 11952,
+          "word_count": 31
+        }
+      ]
+    },
+    "video_assembly": {
+      "duration_seconds": 8.977,
+      "status": "valid",
+      "validation": {
+        "status": "valid",
+        "errors": [],
+        "warnings": []
+      },
+      "artifact_id": "artifact_8ea1a38a954148b5973275b0494585b6",
+      "timed_intervals_count": 0,
+      "duration_frames": 2203,
+      "fps": 30,
+      "assets_count": 0
+    },
+    "render": {
+      "duration_seconds": 64.365,
+      "status": "valid",
+      "validation": {
+        "status": "valid",
+        "errors": [],
+        "warnings": []
+      },
+      "artifact_id": "artifact_c07de4ceaa824ea497f02a13b063127f",
+      "size_bytes": 16858628,
+      "size_mb": 16.08,
+      "render_fps": 34.23
+    },
+    "youtube_metadata": {
+      "duration_seconds": 2.118,
+      "status": "valid",
+      "validation": {
+        "status": "valid",
+        "errors": [],
+        "warnings": []
+      },
+      "artifact_id": "artifact_a766cced1240474ab47e486a30272881",
+      "title": "The Death of the 4% Retirement Rule: Why Safe Withdrawal Math Just Broke",
+      "tags_count": 12,
+      "description_length": 629
+    },
+    "thumbnail": {
+      "duration_seconds": 8.538,
+      "status": "valid",
+      "validation": {
+        "status": "valid",
+        "errors": [],
+        "warnings": []
+      },
+      "artifact_id": "artifact_aa1373d1e08143a986f53e2e4ecd77b6",
+      "dimensions": "1280x720",
+      "size_bytes": 1044737
+    },
+    "youtube_upload": {
+      "duration_seconds": 13.551,
+      "status": "valid",
+      "validation": {
+        "status": "valid",
+        "errors": [],
+        "warnings": []
+      },
+      "artifact_id": "artifact_b22ca272dcbf4c9a9233dfe6c404480e",
+      "youtube_video_id": "jteH8hcr5hw",
+      "youtube_url": "https://youtu.be/jteH8hcr5hw"
+    }
+  }
+}

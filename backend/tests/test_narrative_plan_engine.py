@@ -93,3 +93,74 @@ def test_narrative_plan_engine_raises_error_for_invalid_shape() -> None:
 
     assert exc.value.raw_payload == {"thesis": "Only a thesis"}
     assert exc.value.provider_metadata is not None
+
+
+def test_narrative_plan_engine_5min_profile_prompts_7_to_8_beats() -> None:
+    from domain.generate_video_request import DurationProfile
+
+    provider = StaticTestLLMProvider(valid_narrative_plan_payload())
+    engine = NarrativePlanEngine(provider)
+
+    packet = ResearchPacket(
+        topic="The 4% Rule",
+        audience="corporate professionals",
+        channel="FinanceChannel",
+        verified_facts=["Bengen introduced 4% in 1994"],
+        statistics=["30-year horizon"],
+        concepts=["Safe Withdrawal Rate"],
+        trusted_sources=["Trinity Study"],
+    )
+
+    # 1. Default (short_2min)
+    engine.run(packet)
+    assert provider.last_request is not None
+    user_msg_short = provider.last_request.messages[1].content
+    assert "Target Duration: 5 minutes" not in user_msg_short
+    assert "Generate a highly structured narrative plan." in user_msg_short
+
+    # 2. Long 5min profile
+    engine.run(packet, duration_profile=DurationProfile.LONG_5MIN)
+    assert provider.last_request is not None
+    user_msg_long = provider.last_request.messages[1].content
+    assert "Target Duration: 5 minutes" in user_msg_long
+    assert "7 to 8 scene beats" in user_msg_long
+    assert "700-800 word" in user_msg_long
+
+
+def test_narrative_plan_engine_parses_8_scene_beats() -> None:
+    from domain.generate_video_request import DurationProfile
+
+    payload = {
+        "thesis": "The 4% rule fails in high-inflation environments",
+        "target_pain_point": "Fear of outliving savings",
+        "conceptual_hook": "The Leaky Bucket Analogy",
+        "narrative_arc_type": "Problem-Agitation-Solution",
+        "scene_beats": [
+            {
+                "scene_id": f"scene_{i:02d}",
+                "title": f"Scene Beat {i}",
+                "focus_concept": "Safe Withdrawal Rate",
+                "core_teaching_point": f"Core teaching point {i}",
+            }
+            for i in range(1, 9)  # 8 scene beats
+        ],
+    }
+    provider = StaticTestLLMProvider(payload)
+    engine = NarrativePlanEngine(provider)
+
+    result = engine.run(
+        ResearchPacket(
+            topic="The 4% Rule",
+            audience="corporate professionals",
+            channel="FinanceChannel",
+            verified_facts=["Fact 1"],
+            statistics=["Stat 1"],
+            concepts=["Safe Withdrawal Rate"],
+            trusted_sources=["Source 1"],
+        ),
+        duration_profile=DurationProfile.LONG_5MIN,
+    )
+
+    assert len(result.narrative_plan.scene_beats) == 8
+    assert result.narrative_plan.scene_beats[0].scene_id == "scene_01"
+    assert result.narrative_plan.scene_beats[7].scene_id == "scene_08"

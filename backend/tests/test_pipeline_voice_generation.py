@@ -181,6 +181,7 @@ def test_voice_generation_synthesizes_and_saves(tmp_path) -> None:
     client = TestClient(app)
     project_id, run_id = setup_project_ready_for_voice(store)
 
+    from tests.test_polly_chunk_synthesis import VALID_24KHZ_MP3_BYTES
     from unittest.mock import patch, MagicMock
     
     mock_client = MagicMock()
@@ -188,7 +189,7 @@ def test_voice_generation_synthesizes_and_saves(tmp_path) -> None:
         output_format = kwargs.get("OutputFormat")
         if output_format == "mp3":
             mock_stream = MagicMock()
-            mock_stream.read.return_value = b"\xFF\xFB\x90\x44" + b"\x00" * 124
+            mock_stream.read.return_value = VALID_24KHZ_MP3_BYTES
             return {"AudioStream": mock_stream}
         elif output_format == "json":
             mock_stream = MagicMock()

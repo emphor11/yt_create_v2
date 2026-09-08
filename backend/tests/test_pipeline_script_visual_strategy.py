@@ -231,3 +231,101 @@ def test_strategy_stores_failed_artifact_on_provider_error(tmp_path) -> None:
     run = store.get_run(project_id, run_id)
     assert run.state == "failed"
     assert run.current_stage == "script_visual_strategy"
+
+
+def test_strategy_passes_duration_profile_from_generate_video_request(tmp_path) -> None:
+    provider = ScriptedTestLLMProvider([valid_strategy_response_payload()])
+    client, store = make_client(tmp_path, llm_provider=provider)
+
+    # 1. Create project with long_5min
+    response = client.post(
+        "/projects",
+        json={
+            "topic": "The 4% Rule",
+            "mode": "ai",
+            "audience": "corporate employees",
+            "language": "English",
+            "style": "analytical",
+            "channel": "FinanceChannel",
+            "duration_profile": "long_5min",
+        },
+    )
+    assert response.status_code == 200
+    created = response.json()
+    project_id = created["project"]["id"]
+    run_id = created["run"]["id"]
+
+    # Seed upstream artifacts
+    from domain.validation import ValidationResult
+    from domain.research_packet import ResearchPacket
+    from domain.narrative_plan import NarrativePlan, SceneBeat
+    from domain.hook import Hook, VisualDirective
+
+    gen_req_id = created["generate_video_request_artifact"]["id"]
+    res_art = store.save_artifact(
+        project_id=project_id,
+        run_id=run_id,
+        artifact_type="research_packet",
+        schema_version="1",
+        payload_json=ResearchPacket(
+            topic="The 4% Rule",
+            audience="corporate employees",
+            channel="FinanceChannel",
+            verified_facts=["Fact 1"],
+            statistics=["Stat 1"],
+            concepts=["Opportunity Cost"],
+        ).model_dump(),
+        parent_artifact_roles_json={"generate_video_request": gen_req_id},
+        validation_json=ValidationResult(status="valid"),
+    )
+    narr_art = store.save_artifact(
+        project_id=project_id,
+        run_id=run_id,
+        artifact_type="narrative_plan",
+        schema_version="1",
+        payload_json=NarrativePlan(
+            thesis="Thesis text",
+            target_pain_point="Pain",
+            conceptual_hook="Hook",
+            narrative_arc_type="Arc",
+            scene_beats=[
+                SceneBeat(
+                    scene_id="scene_01",
+                    title="Intro",
+                    focus_concept="Opportunity Cost",
+                    core_teaching_point="Teach",
+                )
+            ],
+        ).model_dump(),
+        parent_artifact_roles_json={"research_packet": res_art.id},
+        validation_json=ValidationResult(status="valid"),
+    )
+    store.save_artifact(
+        project_id=project_id,
+        run_id=run_id,
+        artifact_type="hook",
+        schema_version="1",
+        payload_json=Hook(
+            conceptual_hook="Hook",
+            script_text="Script",
+            visual_directives=[
+                VisualDirective(beat_id="beat_01", preferred_component="Typography", visual_goal="Goal")
+            ],
+        ).model_dump(),
+        parent_artifact_roles_json={
+            "research_packet": res_art.id,
+            "narrative_plan": narr_art.id,
+        },
+        validation_json=ValidationResult(status="valid"),
+    )
+
+    # 2. Run script_visual_strategy
+    resp = client.post(f"/projects/{project_id}/runs/{run_id}/run/script_visual_strategy")
+    assert resp.status_code == 200
+
+    # 3. Assert engine was called with 5-minute budget instructions
+    assert provider.last_request is not None
+    user_content = provider.last_request.messages[1].content
+    assert "5-MINUTE BUDGET" in user_content
+    assert "85 to 95 words" in user_content
+    assert "5 to 7 visual beats" in user_content

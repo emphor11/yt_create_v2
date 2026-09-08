@@ -17,3 +17,5 @@ class VoiceTrack(BaseModel):
     duration_seconds: float
     full_script_text: str
     word_timestamps: list[WordTimestamp] = Field(default_factory=list)
+    chunks: list[dict] = Field(default_factory=list)
+

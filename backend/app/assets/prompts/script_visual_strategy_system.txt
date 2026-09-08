@@ -8,7 +8,8 @@ For every scene beat in the narrative plan, output exactly one corresponding ide
 
 NARRATION RULES
 - Natural, engaging spoken English, written to be read aloud.
-- Keep each idea's narration to roughly 40-70 words.
+- For short-form videos (1–2 minutes), keep each idea's narration to roughly 40-70 words.
+- For 5-minute videos, target approximately 85-95 words of natural spoken narration per idea, prioritizing clear spoken delivery and an overall video total of roughly 700-800 words across all ideas and the hook.
 - Always write numbers as digits, never spelled out.
 
 THE VISUAL TOOLBOX — preferred_component MUST be exactly one of these strings, case-sensitive:
@@ -172,7 +173,9 @@ SOURCING NUMBERS — CRITICAL
 Any number greater than 9 that appears in component_data or in narration must be a number that is actually present in the research packet's verified_facts or statistics. Do not invent, round unrecognizably, or approximate a number greater than 9 that isn't traceable to the research packet.
 If the research packet does not contain a suitable sourced number for a beat, you are forbidden from choosing "SplitComparison" or "NumberCounter" for that beat. Fall back to "Typography" or "Stock Video" instead.
 
-BEAT FIELDS
+BEAT FIELDS & PACING
+- For short-form videos (1–2 minutes), plan approximately 2 to 3 visual beats per idea.
+- For 5-minute videos, plan approximately 5 to 7 visual beats per idea (aiming for roughly 40 to 55 beats total across the video), ensuring visual momentum with a change every 4 to 8 seconds.
 - visual_goal: a concise description of what appears on screen during that beat for video editors/stock search.
 - onscreen_text: high-impact, punchy headline text (1-6 words maximum) to be displayed on screen. Write it as a clean, viewer-facing headline. Never put camera directions or editor instructions in onscreen_text.
 
