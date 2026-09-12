@@ -2,31 +2,35 @@ import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { tokens } from '../design-tokens';
 import { BrollCaptionProps } from '../types';
+import { safeAnimationWindow, safeSpringDelay } from '../animation-safety';
 
 export function BrollCaption(props: BrollCaptionProps | any) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   const resolvedProps: BrollCaptionProps = (props as any).props || props;
+  const duration_frames = (props as any).duration_frames || 180;
 
   const caption = resolvedProps.caption || "";
   const emphasisPhrase = resolvedProps.emphasisPhrase || null;
   const author = resolvedProps.author || null;
 
   // Scene fade
-  const sceneOpacity = interpolate(frame, [0, 12], [0, 1], {
+  const sceneOpacity = interpolate(frame, [0, Math.min(12, Math.max(1, duration_frames - 1))], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   // Word-by-word reveal calculation
   const words = caption.split(" ");
-  const baseStart = 10;
-  const framesPerWord = 2.5;
+  const baseStart = Math.min(10, Math.floor(duration_frames * 0.15));
+  const availableFrames = Math.max(1, duration_frames - baseStart - 6);
+  const framesPerWord = Math.min(2.5, availableFrames / (words.length || 1));
 
   // Emphasis box motion
+  const boxDelay = safeSpringDelay(32, duration_frames, 0.6);
   const boxSpring = spring({
-    frame: Math.max(0, frame - 32),
+    frame: Math.max(0, frame - boxDelay),
     fps,
     config: { damping: 15, stiffness: 105 },
   });
@@ -34,7 +38,8 @@ export function BrollCaption(props: BrollCaptionProps | any) {
   const boxOpacity = interpolate(boxSpring, [0, 1], [0, 1]);
 
   // Author motion
-  const authorOpacity = interpolate(frame, [44, 60], [0, 1], {
+  const [authorStart, authorEnd] = safeAnimationWindow(44, 60, duration_frames);
+  const authorOpacity = interpolate(frame, [authorStart, authorEnd], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });

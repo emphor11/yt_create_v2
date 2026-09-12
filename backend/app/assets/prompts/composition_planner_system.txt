@@ -77,6 +77,12 @@ If the composition requires an asset ("optional_broll" or "required_image"):
 - Be specific but not too narrow, e.g. "retirement planning couple home"
 - Do NOT include brand names, celebrity names, or copyrighted terms
 
+RULE 8 — USE STRUCTURED SEMANTIC INTENT AS PRIMARY SOURCE OF TRUTH
+When the VisualIntent contains structured semantic fields (entities, measurements, comparison, causal, temporal, visual_dynamics) and candidate factual data:
+- Treat verified numerical values, entity names, deltas, and winners from the candidate factual data as authoritative.
+- Focus on refining the semantic presentation fields: descriptive labels (e.g. input_label, result_label), editorial notes, exact operation wording (e.g. "×", "÷", "compounds to", "plus"), connectors, tone, and visual framing.
+- Do NOT alter or hallucinate numbers that contradict the structured measurements.
+
 ===========================================================================
 CATALOG
 ===========================================================================

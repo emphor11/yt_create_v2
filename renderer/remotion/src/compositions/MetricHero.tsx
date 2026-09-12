@@ -2,6 +2,7 @@ import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { tokens } from '../design-tokens';
 import { MetricHeroProps } from '../types';
+import { safeAnimationWindow, safeSpringDelay } from '../animation-safety';
 
 export function MetricHero(props: MetricHeroProps | any) {
   const frame = useCurrentFrame();
@@ -16,14 +17,15 @@ export function MetricHero(props: MetricHeroProps | any) {
   const isHero = resolvedProps.emphasis === "hero" || resolvedProps.variant === "hero" || resolvedProps.emphasis !== "supporting";
 
   // Scene fade in
-  const sceneOpacity = interpolate(frame, [0, 8], [0, 1], {
+  const sceneOpacity = interpolate(frame, [0, Math.min(8, Math.max(1, duration_frames - 1))], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   // Context badge animation
+  const badgeDelay = safeSpringDelay(6, duration_frames, 0.2);
   const badgeSpring = spring({
-    frame: Math.max(0, frame - 6),
+    frame: Math.max(0, frame - badgeDelay),
     fps,
     config: { damping: 16, stiffness: 120 },
   });
@@ -31,8 +33,9 @@ export function MetricHero(props: MetricHeroProps | any) {
   const badgeOpacity = interpolate(badgeSpring, [0, 1], [0, 1]);
 
   // Value animation
+  const valueDelay = safeSpringDelay(12, duration_frames, 0.35);
   const valueSpring = spring({
-    frame: Math.max(0, frame - 12),
+    frame: Math.max(0, frame - valueDelay),
     fps,
     config: { damping: 14, stiffness: 110 },
   });
@@ -40,8 +43,9 @@ export function MetricHero(props: MetricHeroProps | any) {
   const valueOpacity = interpolate(valueSpring, [0, 1], [0, 1]);
 
   // Label animation
+  const labelDelay = safeSpringDelay(18, duration_frames, 0.5);
   const labelSpring = spring({
-    frame: Math.max(0, frame - 18),
+    frame: Math.max(0, frame - labelDelay),
     fps,
     config: { damping: 15, stiffness: 100 },
   });
@@ -49,9 +53,14 @@ export function MetricHero(props: MetricHeroProps | any) {
   const labelOpacity = interpolate(labelSpring, [0, 1], [0, 1]);
 
   // Radial glow bloom
+  const [glowStart, glowEnd] = safeAnimationWindow(
+    Math.round(duration_frames * 0.45),
+    Math.round(duration_frames * 0.65),
+    duration_frames
+  );
   const glowBloom = interpolate(
     frame,
-    [duration_frames * 0.45, duration_frames * 0.65],
+    [glowStart, glowEnd],
     [0, 0.18],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );

@@ -4,11 +4,20 @@ Visual Intent domain models.
 A VisualIntent represents what the viewer must understand from a segment of narration —
 expressed semantically, without any reference to rendering components or layout.
 
-The LLM's job is to group narration sentences into meaningful intents and classify
-each intent using the closed relationship_type set.
+The LLM's job is to extract rich semantic meaning:
+- participating entities and their roles
+- quantitative measurements bound to those entities
+- temporal horizons and decay dynamics
+- causal mechanisms and converging factors
+- structured comparisons (subject A vs subject B, dimension, delta, winner)
+- semantic visual dynamics (focal point, desired visual outcome, motion intent)
+
+Each semantic sub-structure is populated ONLY when supported by the narration.
 """
 from __future__ import annotations
 
+import re
+from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -30,6 +39,217 @@ VALID_RELATIONSHIP_TYPES: list[str] = [
     "definition",     # explain what X is / means
     "broll",          # atmospheric/contextual moment — no infographic appropriate
 ]
+
+
+class SemanticEntity(BaseModel):
+    """An explicit entity involved in the visual narrative (e.g. 'Fixed Deposit', 'S&P 500')."""
+
+    name: str = Field(description="Name or title of the entity")
+    role: str | None = Field(
+        default=None,
+        description="Role in narrative, e.g. 'baseline', 'alternative', 'risk_factor', 'subject', 'benchmark'",
+    )
+    category: str | None = Field(
+        default=None,
+        description="Category, e.g. 'investment', 'asset', 'person', 'metric', 'institution', 'concept'",
+    )
+
+
+class QuantitativeMeasurement(BaseModel):
+    """A numerical or quantitative data point explicitly bound to an entity or metric."""
+
+    raw_value: str = Field(
+        description="Original verbatim representation, e.g. '₹50 lakh', '6%', '15 years', '₹2 lakh'"
+    )
+    entity_name: str | None = Field(
+        default=None,
+        description="The entity this value belongs to, e.g. 'Fixed Deposit', 'Retirement Portfolio'",
+    )
+    metric_name: str | None = Field(
+        default=None,
+        description="The metric dimension, e.g. 'Annual Return', 'Portfolio Size', 'Horizon', 'Annual Withdrawal'",
+    )
+    unit: str | None = Field(
+        default=None,
+        description="Extracted unit, e.g. '%', 'years', 'lakh', '₹', '$', '€'",
+    )
+    numeric_value: float | None = Field(
+        default=None,
+        description="Numeric magnitude if parseable, e.g. 50.0, 6.0, 15.0, 2.0",
+    )
+    direction: Literal["up", "down", "flat", "neutral"] | None = Field(
+        default=None,
+        description="Directional movement if applicable: 'up', 'down', 'flat', 'neutral'",
+    )
+    polarity: Literal["positive", "negative", "neutral", "warning"] | None = Field(
+        default=None,
+        description="Semantic sentiment: 'positive', 'negative', 'neutral', 'warning'",
+    )
+    role: Literal["input", "rate", "result", "baseline", "delta", "benchmark", "context"] | None = Field(
+        default=None,
+        description="Functional semantic role: 'input', 'rate', 'result', 'baseline', 'delta', 'benchmark', 'context'",
+    )
+
+    @field_validator("numeric_value", mode="before")
+    @classmethod
+    def coerce_numeric(cls, v: Any) -> float | None:
+        if v is None or v == "":
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        if isinstance(v, str):
+            clean = re.sub(r"[^\d.-]", "", v)
+            try:
+                return float(clean) if clean else None
+            except ValueError:
+                return None
+        return None
+
+    @field_validator("direction", mode="before")
+    @classmethod
+    def normalize_direction(cls, v: Any) -> str | None:
+        if not v or not isinstance(v, str):
+            return None
+        val = v.strip().lower()
+        if val in ("up", "increase", "rising", "gain", "higher", "grow"):
+            return "up"
+        if val in ("down", "decrease", "falling", "loss", "lower", "decline", "drop"):
+            return "down"
+        if val in ("flat", "constant", "unchanged", "same"):
+            return "flat"
+        if val in ("neutral",):
+            return "neutral"
+        return val
+
+    @field_validator("polarity", mode="before")
+    @classmethod
+    def normalize_polarity(cls, v: Any) -> str | None:
+        if not v or not isinstance(v, str):
+            return None
+        val = v.strip().lower()
+        if val in ("positive", "good", "gain"):
+            return "positive"
+        if val in ("negative", "bad", "loss", "danger"):
+            return "negative"
+        if val in ("warning", "caution", "risk"):
+            return "warning"
+        if val in ("neutral",):
+            return "neutral"
+        return val
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def normalize_role(cls, v: Any) -> str | None:
+        if not v or not isinstance(v, str):
+            return None
+        val = v.strip().lower()
+        if val in ("input", "start", "principal", "corpus", "base_corpus", "starting"):
+            return "input"
+        if val in ("rate", "percentage", "multiplier", "annual_rate", "fee", "growth_rate"):
+            return "rate"
+        if val in ("result", "output", "final", "outcome", "ending", "end"):
+            return "result"
+        if val in ("baseline", "initial", "original", "reference"):
+            return "baseline"
+        if val in ("delta", "spread", "difference", "margin", "gap"):
+            return "delta"
+        if val in ("benchmark", "index", "market"):
+            return "benchmark"
+        if val in ("context", "qualifier", "supporting"):
+            return "context"
+        return val
+
+
+class TemporalContext(BaseModel):
+    """Time horizons, compounding frequency, or decay dynamics."""
+
+    horizon: str | None = Field(
+        default=None,
+        description="Time duration or period, e.g. '15 years', 'annual', '3 decades'",
+    )
+    frequency: str | None = Field(
+        default=None,
+        description="Frequency of occurrence, e.g. 'yearly', 'monthly', 'one-time'",
+    )
+    is_decay_over_time: bool = Field(
+        default=False,
+        description="Whether this describes erosion, purchasing power loss, or decay over time",
+    )
+
+
+class CausalStructure(BaseModel):
+    """Causal relationship or multi-factor convergence."""
+
+    causes: list[str] = Field(
+        default_factory=list,
+        description="List of driving causes or converging factors",
+    )
+    mechanism: str | None = Field(
+        default=None,
+        description="How the causes produce the effect, e.g. 'compounding fee drag', 'purchasing power erosion'",
+    )
+    outcome: str | None = Field(
+        default=None,
+        description="The resulting state or effect, e.g. 'portfolio shortfall', 'wealth destruction'",
+    )
+    outcome_severity: Literal["critical", "high", "medium", "low", "positive", "neutral"] | None = Field(
+        default=None,
+        description="Severity or impact of the outcome",
+    )
+
+    @field_validator("outcome_severity", mode="before")
+    @classmethod
+    def normalize_outcome_severity(cls, v: Any) -> str | None:
+        if not v or not isinstance(v, str):
+            return None
+        val = v.strip().lower()
+        if val in ("critical", "high", "medium", "low", "positive", "neutral"):
+            return val
+        return val
+
+
+class ComparisonStructure(BaseModel):
+    """Structured comparison between two subjects."""
+
+    subject_a: str = Field(description="First subject/entity in the comparison")
+    value_a: str = Field(description="Value, metric, or characteristic of subject A")
+    subject_b: str = Field(description="Second subject/entity in the comparison")
+    value_b: str = Field(description="Value, metric, or characteristic of subject B")
+    comparison_dimension: str = Field(
+        description="The dimension being compared, e.g. 'Annual Return', 'Risk', 'Cost', 'Corpus at 60'"
+    )
+    delta: str | None = Field(
+        default=None,
+        description="The quantitative or qualitative difference, e.g. '+6% spread', '2x higher', '₹1.2 Cr difference'",
+    )
+    winner: str | None = Field(
+        default=None,
+        description="Which subject wins or is highlighted as advantageous, if applicable",
+    )
+
+
+class VisualDynamics(BaseModel):
+    """
+    Semantic visual focus, motion, and layout intent.
+    Purely semantic visual behavior — NOT a taxonomy of React component names or Remotion templates.
+    """
+
+    focal_point: str | None = Field(
+        default=None,
+        description="Primary visual anchor, e.g. 'net return delta', 'portfolio hero', 'danger zone'",
+    )
+    desired_visual_outcome: str | None = Field(
+        default=None,
+        description="What the viewer's eye should experience, e.g. 'instant contrast between safe vs growth', 'feeling of rapid erosion'",
+    )
+    motion_intent: str | None = Field(
+        default=None,
+        description="Dynamic behavior, e.g. 'side_by_side_reveal', 'countdown_decay', 'convergence_inward', 'counter_increment'",
+    )
+    visual_priority: str | None = Field(
+        default=None,
+        description="Visual weight: 'high', 'primary', 'secondary', 'context'",
+    )
 
 
 class VisualIntent(BaseModel):
@@ -72,6 +292,32 @@ class VisualIntent(BaseModel):
         ),
     )
 
+    # Rich semantic fields (populated ONLY when supported by narration)
+    entities: list[SemanticEntity] = Field(
+        default_factory=list,
+        description="Explicit entities involved in this visual intent.",
+    )
+    measurements: list[QuantitativeMeasurement] = Field(
+        default_factory=list,
+        description="Quantitative values bound to entities and metrics.",
+    )
+    temporal: TemporalContext | None = Field(
+        default=None,
+        description="Temporal context, duration, compounding frequency, or decay dynamics.",
+    )
+    causal: CausalStructure | None = Field(
+        default=None,
+        description="Causal linkages or converging drivers.",
+    )
+    comparison: ComparisonStructure | None = Field(
+        default=None,
+        description="Direct comparison structure between subjects.",
+    )
+    visual_dynamics: VisualDynamics | None = Field(
+        default=None,
+        description="Semantic visual dynamics and focal intent.",
+    )
+
     @field_validator("relationship_type")
     @classmethod
     def relationship_type_must_be_valid(cls, value: str) -> str:
@@ -81,6 +327,22 @@ class VisualIntent(BaseModel):
                 f"Must be one of: {', '.join(VALID_RELATIONSHIP_TYPES)}"
             )
         return value
+
+    @field_validator("entities", "measurements", mode="before")
+    @classmethod
+    def normalize_lists(cls, v: Any) -> Any:
+        if v is None:
+            return []
+        return v
+
+    @field_validator("temporal", "causal", "comparison", "visual_dynamics", mode="before")
+    @classmethod
+    def normalize_optional_objects(cls, v: Any) -> Any:
+        if v is None:
+            return None
+        if isinstance(v, dict) and not any(v.values()):
+            return None
+        return v
 
 
 class VisualIntentSequence(BaseModel):

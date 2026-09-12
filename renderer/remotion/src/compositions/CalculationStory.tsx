@@ -2,12 +2,14 @@ import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { tokens } from '../design-tokens';
 import { CalculationStoryProps } from '../types';
+import { safeAnimationWindow, safeSpringDelay } from '../animation-safety';
 
 export function CalculationStory(props: CalculationStoryProps | any) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   const resolvedProps: CalculationStoryProps = (props as any).props || props;
+  const duration_frames = (props as any).duration_frames || 180;
 
   const inputLabel = resolvedProps.inputLabel || "Input";
   const inputValue = resolvedProps.inputValue || "0";
@@ -18,14 +20,15 @@ export function CalculationStory(props: CalculationStoryProps | any) {
   const note = resolvedProps.note || null;
 
   // Scene fade
-  const sceneOpacity = interpolate(frame, [0, 8], [0, 1], {
+  const sceneOpacity = interpolate(frame, [0, Math.min(8, Math.max(1, duration_frames - 1))], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   // Input Card motion
+  const inputDelay = safeSpringDelay(8, duration_frames, 0.2);
   const inputSpring = spring({
-    frame: Math.max(0, frame - 8),
+    frame: Math.max(0, frame - inputDelay),
     fps,
     config: { damping: 15, stiffness: 110 },
   });
@@ -33,8 +36,9 @@ export function CalculationStory(props: CalculationStoryProps | any) {
   const inputOpacity = interpolate(inputSpring, [0, 1], [0, 1]);
 
   // Operator Badge motion
+  const opDelay = safeSpringDelay(20, duration_frames, 0.35);
   const opSpring = spring({
-    frame: Math.max(0, frame - 20),
+    frame: Math.max(0, frame - opDelay),
     fps,
     config: { damping: 12, stiffness: 130 },
   });
@@ -42,14 +46,16 @@ export function CalculationStory(props: CalculationStoryProps | any) {
   const opOpacity = interpolate(opSpring, [0, 1], [0, 1]);
 
   // Arrow dash draw (0 to 1)
-  const arrowProgress = interpolate(frame, [26, 48], [0, 1], {
+  const [arrowStart, arrowEnd] = safeAnimationWindow(26, 48, duration_frames);
+  const arrowProgress = interpolate(frame, [arrowStart, arrowEnd], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   // Result Card motion
+  const resultDelay = safeSpringDelay(42, duration_frames, 0.6);
   const resultSpring = spring({
-    frame: Math.max(0, frame - 42),
+    frame: Math.max(0, frame - resultDelay),
     fps,
     config: { damping: 14, stiffness: 100 },
   });
@@ -57,8 +63,9 @@ export function CalculationStory(props: CalculationStoryProps | any) {
   const resultOpacity = interpolate(resultSpring, [0, 1], [0, 1]);
 
   // Note motion
+  const noteDelay = safeSpringDelay(54, duration_frames, 0.75);
   const noteSpring = spring({
-    frame: Math.max(0, frame - 54),
+    frame: Math.max(0, frame - noteDelay),
     fps,
     config: { damping: 16, stiffness: 120 },
   });

@@ -2,6 +2,7 @@ import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { tokens } from '../design-tokens';
 import { TimeDecayProps } from '../types';
+import { safeAnimationWindow, safeSpringDelay } from '../animation-safety';
 
 export function TimeDecay(props: TimeDecayProps | any) {
   const frame = useCurrentFrame();
@@ -17,14 +18,15 @@ export function TimeDecay(props: TimeDecayProps | any) {
   const showChart = resolvedProps.showChart !== false;
 
   // Scene fade
-  const sceneOpacity = interpolate(frame, [0, 8], [0, 1], {
+  const sceneOpacity = interpolate(frame, [0, Math.min(8, Math.max(1, duration_frames - 1))], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   // Left anchor motion
+  const anchorDelay = safeSpringDelay(8, duration_frames, 0.2);
   const anchorSpring = spring({
-    frame: Math.max(0, frame - 8),
+    frame: Math.max(0, frame - anchorDelay),
     fps,
     config: { damping: 15, stiffness: 105 },
   });
@@ -32,30 +34,34 @@ export function TimeDecay(props: TimeDecayProps | any) {
   const anchorOpacity = interpolate(anchorSpring, [0, 1], [0, 1]);
 
   // Curve draw progress
+  const [curveStart, curveEnd] = safeAnimationWindow(24, 80, duration_frames);
   const curveProgress = interpolate(
     frame,
-    [24, Math.min(duration_frames * 0.65, 80)],
+    [curveStart, curveEnd],
     [0, 1],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
 
   // Origin dot spring
+  const startDotDelay = safeSpringDelay(20, duration_frames, 0.35);
   const startDotSpring = spring({
-    frame: Math.max(0, frame - 20),
+    frame: Math.max(0, frame - startDotDelay),
     fps,
     config: { damping: 12, stiffness: 140 },
   });
 
   // End hollow ring spring
+  const endDotDelay = safeSpringDelay(65, duration_frames, 0.7);
   const endDotSpring = spring({
-    frame: Math.max(0, frame - 65),
+    frame: Math.max(0, frame - endDotDelay),
     fps,
     config: { damping: 12, stiffness: 130 },
   });
 
   // Annotation callout spring
+  const annotDelay = safeSpringDelay(72, duration_frames, 0.8);
   const annotSpring = spring({
-    frame: Math.max(0, frame - 72),
+    frame: Math.max(0, frame - annotDelay),
     fps,
     config: { damping: 14, stiffness: 110 },
   });

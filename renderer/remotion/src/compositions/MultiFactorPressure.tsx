@@ -2,12 +2,14 @@ import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { tokens } from '../design-tokens';
 import { MultiFactorPressureProps } from '../types';
+import { safeAnimationWindow, safeSpringDelay, safeKeyframeWindow } from '../animation-safety';
 
 export function MultiFactorPressure(props: MultiFactorPressureProps | any) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   const resolvedProps: MultiFactorPressureProps = (props as any).props || props;
+  const duration_frames = (props as any).duration_frames || 180;
 
   const factors = Array.isArray(resolvedProps.factors) && resolvedProps.factors.length > 0
     ? resolvedProps.factors.slice(0, 4)
@@ -28,30 +30,33 @@ export function MultiFactorPressure(props: MultiFactorPressureProps | any) {
   }
 
   // Scene fade
-  const sceneOpacity = interpolate(frame, [0, 8], [0, 1], {
+  const sceneOpacity = interpolate(frame, [0, Math.min(8, Math.max(1, duration_frames - 1))], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   // Converging arrows draw progress
-  const rayProgress = interpolate(frame, [32, 58], [0, 1], {
+  const [rayStart, rayEnd] = safeAnimationWindow(32, 58, duration_frames);
+  const rayProgress = interpolate(frame, [rayStart, rayEnd], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   // Central node impact spring
+  const coreDelay = safeSpringDelay(50, duration_frames, 0.65);
   const coreSpring = spring({
-    frame: Math.max(0, frame - 50),
+    frame: Math.max(0, frame - coreDelay),
     fps,
     config: { mass: 1.2, damping: 18, stiffness: 100 },
   });
   const coreScale = interpolate(coreSpring, [0, 1], [0.85, 1]);
   const coreOpacity = interpolate(coreSpring, [0, 1], [0, 1]);
 
-  // Single border glow pulse [74, 88]
+  // Single border glow pulse
+  const pulseFrames = safeKeyframeWindow([74, 81, 88], duration_frames);
   const pulseOpacity = interpolate(
     frame,
-    [74, 81, 88],
+    pulseFrames,
     [0.4, 1.0, 0.6],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
@@ -91,8 +96,9 @@ export function MultiFactorPressure(props: MultiFactorPressureProps | any) {
           }}
         >
           {factors.map((factor, index) => {
+            const factorDelay = safeSpringDelay(8 + index * 10, duration_frames, 0.4);
             const factorSpring = spring({
-              frame: Math.max(0, frame - (8 + index * 10)),
+              frame: Math.max(0, frame - factorDelay),
               fps,
               config: { damping: 15, stiffness: 115 },
             });

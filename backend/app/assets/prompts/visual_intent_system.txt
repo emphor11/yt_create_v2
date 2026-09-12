@@ -36,28 +36,84 @@ Every intent must have a relationship_type from this exact list:
 Do NOT invent new relationship types. If you are unsure, choose the closest one.
 When narration describes both a metric and a calculation, use "calculation".
 When narration describes multiple causes converging, use "multi_factor".
+When narration describes erosion or purchasing power loss over time, use "decline".
 
 RULE 4 — TRIGGER WORDS
-- The FIRST intent in the list MUST have trigger_word = null.
-  It begins immediately when the idea starts.
+- The FIRST intent in the list MUST have trigger_word = null (it starts immediately).
 - All subsequent intents MUST have a trigger_word.
 - The trigger_word MUST be a single word that appears verbatim in the narration_excerpt.
-- Choose the word that is closest to when the viewer needs to see this new visual.
-- Do NOT use punctuation, numbers, or stopwords ("the", "a", "is") as trigger words.
-- Do NOT use a word that already appeared as a trigger_word earlier in the same idea.
+- The trigger_word MUST appear verbatim in the idea's narration.
+- Do NOT use spaces, punctuation, or numbers as trigger words.
+- Do NOT use common English stopwords ("the", "a", "an", "is", "of", "and", "to", "in", "on", "at") as trigger words.
+- Do NOT repeat a trigger word already used earlier in the same idea.
+- Choose the word that marks the exact inflection point where the visual should transition.
 
-RULE 5 — KEY VALUES
+RULE 5 — KEY VALUES (BACKWARD COMPATIBILITY)
 Extract explicit quantities, currency amounts, percentages, years, and named entities
-mentioned in the narration_excerpt. These will be used to populate composition data.
+mentioned in the narration_excerpt into key_values as a flat list of strings.
+
+RULE 6 — RICH SEMANTIC SUB-STRUCTURES (STRICTLY GROUNDED)
+IMPORTANT: Populate each semantic sub-structure ONLY when supported by the narration.
+Do NOT invent or infer relationships just to fill fields. If a sub-structure is not
+supported by the narration, leave it as null (or empty array for entities/measurements).
+
+1. entities (array):
+   Explicit entities, assets, people, or concepts mentioned.
+   - name: e.g. "Fixed Deposit", "Equity Fund", "Starting Portfolio"
+   - role: "baseline", "alternative", "risk_factor", "subject", "benchmark"
+   - category: "investment", "asset", "person", "metric", "institution", "concept"
+
+2. measurements (array):
+   Quantitative measurements bound to specific entities and metrics.
+   - raw_value: verbatim string e.g. "₹50 lakh", "6%", "12%", "15 years"
+   - entity_name: exact entity this value belongs to (e.g. "Fixed Deposit")
+   - metric_name: dimension (e.g. "Annual Return", "Corpus", "Horizon")
+   - unit: e.g. "%", "₹", "$", "years", "lakh", "Cr"
+   - numeric_value: float magnitude (e.g. 50.0, 6.0, 12.0)
+   - direction: "up", "down", "flat", or "neutral"
+   - polarity: "positive", "negative", "neutral", or "warning"
+   - role: functional semantic role: "input" | "rate" | "result" | "baseline" | "delta" | "benchmark" | "context"
+
+3. temporal (object or null):
+   Populate ONLY if the narration describes time periods, durations, compounding, or erosion.
+   - horizon: e.g. "15 years", "annual", "3 decades"
+   - frequency: e.g. "yearly", "monthly", "one-time"
+   - is_decay_over_time: true if describing erosion, inflation decay, or purchasing power loss.
+
+4. causal (object or null):
+   Populate ONLY for cause_effect or multi_factor relationships.
+   - causes: list of driving causes (e.g. ["High inflation", "Weak investment returns"])
+   - mechanism: how the causes work (e.g. "purchasing power erosion")
+   - outcome: resulting state (e.g. "retirement corpus shortfall")
+   - outcome_severity: "critical", "high", "medium", "low", "positive", "neutral"
+
+5. comparison (object or null):
+   Populate ONLY for comparison relationships where two subjects are contrasted.
+   - subject_a: first entity (e.g. "Fixed Deposit")
+   - value_a: metric for subject A (e.g. "6%")
+   - subject_b: second entity (e.g. "Equity Fund")
+   - value_b: metric for subject B (e.g. "12%")
+   - comparison_dimension: compared metric (e.g. "Annual Return")
+   - delta: difference (e.g. "+6% spread")
+   - winner: advantageous entity if stated (e.g. "Equity Fund")
+
+6. visual_dynamics (object or null):
+   Semantic visual intent describing what the viewer's eye should experience.
+   NEVER mention React or Remotion component names (no "MetricHero", "SplitComparison", etc.).
+   - focal_point: primary visual anchor (e.g. "net return spread", "portfolio hero number")
+   - desired_visual_outcome: what the viewer understands (e.g. "immediate contrast between safe vs growth asset")
+   - motion_intent: dynamic feel (e.g. "side_by_side_reveal", "countdown_decay", "counter_increment")
+   - visual_priority: "high", "primary", "secondary", "context"
 
 ===========================================================================
 EXAMPLES
 ===========================================================================
 
+EXAMPLE 1 — METRIC (No comparison, no causal, no decay)
 NARRATION:
 "Imagine you retire with ₹50 lakh. That is your entire starting portfolio."
 
-INTENTS: 1 intent
+INTENTS:
 {
   "intent_id": "intent_01",
   "narration_excerpt": "Imagine you retire with ₹50 lakh. That is your entire starting portfolio.",
@@ -65,15 +121,40 @@ INTENTS: 1 intent
   "key_values": ["₹50 lakh"],
   "relationship_type": "metric",
   "emphasis": "hero",
-  "trigger_word": null
+  "trigger_word": null,
+  "entities": [
+    { "name": "Starting Portfolio", "role": "subject", "category": "asset" }
+  ],
+  "measurements": [
+    {
+      "raw_value": "₹50 lakh",
+      "entity_name": "Starting Portfolio",
+      "metric_name": "Corpus Size",
+      "unit": "₹ lakh",
+      "numeric_value": 50.0,
+      "direction": "neutral",
+      "polarity": "neutral",
+      "role": "baseline"
+    }
+  ],
+  "temporal": null,
+  "causal": null,
+  "comparison": null,
+  "visual_dynamics": {
+    "focal_point": "₹50 lakh starting corpus",
+    "desired_visual_outcome": "Viewer anchors on the total initial nest egg as the baseline",
+    "motion_intent": "counter_increment",
+    "visual_priority": "high"
+  }
 }
 
 ---
 
+EXAMPLE 2 — CALCULATION (Math story with explicit measurement roles)
 NARRATION:
 "You withdraw 4% every year. On ₹50 lakh, that is ₹2 lakh annually."
 
-INTENTS: 1 intent (two sentences express one calculation)
+INTENTS:
 {
   "intent_id": "intent_02",
   "narration_excerpt": "You withdraw 4% every year. On ₹50 lakh, that is ₹2 lakh annually.",
@@ -81,31 +162,235 @@ INTENTS: 1 intent (two sentences express one calculation)
   "key_values": ["4%", "₹50 lakh", "₹2 lakh"],
   "relationship_type": "calculation",
   "emphasis": "show_result",
-  "trigger_word": "withdraw"
+  "trigger_word": "withdraw",
+  "entities": [
+    { "name": "Retirement Portfolio", "role": "baseline", "category": "asset" },
+    { "name": "Annual Withdrawal", "role": "subject", "category": "metric" }
+  ],
+  "measurements": [
+    {
+      "raw_value": "4%",
+      "entity_name": "Annual Withdrawal",
+      "metric_name": "Withdrawal Rate",
+      "unit": "%",
+      "numeric_value": 4.0,
+      "direction": "neutral",
+      "polarity": "neutral",
+      "role": "rate"
+    },
+    {
+      "raw_value": "₹50 lakh",
+      "entity_name": "Retirement Portfolio",
+      "metric_name": "Corpus Base",
+      "unit": "₹ lakh",
+      "numeric_value": 50.0,
+      "direction": "neutral",
+      "polarity": "neutral",
+      "role": "input"
+    },
+    {
+      "raw_value": "₹2 lakh",
+      "entity_name": "Annual Withdrawal",
+      "metric_name": "Annual Cash Flow",
+      "unit": "₹ lakh",
+      "numeric_value": 2.0,
+      "direction": "neutral",
+      "polarity": "positive",
+      "role": "result"
+    }
+  ],
+  "temporal": {
+    "horizon": "1 year",
+    "frequency": "yearly",
+    "is_decay_over_time": false
+  },
+  "causal": null,
+  "comparison": null,
+  "visual_dynamics": {
+    "focal_point": "Resulting ₹2 lakh annual income",
+    "desired_visual_outcome": "Clear arithmetic link showing how 4% rate translates to ₹2 lakh cash flow",
+    "motion_intent": "equation_reveal",
+    "visual_priority": "high"
+  }
 }
 
 ---
 
+EXAMPLE 3 — COMPARISON (Entity-bound measurements, delta, winner)
 NARRATION:
-"High inflation erodes the value of money. Weak investment returns reduce your corpus growth.
-Together, these two forces put your retirement at serious risk."
+"A Fixed Deposit gives you around 6% return, while an Equity Fund delivers closer to 12%. That 6% difference compounds massively over 15 years."
 
-INTENTS: 1 intent (three sentences express one multi-factor convergence story)
+INTENTS:
 {
   "intent_id": "intent_03",
-  "narration_excerpt": "High inflation erodes ...",
-  "what_viewer_must_understand": "Inflation and weak returns combine to threaten retirement.",
-  "key_values": ["inflation", "investment returns"],
+  "narration_excerpt": "A Fixed Deposit gives you around 6% return, while an Equity Fund delivers closer to 12%. That 6% difference compounds massively over 15 years.",
+  "what_viewer_must_understand": "Equity Fund return (12%) outperforms Fixed Deposit (6%) by 6% compounded over 15 years.",
+  "key_values": ["6%", "12%", "6%", "15 years"],
+  "relationship_type": "comparison",
+  "emphasis": "highlight_spread",
+  "trigger_word": "Fixed",
+  "entities": [
+    { "name": "Fixed Deposit", "role": "baseline", "category": "investment" },
+    { "name": "Equity Fund", "role": "alternative", "category": "investment" }
+  ],
+  "measurements": [
+    {
+      "raw_value": "6%",
+      "entity_name": "Fixed Deposit",
+      "metric_name": "Annual Return",
+      "unit": "%",
+      "numeric_value": 6.0,
+      "direction": "flat",
+      "polarity": "neutral",
+      "role": "baseline"
+    },
+    {
+      "raw_value": "12%",
+      "entity_name": "Equity Fund",
+      "metric_name": "Annual Return",
+      "unit": "%",
+      "numeric_value": 12.0,
+      "direction": "up",
+      "polarity": "positive",
+      "role": "benchmark"
+    }
+  ],
+  "temporal": {
+    "horizon": "15 years",
+    "frequency": "annual",
+    "is_decay_over_time": false
+  },
+  "causal": null,
+  "comparison": {
+    "subject_a": "Fixed Deposit",
+    "value_a": "6%",
+    "subject_b": "Equity Fund",
+    "value_b": "12%",
+    "comparison_dimension": "Annual Return",
+    "delta": "+6% spread",
+    "winner": "Equity Fund"
+  },
+  "visual_dynamics": {
+    "focal_point": "6% return advantage of Equity Fund over Fixed Deposit",
+    "desired_visual_outcome": "Immediate visual contrast showing Equity Fund significantly outpacing Fixed Deposit over 15 years",
+    "motion_intent": "side_by_side_reveal",
+    "visual_priority": "high"
+  }
+}
+
+---
+
+EXAMPLE 4 — MULTI-FACTOR / CAUSE-EFFECT (Converging threats)
+NARRATION:
+"High inflation erodes the value of money. Weak investment returns reduce your corpus growth. Together, these two forces put your retirement at serious risk."
+
+INTENTS:
+{
+  "intent_id": "intent_04",
+  "narration_excerpt": "High inflation erodes the value of money. Weak investment returns reduce your corpus growth. Together, these two forces put your retirement at serious risk.",
+  "what_viewer_must_understand": "Inflation and weak returns combine to create severe retirement shortfall risk.",
+  "key_values": ["inflation", "investment returns", "risk"],
   "relationship_type": "multi_factor",
   "emphasis": "highlight_risk",
-  "trigger_word": "inflation"
+  "trigger_word": "inflation",
+  "entities": [
+    { "name": "Inflation", "role": "risk_factor", "category": "concept" },
+    { "name": "Weak Returns", "role": "risk_factor", "category": "concept" },
+    { "name": "Retirement Corpus", "role": "subject", "category": "asset" }
+  ],
+  "measurements": [],
+  "temporal": null,
+  "causal": {
+    "causes": ["High inflation", "Weak investment returns"],
+    "mechanism": "Dual pressure: purchasing power loss combined with stagnant growth",
+    "outcome": "Severe retirement corpus shortfall",
+    "outcome_severity": "critical"
+  },
+  "comparison": null,
+  "visual_dynamics": {
+    "focal_point": "Converging pressure on retirement corpus",
+    "desired_visual_outcome": "Viewer feels the compounding danger of two independent negative forces acting together",
+    "motion_intent": "convergence_inward",
+    "visual_priority": "high"
+  }
+}
+
+---
+
+EXAMPLE 5 — DECLINE (Purchasing power decay over time)
+NARRATION:
+"Over 20 years, 7% annual inflation slashes the purchasing power of your ₹100 note down to just ₹26."
+
+INTENTS:
+{
+  "intent_id": "intent_05",
+  "narration_excerpt": "Over 20 years, 7% annual inflation slashes the purchasing power of your ₹100 note down to just ₹26.",
+  "what_viewer_must_understand": "Purchasing power of ₹100 drops to ₹26 over 20 years due to 7% inflation.",
+  "key_values": ["20 years", "7%", "₹100", "₹26"],
+  "relationship_type": "decline",
+  "emphasis": "show_decline",
+  "trigger_word": "slashes",
+  "entities": [
+    { "name": "₹100 Note", "role": "subject", "category": "asset" },
+    { "name": "Inflation", "role": "risk_factor", "category": "concept" }
+  ],
+  "measurements": [
+    {
+      "raw_value": "₹100",
+      "entity_name": "₹100 Note",
+      "metric_name": "Initial Purchasing Power",
+      "unit": "₹",
+      "numeric_value": 100.0,
+      "direction": "flat",
+      "polarity": "neutral",
+      "role": "baseline"
+    },
+    {
+      "raw_value": "₹26",
+      "entity_name": "₹100 Note",
+      "metric_name": "Final Purchasing Power",
+      "unit": "₹",
+      "numeric_value": 26.0,
+      "direction": "down",
+      "polarity": "negative",
+      "role": "result"
+    },
+    {
+      "raw_value": "7%",
+      "entity_name": "Inflation",
+      "metric_name": "Annual Inflation Rate",
+      "unit": "%",
+      "numeric_value": 7.0,
+      "direction": "up",
+      "polarity": "warning",
+      "role": "rate"
+    }
+  ],
+  "temporal": {
+    "horizon": "20 years",
+    "frequency": "annual",
+    "is_decay_over_time": true
+  },
+  "causal": {
+    "causes": ["7% annual inflation"],
+    "mechanism": "Compounding purchasing power erosion",
+    "outcome": "74% loss in real monetary value",
+    "outcome_severity": "high"
+  },
+  "comparison": null,
+  "visual_dynamics": {
+    "focal_point": "Erosion from ₹100 down to ₹26",
+    "desired_visual_outcome": "Visceral sense of shrinking value and purchasing power over two decades",
+    "motion_intent": "countdown_decay",
+    "visual_priority": "high"
+  }
 }
 
 ===========================================================================
 OUTPUT FORMAT
 ===========================================================================
 
-Return a JSON object with exactly this structure:
+Return a JSON object with this exact structure:
 
 {
   "idea_id": "<idea_id>",
@@ -117,12 +402,13 @@ Return a JSON object with exactly this structure:
       "key_values": ["...", "..."],
       "relationship_type": "...",
       "emphasis": "..." or null,
-      "trigger_word": null
-    },
-    {
-      "intent_id": "intent_02",
-      ...
-      "trigger_word": "word"
+      "trigger_word": null,
+      "entities": [ ... ],
+      "measurements": [ ... ],
+      "temporal": { ... } or null,
+      "causal": { ... } or null,
+      "comparison": { ... } or null,
+      "visual_dynamics": { ... } or null
     }
   ]
 }

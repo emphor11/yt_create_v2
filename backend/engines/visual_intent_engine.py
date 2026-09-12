@@ -22,7 +22,16 @@ from providers.llm_provider import (
     LLMProviderError,
     LLMProviderMetadata,
 )
+import re
 from app.assets import load_prompt
+
+
+# Common English grammatical stopwords disallowed as trigger words.
+TRIGGER_WORD_STOPWORDS: frozenset[str] = frozenset({
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+    "of", "in", "on", "at", "and", "or", "but", "to", "for", "with", "by",
+    "it", "this", "that", "these", "those", "so", "as", "if",
+})
 
 
 # JSON Schema for LLM structured output.
@@ -49,6 +58,97 @@ VISUAL_INTENT_RESPONSE_SCHEMA: dict[str, Any] = {
                     },
                     "emphasis": {"type": "string", "nullable": True},
                     "trigger_word": {"type": "string", "nullable": True},
+                    "entities": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "role": {"type": "string", "nullable": True},
+                                "category": {"type": "string", "nullable": True},
+                            },
+                            "required": ["name"],
+                        },
+                    },
+                    "measurements": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "raw_value": {"type": "string"},
+                                "entity_name": {"type": "string", "nullable": True},
+                                "metric_name": {"type": "string", "nullable": True},
+                                "unit": {"type": "string", "nullable": True},
+                                "numeric_value": {"type": "number", "nullable": True},
+                                "direction": {
+                                    "type": "string",
+                                    "enum": ["up", "down", "flat", "neutral"],
+                                    "nullable": True,
+                                },
+                                "polarity": {
+                                    "type": "string",
+                                    "enum": ["positive", "negative", "neutral", "warning"],
+                                    "nullable": True,
+                                },
+                                "role": {
+                                    "type": "string",
+                                    "enum": ["input", "rate", "result", "baseline", "delta", "benchmark", "context"],
+                                    "nullable": True,
+                                },
+                            },
+                            "required": ["raw_value"],
+                        },
+                    },
+                    "temporal": {
+                        "type": "object",
+                        "properties": {
+                            "horizon": {"type": "string", "nullable": True},
+                            "frequency": {"type": "string", "nullable": True},
+                            "is_decay_over_time": {"type": "boolean"},
+                        },
+                        "nullable": True,
+                    },
+                    "causal": {
+                        "type": "object",
+                        "properties": {
+                            "causes": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "mechanism": {"type": "string", "nullable": True},
+                            "outcome": {"type": "string", "nullable": True},
+                            "outcome_severity": {
+                                "type": "string",
+                                "enum": ["critical", "high", "medium", "low", "positive", "neutral"],
+                                "nullable": True,
+                            },
+                        },
+                        "nullable": True,
+                    },
+                    "comparison": {
+                        "type": "object",
+                        "properties": {
+                            "subject_a": {"type": "string"},
+                            "value_a": {"type": "string"},
+                            "subject_b": {"type": "string"},
+                            "value_b": {"type": "string"},
+                            "comparison_dimension": {"type": "string"},
+                            "delta": {"type": "string", "nullable": True},
+                            "winner": {"type": "string", "nullable": True},
+                        },
+                        "required": ["subject_a", "value_a", "subject_b", "value_b", "comparison_dimension"],
+                        "nullable": True,
+                    },
+                    "visual_dynamics": {
+                        "type": "object",
+                        "properties": {
+                            "focal_point": {"type": "string", "nullable": True},
+                            "desired_visual_outcome": {"type": "string", "nullable": True},
+                            "motion_intent": {"type": "string", "nullable": True},
+                            "visual_priority": {"type": "string", "nullable": True},
+                        },
+                        "nullable": True,
+                    },
                 },
                 "required": [
                     "intent_id",
@@ -157,14 +257,79 @@ class VisualIntentEngine:
                 provider_metadata=response.metadata,
             )
 
-        # Validate trigger_word: first intent must have trigger_word=None
+        # Validate trigger_words according to strict semantic rules:
+        # 1. First intent must have trigger_word=null (starts immediately)
+        # 2. Subsequent intents must have a non-empty trigger_word
+        # 3. trigger_word must appear verbatim in narration_excerpt
+        # 4. trigger_word must appear verbatim in narration
+        # 5. No duplicate trigger_word within the same idea
+        # 6. Single lexical word (no whitespace)
+        # 7. Must not be punctuation-only
+        # 8. Must not be a common English stopword
         intents_raw = raw.get("intents", [])
-        if intents_raw and intents_raw[0].get("trigger_word") is not None:
-            raise VisualIntentEngineError(
-                "The first VisualIntent must have trigger_word=null (it starts immediately).",
-                raw_payload=raw,
-                provider_metadata=response.metadata,
-            )
+        seen_trigger_words: set[str] = set()
+        for i, intent_item in enumerate(intents_raw):
+            tw = intent_item.get("trigger_word")
+            intent_label = intent_item.get("intent_id", f"intent_{i+1:02d}")
+            if i == 0:
+                if tw is not None and str(tw).strip() != "":
+                    raise VisualIntentEngineError(
+                        "The first VisualIntent must have trigger_word=null (it starts immediately).",
+                        raw_payload=raw,
+                        provider_metadata=response.metadata,
+                    )
+                intent_item["trigger_word"] = None
+            else:
+                if tw is None or str(tw).strip() == "":
+                    raise VisualIntentEngineError(
+                        f"VisualIntent at index {i} ('{intent_label}') must have a non-empty trigger_word.",
+                        raw_payload=raw,
+                        provider_metadata=response.metadata,
+                    )
+                tw_raw = str(tw).strip()
+                if re.search(r"\s", tw_raw):
+                    raise VisualIntentEngineError(
+                        f"VisualIntent trigger_word '{tw_raw}' must be a single word without spaces.",
+                        raw_payload=raw,
+                        provider_metadata=response.metadata,
+                    )
+                clean_tw = tw_raw.strip(".,;:!?\"'()")
+                if not clean_tw or not re.search(r"[a-zA-Z0-9\u0900-\u097F]", clean_tw):
+                    raise VisualIntentEngineError(
+                        f"VisualIntent trigger_word '{tw_raw}' must not be punctuation-only.",
+                        raw_payload=raw,
+                        provider_metadata=response.metadata,
+                    )
+                tw_lower = clean_tw.lower()
+                if tw_lower in TRIGGER_WORD_STOPWORDS:
+                    raise VisualIntentEngineError(
+                        f"VisualIntent trigger_word '{tw_raw}' cannot be a common stopword ('{tw_lower}').",
+                        raw_payload=raw,
+                        provider_metadata=response.metadata,
+                    )
+                if tw_lower in seen_trigger_words:
+                    raise VisualIntentEngineError(
+                        f"Duplicate trigger_word '{clean_tw}' in idea '{idea_id}'. Each trigger word within an idea must be unique.",
+                        raw_payload=raw,
+                        provider_metadata=response.metadata,
+                    )
+                seen_trigger_words.add(tw_lower)
+
+                excerpt = intent_item.get("narration_excerpt", "")
+                if tw_lower not in excerpt.lower():
+                    raise VisualIntentEngineError(
+                        f"VisualIntent trigger_word '{clean_tw}' does not appear in narration_excerpt: '{excerpt}'.",
+                        raw_payload=raw,
+                        provider_metadata=response.metadata,
+                    )
+
+                if tw_lower not in narration.lower():
+                    raise VisualIntentEngineError(
+                        f"VisualIntent trigger_word '{clean_tw}' does not appear in narration: '{narration}'.",
+                        raw_payload=raw,
+                        provider_metadata=response.metadata,
+                    )
+                intent_item["trigger_word"] = clean_tw
 
         try:
             # Ensure idea_id is set correctly (LLM might echo it back incorrectly)

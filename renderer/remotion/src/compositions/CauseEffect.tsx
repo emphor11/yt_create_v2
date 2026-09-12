@@ -2,12 +2,14 @@ import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { tokens } from '../design-tokens';
 import { CauseEffectProps } from '../types';
+import { safeAnimationWindow, safeSpringDelay } from '../animation-safety';
 
 export function CauseEffect(props: CauseEffectProps | any) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   const resolvedProps: CauseEffectProps = (props as any).props || props;
+  const duration_frames = (props as any).duration_frames || 180;
 
   const causes = Array.isArray(resolvedProps.causes) && resolvedProps.causes.length > 0
     ? resolvedProps.causes.slice(0, 3)
@@ -28,20 +30,22 @@ export function CauseEffect(props: CauseEffectProps | any) {
   }
 
   // Scene fade
-  const sceneOpacity = interpolate(frame, [0, 8], [0, 1], {
+  const sceneOpacity = interpolate(frame, [0, Math.min(8, Math.max(1, duration_frames - 1))], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   // Arrows progress
-  const arrowProgress = interpolate(frame, [30, 54], [0, 1], {
+  const [arrowStart, arrowEnd] = safeAnimationWindow(30, 54, duration_frames);
+  const arrowProgress = interpolate(frame, [arrowStart, arrowEnd], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   // Outcome card motion
+  const outcomeDelay = safeSpringDelay(46, duration_frames, 0.65);
   const outcomeSpring = spring({
-    frame: Math.max(0, frame - 46),
+    frame: Math.max(0, frame - outcomeDelay),
     fps,
     config: { damping: 14, stiffness: 105 },
   });
@@ -83,8 +87,9 @@ export function CauseEffect(props: CauseEffectProps | any) {
           }}
         >
           {causes.map((cause, index) => {
+            const causeDelay = safeSpringDelay(8 + index * 12, duration_frames, 0.4);
             const causeSpring = spring({
-              frame: Math.max(0, frame - (8 + index * 12)),
+              frame: Math.max(0, frame - causeDelay),
               fps,
               config: { damping: 15, stiffness: 110 },
             });

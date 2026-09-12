@@ -113,7 +113,10 @@ def test_engine_overrides_idea_id_from_llm() -> None:
     payload = valid_payload("wrong_id")
     provider = StaticLLMProvider(payload)
     engine = VisualIntentEngine(provider)
-    result = engine.run(idea_id="idea_05", narration="Some narration")
+    result = engine.run(
+        idea_id="idea_05",
+        narration="Imagine you retire with ₹50 lakh. You withdraw 4% every year.",
+    )
     assert result.sequence.idea_id == "idea_05"
 
 
@@ -123,7 +126,10 @@ def test_engine_rejects_invalid_relationship_type() -> None:
     provider = StaticLLMProvider(payload)
     engine = VisualIntentEngine(provider)
     with pytest.raises(VisualIntentEngineError, match="invalid relationship_type"):
-        engine.run(idea_id="idea_01", narration="Some narration")
+        engine.run(
+            idea_id="idea_01",
+            narration="Imagine you retire with ₹50 lakh. You withdraw 4% every year.",
+        )
 
 
 def test_engine_rejects_non_null_trigger_word_on_first_intent() -> None:
@@ -132,7 +138,10 @@ def test_engine_rejects_non_null_trigger_word_on_first_intent() -> None:
     provider = StaticLLMProvider(payload)
     engine = VisualIntentEngine(provider)
     with pytest.raises(VisualIntentEngineError, match="first VisualIntent"):
-        engine.run(idea_id="idea_01", narration="Some narration")
+        engine.run(
+            idea_id="idea_01",
+            narration="Imagine you retire with ₹50 lakh. You withdraw 4% every year.",
+        )
 
 
 def test_engine_handles_empty_intents() -> None:
@@ -155,7 +164,10 @@ def test_engine_injects_idea_id_into_schema_name() -> None:
     """The LLM request should include schema_name=VisualIntentSequence."""
     provider = StaticLLMProvider(valid_payload())
     engine = VisualIntentEngine(provider)
-    engine.run(idea_id="idea_01", narration="Some text about retirement.")
+    engine.run(
+        idea_id="idea_01",
+        narration="Imagine you retire with ₹50 lakh. You withdraw 4% every year.",
+    )
     assert provider.last_request is not None
     assert provider.last_request.schema_name == "VisualIntentSequence"
 
@@ -164,6 +176,9 @@ def test_engine_uses_low_temperature() -> None:
     """Classification task must use low temperature for consistency."""
     provider = StaticLLMProvider(valid_payload())
     engine = VisualIntentEngine(provider)
-    engine.run(idea_id="idea_01", narration="Some text.")
+    engine.run(
+        idea_id="idea_01",
+        narration="Imagine you retire with ₹50 lakh. You withdraw 4% every year.",
+    )
     assert provider.last_request is not None
     assert provider.last_request.temperature <= 0.2
