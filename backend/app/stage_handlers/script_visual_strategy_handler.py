@@ -14,6 +14,11 @@ from engines.script_visual_strategy_engine import ScriptVisualStrategyEngine, Sc
 from registries.component_registry import ComponentRegistry
 
 
+from domain.composition_plan import FullCompositionPlan, IdeaCompositionPlan
+from engines.visual_intent_engine import VisualIntentEngine
+from engines.composition_planner_engine import CompositionPlannerEngine
+
+
 class ScriptVisualStrategyHandler:
     def __init__(
         self,
@@ -23,12 +28,16 @@ class ScriptVisualStrategyHandler:
         strategy_validator: ScriptVisualStrategyValidator,
         stage_logger: StageLogger,
         component_registry: ComponentRegistry,
+        visual_intent_engine: VisualIntentEngine | None = None,
+        composition_planner_engine: CompositionPlannerEngine | None = None,
     ) -> None:
         self.store = store
         self.strategy_engine = strategy_engine
         self.strategy_validator = strategy_validator
         self.stage_logger = stage_logger
         self.component_registry = component_registry
+        self.visual_intent_engine = visual_intent_engine
+        self.composition_planner_engine = composition_planner_engine
 
     def run(self, project_id: str, run_id: str) -> ArtifactRecord:
         existing = self.store.find_artifact_by_type(project_id, run_id, "script_visual_strategy")
@@ -58,8 +67,10 @@ class ScriptVisualStrategyHandler:
                 or self.store.find_artifact_by_type(project_id, run_id, "topic_request")
             )
             duration_profile = "short_2min"
+            visual_mode = "legacy"
             if req_artifact and isinstance(req_artifact.payload_json, dict):
                 duration_profile = req_artifact.payload_json.get("duration_profile", "short_2min")
+                visual_mode = req_artifact.payload_json.get("visual_mode", "legacy")
 
             # 2. Run the Engine
             try:
@@ -84,6 +95,43 @@ class ScriptVisualStrategyHandler:
             validation = self.strategy_validator.validate(strategy)
             payload_json = strategy.model_dump()
             payload_json["provider_metadata"] = asdict(result.provider_metadata)
+
+            # Stamp visual_mode so VideoAssemblyHandler can detect which assembly path to use.
+            payload_json["visual_mode"] = visual_mode
+
+            # In composition mode, run intent analysis + composition planner pipeline
+            if visual_mode == "composition" and self.visual_intent_engine and self.composition_planner_engine:
+                comp_ideas = []
+                for idea_idx, idea in enumerate(strategy.ideas):
+                    intent_res = self.visual_intent_engine.run(
+                        idea_id=idea.idea_id,
+                        narration=idea.narration,
+                        topic=research_packet.topic,
+                        audience=research_packet.audience,
+                    )
+                    beats = []
+                    for b_idx, intent in enumerate(intent_res.sequence.intents):
+                        beat_id = f"beat_{idea_idx + 1:02d}_{b_idx + 1:02d}"
+                        plan_res = self.composition_planner_engine.run(
+                            intent=intent,
+                            beat_id=beat_id,
+                            topic=research_packet.topic,
+                            audience=research_packet.audience,
+                        )
+                        beats.append(plan_res.beat)
+                    comp_ideas.append(
+                        IdeaCompositionPlan(
+                            idea_id=idea.idea_id,
+                            narration=idea.narration,
+                            beats=beats,
+                        )
+                    )
+                full_comp_plan = FullCompositionPlan(
+                    thesis=strategy.thesis,
+                    visual_mode="composition",
+                    ideas=comp_ideas,
+                )
+                payload_json["composition_plan"] = full_comp_plan.model_dump()
 
             # 3. Save the unified artifact
             strategy_artifact = self.store.save_artifact(

@@ -250,6 +250,74 @@ export interface BeforeAfterProps {
   right?: { label?: string; raw?: string };
 }
 
+export interface MetricHeroProps {
+  headerLabel?: string;
+  value: string;
+  label: string;
+  context?: string | null;
+  emphasis?: string | null;
+  variant?: "hero" | "supporting" | string | null;
+}
+
+export interface CalculationStoryProps {
+  headerLabel?: string;
+  inputLabel: string;
+  inputValue: string;
+  operationLabel: string;
+  rateLabel: string;
+  resultLabel: string;
+  resultValue: string;
+  note?: string | null;
+}
+
+export interface CauseItemProp {
+  label: string;
+  value?: string | null;
+  icon?: string | null;
+}
+
+export interface CauseEffectProps {
+  headerLabel?: string;
+  causes: CauseItemProp[];
+  connector: string;
+  outcomeLabel: string;
+  outcomeValue?: string | null;
+  outcomeSeverity?: "negative" | "positive" | "neutral" | string | null;
+}
+
+export interface TimeDecayProps {
+  headerLabel?: string;
+  fixedAmount: string;
+  amountLabel: string;
+  timePeriod: string;
+  emphasis: string;
+  annotation?: string | null;
+  showChart?: boolean;
+}
+
+export interface FactorItemProp {
+  label: string;
+  value?: string | null;
+  severity?: "high" | "medium" | "low" | string | null;
+}
+
+export interface MultiFactorPressureProps {
+  headerLabel?: string;
+  factors: FactorItemProp[];
+  combinedLabel: string;
+  combinedSeverity: "critical" | "high" | "medium" | string;
+  outcomeNote?: string | null;
+}
+
+export interface BrollCaptionProps {
+  headerLabel?: string;
+  caption: string;
+  emphasisPhrase?: string | null;
+  author?: string | null;
+}
+
+export type ComparisonSplitProps = SplitComparisonProps;
+
 export interface QuoteCalloutProps {
   headerLabel?: string;
   quote: string;

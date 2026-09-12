@@ -104,6 +104,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export type DurationProfile = "short_2min" | "long_5min";
+export type VisualMode = "legacy" | "composition";
 
 export function listProjects(): Promise<ProjectRecord[]> {
   return request<ProjectRecord[]>("/projects");
@@ -113,11 +114,18 @@ export function createProject(
   topic: string,
   angle: string,
   mode: RunMode = "ai",
-  durationProfile: DurationProfile = "short_2min"
+  durationProfile: DurationProfile = "short_2min",
+  visualMode: VisualMode = "composition"
 ): Promise<CreateProjectResponse> {
   return request<CreateProjectResponse>("/projects", {
     method: "POST",
-    body: JSON.stringify({ topic, angle, mode, duration_profile: durationProfile }),
+    body: JSON.stringify({
+      topic,
+      angle,
+      mode,
+      duration_profile: durationProfile,
+      visual_mode: visualMode,
+    }),
   });
 }
 

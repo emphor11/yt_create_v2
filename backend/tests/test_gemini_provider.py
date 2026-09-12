@@ -264,3 +264,48 @@ def test_dependency_accepts_google_api_key_alias(tmp_path, monkeypatch) -> None:
     assert isinstance(provider, GeminiProvider)
     assert provider.api_key == "google-key"
     clear_dependency_caches()
+
+
+def test_gemini_provider_extract_retry_delay_parses_properly() -> None:
+    # Test RetryInfo JSON details
+    payload_retry_info = (
+        '{"error": {"code": 429, "details": [{"@type": "RetryInfo", "retryDelay": "3.5s"}]}}'
+    )
+    delay = GeminiProvider._extract_retry_delay(payload_retry_info, 1)
+    assert delay == 4.5  # 3.5s + 1.0s buffer
+
+    # Test error message regex
+    payload_msg = '{"error": {"code": 429, "message": "Limit: 15. Please retry in 2.94s."}}'
+    delay_msg = GeminiProvider._extract_retry_delay(payload_msg, 1)
+    assert delay_msg == 3.94  # 2.94s + 1.0s buffer
+
+    # Test fallback
+    delay_fallback = GeminiProvider._extract_retry_delay("not json", 2)
+    assert delay_fallback == 5.0  # 2^2 + 1
+
+
+def test_gemini_provider_retries_on_429_and_succeeds(monkeypatch) -> None:
+    from io import BytesIO
+    from urllib.error import HTTPError
+
+    calls = 0
+
+    def mock_urlopen(req, timeout):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            err_body = '{"error": {"code": 429, "details": [{"retryDelay": "0.01s"}]}}'.encode()
+            raise HTTPError(req.full_url, 429, "Too Many Requests", {}, BytesIO(err_body))
+        
+        # Second attempt succeeds
+        res = BytesIO(b'{"candidates": [{"content": {"parts": [{"text": "{\\"thesis\\": \\"ok\\"}"}]}}]}')
+        return res
+
+    provider = GeminiProvider(api_key="test-key", model="gemini-test", max_retries=3)
+    monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
+    monkeypatch.setattr("time.sleep", lambda s: None)  # Don't actually sleep in unit tests
+
+    resp = provider.generate_json(make_request())
+    assert calls == 2
+    assert resp.payload == {"thesis": "ok"}
+

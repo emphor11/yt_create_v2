@@ -1,4 +1,4 @@
-from domain.generate_video_request import DurationProfile, GenerateVideoRequest
+from domain.generate_video_request import DurationProfile, GenerateVideoRequest, VisualMode
 from domain.validation import ValidationResult
 
 
@@ -19,6 +19,16 @@ class GenerateVideoRequestValidator:
                     f"Invalid duration profile '{request.duration_profile}'. Must be one of: {valid_profiles}."
                 )
 
+        if not isinstance(request.visual_mode, VisualMode):
+            try:
+                VisualMode(str(request.visual_mode))
+            except ValueError:
+                valid_modes = ", ".join(m.value for m in VisualMode)
+                errors.append(
+                    f"Invalid visual mode '{request.visual_mode}'. Must be one of: {valid_modes}."
+                )
+
         if errors:
             return ValidationResult(status="blocked", errors=errors)
         return ValidationResult(status="valid")
+

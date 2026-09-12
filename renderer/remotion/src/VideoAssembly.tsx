@@ -14,6 +14,12 @@ import { StockImage } from "./StockImage";
 import { StockVideo } from "./StockVideo";
 import { Typography } from "./Typography";
 import { IconAnimation } from "./IconAnimation";
+import { MetricHero } from "./compositions/MetricHero";
+import { CalculationStory } from "./compositions/CalculationStory";
+import { CauseEffect } from "./compositions/CauseEffect";
+import { TimeDecay } from "./compositions/TimeDecay";
+import { MultiFactorPressure } from "./compositions/MultiFactorPressure";
+import { BrollCaption } from "./compositions/BrollCaption";
 import { tokens } from "./design-tokens";
 import { type VideoAssemblyRenderSpec } from "./types";
 
@@ -72,6 +78,21 @@ export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
                   />
                 )}
 
+                {/* Render B-roll background media when this scene is BrollCaption with asset */}
+                {compId === "BrollCaption" && scene.asset && scene.asset.asset_type === "video" && scene.asset.local_path && (
+                  <OffthreadVideo
+                    src={staticFile(scene.asset.local_path)}
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.38 }}
+                    muted
+                  />
+                )}
+                {compId === "BrollCaption" && scene.asset && scene.asset.asset_type === "image" && scene.asset.local_path && (
+                  <Img
+                    src={staticFile(scene.asset.local_path)}
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.38 }}
+                  />
+                )}
+
                 <AbsoluteFill style={{ position: "relative" }}>
                   {compId === "SplitComparison" && <SplitComparison {...childProps} />}
                   {compId === "Typography" && <Typography {...childProps} />}
@@ -88,6 +109,14 @@ export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
                   {compId === "NumberCounter" && <NumberCounter {...childProps} />}
                   {compId === "Charts" && <Charts {...childProps} />}
                   {compId === "IconAnimation" && <IconAnimation {...childProps} />}
+
+                  {/* Composition Pipeline Compositions */}
+                  {compId === "MetricHero" && <MetricHero {...childProps} />}
+                  {compId === "CalculationStory" && <CalculationStory {...childProps} />}
+                  {compId === "CauseEffect" && <CauseEffect {...childProps} />}
+                  {compId === "TimeDecay" && <TimeDecay {...childProps} />}
+                  {compId === "MultiFactorPressure" && <MultiFactorPressure {...childProps} />}
+                  {compId === "BrollCaption" && <BrollCaption {...childProps} />}
                 </AbsoluteFill>
               </AbsoluteFill>
             </Series.Sequence>

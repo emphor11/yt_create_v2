@@ -1,8 +1,11 @@
 import re
-from typing import Any, NamedTuple, Literal
+from typing import Any, NamedTuple, Literal, TYPE_CHECKING
 from domain.hook import Hook
 from domain.script_visual_strategy import ScriptVisualStrategy
 from domain.voice_track import VoiceTrack, WordTimestamp
+
+if TYPE_CHECKING:
+    from domain.composition_plan import FullCompositionPlan
 
 # Constant for minimum beat duration in frames (30fps: 15 frames = 0.5s)
 MIN_BEAT_DURATION_FRAMES = 15
@@ -310,15 +313,20 @@ class TimelineBuilder:
         hook: Hook,
         strategy: ScriptVisualStrategy,
         voice_track: VoiceTrack,
+        composition_plan: FullCompositionPlan | None = None,
     ) -> list[TimedBeatInterval]:
         # 1. Collect narration texts for sections to align them against Polly words
         # Index 0: Hook
         section_texts: list[str] = [hook.script_text]
         # Index 1..N: Body Ideas
-        for idea in strategy.ideas:
-            section_texts.append(idea.narration)
-
-        section_ids: list[str] = ["hook"] + [idea.idea_id for idea in strategy.ideas]
+        if composition_plan is not None:
+            for comp_idea in composition_plan.ideas:
+                section_texts.append(comp_idea.narration)
+            section_ids: list[str] = ["hook"] + [comp_idea.idea_id for comp_idea in composition_plan.ideas]
+        else:
+            for idea in strategy.ideas:
+                section_texts.append(idea.narration)
+            section_ids: list[str] = ["hook"] + [idea.idea_id for idea in strategy.ideas]
 
         # 2. Extract Polly word timestamps sequence
         word_timestamps = voice_track.word_timestamps or []
@@ -376,49 +384,102 @@ class TimelineBuilder:
                     )
 
         # Process Body Sections
-        for s_idx, idea in enumerate(strategy.ideas):
-            timestamps = section_timestamps[s_idx + 1]
-            beats = idea.visual_sequence
-            M = len(beats)
-            if M == 0:
-                continue
+        if composition_plan is not None:
+            for s_idx, comp_idea in enumerate(composition_plan.ideas):
+                timestamps = section_timestamps[s_idx + 1]
+                beats = comp_idea.beats
+                M = len(beats)
+                if M == 0:
+                    continue
 
-            beat_start_indices = [0]
-            for b_idx in range(1, M):
-                trigger = beats[b_idx].trigger_word
-                if not trigger or not trigger.strip():
-                    raise TimelineBuilderError(
-                        f"Beat '{beats[b_idx].beat_id}' in idea '{idea.idea_id}' requires trigger_word."
-                    )
-                match_idx = _find_trigger_index(
-                    timestamps=timestamps,
-                    trigger_raw=trigger,
-                    section_text=idea.narration,
-                    prev_start_idx=beat_start_indices[-1] + 1,
-                )
-                if match_idx == -1:
-                    raise TimelineBuilderError(
-                        f"Trigger word '{trigger}' for beat '{beats[b_idx].beat_id}' in idea '{idea.idea_id}' "
-                        f"was not found in the voice track words."
-                    )
-                beat_start_indices.append(match_idx)
-
-            beat_start_indices.append(len(timestamps))
-
-            for b_idx in range(M):
-                start_idx = beat_start_indices[b_idx]
-                end_idx = beat_start_indices[b_idx + 1]
-
-                if start_idx < end_idx and start_idx < len(timestamps):
-                    start_ms = float(timestamps[start_idx].start_ms)
-                    actual_end_idx = min(end_idx - 1, len(timestamps) - 1)
-                    end_ms = float(timestamps[actual_end_idx].end_ms)
-                    beat_time_bounds.append((start_ms, end_ms))
+                if M == 1:
+                    # Single composition beat: spans the entire idea interval
+                    if len(timestamps) > 0:
+                        start_ms = float(timestamps[0].start_ms)
+                        end_ms = float(timestamps[-1].end_ms)
+                        beat_time_bounds.append((start_ms, end_ms))
+                    else:
+                        beat_time_bounds.append((0.0, 0.0))
                 else:
-                    raise TimelineBuilderError(
-                        f"Invalid trigger word order or empty range for beat '{beats[b_idx].beat_id}' in idea '{idea.idea_id}'."
-                    )
+                    beat_start_indices = [0]
+                    for b_idx in range(1, M):
+                        trigger = beats[b_idx].trigger_word
+                        match_idx = -1
+                        if trigger and trigger.strip():
+                            match_idx = _find_trigger_index(
+                                timestamps=timestamps,
+                                trigger_raw=trigger,
+                                section_text=comp_idea.narration,
+                                prev_start_idx=beat_start_indices[-1] + 1,
+                            )
+                        if match_idx == -1:
+                            # Graceful proportional split if trigger word not matched or missing
+                            remaining_words = len(timestamps) - beat_start_indices[-1]
+                            remaining_beats = M - b_idx + 1
+                            step = max(1, remaining_words // remaining_beats)
+                            match_idx = beat_start_indices[-1] + step
+                            match_idx = min(match_idx, len(timestamps) - (M - b_idx))
+                            match_idx = max(beat_start_indices[-1] + 1, match_idx)
 
+                        beat_start_indices.append(match_idx)
+
+                    beat_start_indices.append(len(timestamps))
+
+                    for b_idx in range(M):
+                        start_idx = beat_start_indices[b_idx]
+                        end_idx = beat_start_indices[b_idx + 1]
+
+                        if start_idx < end_idx and start_idx < len(timestamps):
+                            start_ms = float(timestamps[start_idx].start_ms)
+                            actual_end_idx = min(end_idx - 1, len(timestamps) - 1)
+                            end_ms = float(timestamps[actual_end_idx].end_ms)
+                            beat_time_bounds.append((start_ms, end_ms))
+                        else:
+                            beat_time_bounds.append((0.0, 0.0))
+        else:
+            # Legacy mode: derives body beats from strategy.ideas[s_idx].visual_sequence
+            for s_idx, idea in enumerate(strategy.ideas):
+                timestamps = section_timestamps[s_idx + 1]
+                beats = idea.visual_sequence
+                M = len(beats)
+                if M == 0:
+                    continue
+
+                beat_start_indices = [0]
+                for b_idx in range(1, M):
+                    trigger = beats[b_idx].trigger_word
+                    if not trigger or not trigger.strip():
+                        raise TimelineBuilderError(
+                            f"Beat '{beats[b_idx].beat_id}' in idea '{idea.idea_id}' requires trigger_word."
+                        )
+                    match_idx = _find_trigger_index(
+                        timestamps=timestamps,
+                        trigger_raw=trigger,
+                        section_text=idea.narration,
+                        prev_start_idx=beat_start_indices[-1] + 1,
+                    )
+                    if match_idx == -1:
+                        raise TimelineBuilderError(
+                            f"Trigger word '{trigger}' for beat '{beats[b_idx].beat_id}' in idea '{idea.idea_id}' "
+                            f"was not found in the voice track words."
+                        )
+                    beat_start_indices.append(match_idx)
+
+                beat_start_indices.append(len(timestamps))
+
+                for b_idx in range(M):
+                    start_idx = beat_start_indices[b_idx]
+                    end_idx = beat_start_indices[b_idx + 1]
+
+                    if start_idx < end_idx and start_idx < len(timestamps):
+                        start_ms = float(timestamps[start_idx].start_ms)
+                        actual_end_idx = min(end_idx - 1, len(timestamps) - 1)
+                        end_ms = float(timestamps[actual_end_idx].end_ms)
+                        beat_time_bounds.append((start_ms, end_ms))
+                    else:
+                        raise TimelineBuilderError(
+                            f"Invalid trigger word order or empty range for beat '{beats[b_idx].beat_id}' in idea '{idea.idea_id}'."
+                        )
 
         # 5. Build contiguous and non-overlapping intervals
         total_duration_frames = int(round(voice_track.duration_seconds * self.fps))
@@ -429,10 +490,17 @@ class TimelineBuilder:
         # Hook index
         for b_idx, directive in enumerate(hook.visual_directives):
             flat_beat_refs.append(("hook", 0, b_idx, directive.beat_id))
-        # Body ideas
-        for s_idx, idea in enumerate(strategy.ideas):
-            for b_idx, beat in enumerate(idea.visual_sequence):
-                flat_beat_refs.append(("body", s_idx, b_idx, beat.beat_id))
+
+        if composition_plan is not None:
+            # Body ideas from composition_plan
+            for s_idx, comp_idea in enumerate(composition_plan.ideas):
+                for b_idx, comp_beat in enumerate(comp_idea.beats):
+                    flat_beat_refs.append(("body", s_idx, b_idx, comp_beat.beat_id))
+        else:
+            # Body ideas from legacy strategy
+            for s_idx, idea in enumerate(strategy.ideas):
+                for b_idx, beat in enumerate(idea.visual_sequence):
+                    flat_beat_refs.append(("body", s_idx, b_idx, beat.beat_id))
 
         for idx, (section_type, s_idx, b_idx, beat_id) in enumerate(flat_beat_refs):
             raw_start_ms, raw_end_ms = beat_time_bounds[idx]

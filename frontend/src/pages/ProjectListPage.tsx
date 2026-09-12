@@ -25,6 +25,7 @@ import {
   type PipelineRunRecord,
   type ProjectRecord,
   type RunMode,
+  type VisualMode,
 } from "../api/client";
 import { CreateProjectPage } from "./CreateProjectPage";
 import { ProjectPipelinePage } from "./ProjectPipelinePage";
@@ -43,6 +44,7 @@ export function ProjectListPage() {
   const [angle, setAngle] = useState("");
   const [runMode, setRunMode] = useState<RunMode>("ai");
   const [durationProfile, setDurationProfile] = useState<DurationProfile>("short_2min");
+  const [visualMode, setVisualMode] = useState<VisualMode>("composition");
   const [isBusy, setIsBusy] = useState(false);
   const [isRunningStage, setIsRunningStage] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,13 +77,14 @@ export function ProjectListPage() {
     setIsBusy(true);
     setError(null);
     try {
-      const created = await createProject(topic, angle, runMode, durationProfile);
+      const created = await createProject(topic, angle, runMode, durationProfile, visualMode);
       const nextProjects = await listProjects();
       setProjects(nextProjects);
       setTopic("");
       setAngle("");
       setRunMode("ai");
       setDurationProfile("short_2min");
+      setVisualMode("composition");
       await selectProject(created.project);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -379,11 +382,13 @@ export function ProjectListPage() {
             angle={angle}
             runMode={runMode}
             durationProfile={durationProfile}
+            visualMode={visualMode}
             isBusy={isBusy}
             onTopicChange={setTopic}
             onAngleChange={setAngle}
             onRunModeChange={setRunMode}
             onDurationProfileChange={setDurationProfile}
+            onVisualModeChange={setVisualMode}
             onSubmit={handleCreateProject}
           />
           <section className="panel">

@@ -68,6 +68,8 @@ def run_stage(
         detail = str(error)
         status_code = 404 if detail.startswith("Stage '") and "is not implemented" in detail else 409
         raise HTTPException(status_code=status_code, detail=detail) from error
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
 
     return RunStageResponse(
         artifact_id=artifact.id,

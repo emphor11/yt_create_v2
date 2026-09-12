@@ -36,6 +36,8 @@ from engines.research_engine import ResearchEngine
 from engines.narrative_plan_engine import NarrativePlanEngine
 from engines.hook_engine import HookEngine
 from engines.script_visual_strategy_engine import ScriptVisualStrategyEngine
+from engines.visual_intent_engine import VisualIntentEngine
+from engines.composition_planner_engine import CompositionPlannerEngine
 from engines.video_assembly_engine import VideoAssemblyEngine
 from engines.youtube_metadata_engine import YoutubeMetadataEngine
 from engines.thumbnail_engine import ThumbnailEngine
@@ -224,15 +226,16 @@ def build_pipeline_service(
     render_engine: RenderEngine | None = None,
     llm_provider: LLMProvider | None = None,
     image_generation_provider: Any = None,
+    media_storage: LocalMediaStorage | None = None,
 ) -> PipelineService:
     from pathlib import Path
 
     component_registry = ComponentRegistry()
     stage_logger = StageLogger()
 
-    import os
     repo_root = Path(__file__).resolve().parents[2]
-    media_storage = LocalMediaStorage(repo_root / "backend" / ".data" / "media")
+    if media_storage is None:
+        media_storage = LocalMediaStorage(repo_root / "backend" / ".data" / "media")
 
     voice_provider = PollyVoiceProvider()
 
@@ -288,6 +291,8 @@ def build_pipeline_service(
             strategy_validator=ScriptVisualStrategyValidator(),
             stage_logger=stage_logger,
             component_registry=component_registry,
+            visual_intent_engine=VisualIntentEngine(llm_provider) if llm_provider is not None else None,
+            composition_planner_engine=CompositionPlannerEngine(llm_provider) if llm_provider is not None else None,
         ),
         PipelineStage.QUALITY_REVIEW: QualityReviewHandler(
             store=store,

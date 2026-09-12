@@ -50,14 +50,34 @@ class VideoAssemblyHandler:
             )
             hook = Hook.model_validate(hook_artifact.payload_json)
 
-            # 2. Run the orchestrator engine
+            # 2. Run the orchestrator engine (branch on visual_mode / composition_plan)
             scene_id = f"scene_{project_id}"
-            render_spec = self.assembly_engine.run(
-                scene_id=scene_id,
-                hook=hook,
-                strategy=strategy,
-                voice_track=voice_track,
+            raw_comp_plan = (
+                strategy_artifact.payload_json.get("composition_plan")
+                if isinstance(strategy_artifact.payload_json, dict)
+                else None
             )
+
+            if raw_comp_plan:
+                from domain.composition_plan import FullCompositionPlan
+                from engines.composition_assembly_engine import CompositionAssemblyEngine
+
+                comp_plan = FullCompositionPlan.model_validate(raw_comp_plan)
+                comp_assembly_engine = CompositionAssemblyEngine()
+                render_spec = comp_assembly_engine.run(
+                    scene_id=scene_id,
+                    hook=hook,
+                    strategy=strategy,
+                    composition_plan=comp_plan,
+                    voice_track=voice_track,
+                )
+            else:
+                render_spec = self.assembly_engine.run(
+                    scene_id=scene_id,
+                    hook=hook,
+                    strategy=strategy,
+                    voice_track=voice_track,
+                )
 
             # 3. Setup Remotion Public Folder Copying for staticFile resolution
             remotion_public_dir = Path("/Users/dakshyadav/Documents/YTcreate_V2/renderer/remotion/public")

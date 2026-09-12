@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import re
 import socket
+import time
 from typing import Any
 from urllib import error, request
+
+logger = logging.getLogger(__name__)
 
 from providers.llm_provider import (
     LLMJsonRequest,
@@ -15,8 +20,6 @@ from providers.llm_provider import (
 )
 
 
-import os
-
 class GeminiProvider:
     def __init__(
         self,
@@ -25,6 +28,7 @@ class GeminiProvider:
         model: str | None = None,
         api_base_url: str = "https://generativelanguage.googleapis.com/v1beta",
         timeout_seconds: int = 120,
+        max_retries: int = 5,
     ):
         normalized_api_key = api_key.strip()
         if not normalized_api_key:
@@ -38,6 +42,7 @@ class GeminiProvider:
         self.model = target_model
         self.api_base_url = api_base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
+        self.max_retries = max_retries
 
     def generate_json(self, llm_request: LLMJsonRequest) -> LLMJsonResponse:
         payload = self._build_payload(llm_request)
@@ -229,6 +234,26 @@ class GeminiProvider:
         res = _resolve_and_clean(schema)
         return res if isinstance(res, dict) else {}
 
+    @staticmethod
+    def _extract_retry_delay(response_body: str, attempt: int) -> float:
+        default_delay = min(30.0, (2.0 ** attempt) + 1.0)
+        try:
+            data = json.loads(response_body)
+            # Check RetryInfo details
+            details = data.get("error", {}).get("details", [])
+            for item in details:
+                if isinstance(item, dict) and "retryDelay" in item:
+                    delay_str = str(item["retryDelay"]).rstrip("s")
+                    return max(1.0, float(delay_str) + 1.0)
+            # Check error message regex e.g. "Please retry in 4.063931228s"
+            msg = data.get("error", {}).get("message", "")
+            match = re.search(r"retry in ([\d\.]+)s", msg, re.IGNORECASE)
+            if match:
+                return max(1.0, float(match.group(1)) + 1.0)
+        except Exception:
+            pass
+        return default_delay
+
     def _post_generate_content(self, payload: dict[str, Any]) -> dict[str, Any]:
         url = f"{self.api_base_url}/models/{self.model}:generateContent"
         http_request = request.Request(
@@ -240,20 +265,36 @@ class GeminiProvider:
             },
             method="POST",
         )
-        try:
-            with request.urlopen(http_request, timeout=self.timeout_seconds) as response:
-                response_body = response.read().decode("utf-8")
-        except (TimeoutError, socket.timeout) as timeout_err:
-            raise LLMProviderError(
-                f"Gemini API request timed out after {self.timeout_seconds} seconds."
-            ) from timeout_err
-        except error.HTTPError as http_error:
-            response_body = http_error.read().decode("utf-8", errors="replace")
-            raise LLMProviderError(
-                f"Gemini API request failed with status {http_error.code}: {response_body}"
-            ) from http_error
-        except error.URLError as url_error:
-            raise LLMProviderError(f"Gemini API request failed: {url_error.reason}") from url_error
+
+        response_body: str = ""
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                with request.urlopen(http_request, timeout=self.timeout_seconds) as response:
+                    response_body = response.read().decode("utf-8")
+                break
+            except (TimeoutError, socket.timeout) as timeout_err:
+                if attempt >= self.max_retries:
+                    raise LLMProviderError(
+                        f"Gemini API request timed out after {self.timeout_seconds} seconds."
+                    ) from timeout_err
+                time.sleep(2.0 * attempt)
+            except error.HTTPError as http_error:
+                response_body = http_error.read().decode("utf-8", errors="replace")
+                if http_error.code == 429 and attempt < self.max_retries:
+                    retry_seconds = self._extract_retry_delay(response_body, attempt)
+                    logger.warning(
+                        f"Gemini API rate limit 429 hit. Waiting {retry_seconds:.1f}s before retry (attempt {attempt}/{self.max_retries})..."
+                    )
+                    time.sleep(retry_seconds)
+                    continue
+
+                raise LLMProviderError(
+                    f"Gemini API request failed with status {http_error.code}: {response_body}"
+                ) from http_error
+            except error.URLError as url_error:
+                if attempt >= self.max_retries:
+                    raise LLMProviderError(f"Gemini API request failed: {url_error.reason}") from url_error
+                time.sleep(2.0 * attempt)
 
         try:
             return json.loads(response_body)

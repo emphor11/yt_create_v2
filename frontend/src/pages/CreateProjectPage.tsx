@@ -1,16 +1,18 @@
 import type { FormEvent } from "react";
-import type { DurationProfile, RunMode } from "../api/client";
+import type { DurationProfile, RunMode, VisualMode } from "../api/client";
 
 type CreateProjectPageProps = {
   topic: string;
   angle: string;
   runMode: RunMode;
   durationProfile: DurationProfile;
+  visualMode: VisualMode;
   isBusy: boolean;
   onTopicChange: (topic: string) => void;
   onAngleChange: (angle: string) => void;
   onRunModeChange: (runMode: RunMode) => void;
   onDurationProfileChange: (durationProfile: DurationProfile) => void;
+  onVisualModeChange: (visualMode: VisualMode) => void;
   onSubmit: () => void;
 };
 
@@ -19,11 +21,13 @@ export function CreateProjectPage({
   angle,
   runMode,
   durationProfile,
+  visualMode,
   isBusy,
   onTopicChange,
   onAngleChange,
   onRunModeChange,
   onDurationProfileChange,
+  onVisualModeChange,
   onSubmit,
 }: CreateProjectPageProps) {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -81,6 +85,37 @@ export function CreateProjectPage({
               type="radio"
             />
             <span>Long (5 min)</span>
+          </label>
+        </div>
+      </fieldset>
+      <fieldset className="field mode-field">
+        <legend>Visual System</legend>
+        <div className="mode-options">
+          <label
+            className={
+              visualMode === "composition" ? "mode-option active" : "mode-option"
+            }
+          >
+            <input
+              checked={visualMode === "composition"}
+              name="visual-mode"
+              onChange={() => onVisualModeChange("composition")}
+              type="radio"
+            />
+            <span>Composition (New)</span>
+          </label>
+          <label
+            className={
+              visualMode === "legacy" ? "mode-option active" : "mode-option"
+            }
+          >
+            <input
+              checked={visualMode === "legacy"}
+              name="visual-mode"
+              onChange={() => onVisualModeChange("legacy")}
+              type="radio"
+            />
+            <span>Legacy System</span>
           </label>
         </div>
       </fieldset>

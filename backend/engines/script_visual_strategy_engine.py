@@ -152,6 +152,45 @@ class ScriptVisualStrategyEngine:
                 provider_metadata=response.metadata,
             ) from error
 
+        # Clean and snap any inflected/stemmed trigger words to the exact narration token
+        import re
+        for idea in strategy.ideas:
+            cleaned_narration_words = [
+                re.sub(r"[^\w]", "", w.lower())
+                for w in idea.narration.split()
+                if re.sub(r"[^\w]", "", w)
+            ]
+            for idx, beat in enumerate(idea.visual_sequence):
+                if idx == 0:
+                    beat.trigger_word = None
+                    continue
+                if not beat.trigger_word or not beat.trigger_word.strip():
+                    continue
+                cw = re.sub(r"[^\w]", "", beat.trigger_word.lower())
+                if cw in cleaned_narration_words:
+                    beat.trigger_word = cw
+                else:
+                    matched = None
+                    if cw.endswith("s") and cw[:-1] in cleaned_narration_words:
+                        matched = cw[:-1]
+                    elif cw.endswith("es") and cw[:-2] in cleaned_narration_words:
+                        matched = cw[:-2]
+                    elif cw.endswith("ed") and cw[:-2] in cleaned_narration_words:
+                        matched = cw[:-2]
+                    elif cw.endswith("ing") and cw[:-3] in cleaned_narration_words:
+                        matched = cw[:-3]
+                    elif cw + "s" in cleaned_narration_words:
+                        matched = cw + "s"
+                    elif cw + "es" in cleaned_narration_words:
+                        matched = cw + "es"
+                    else:
+                        for nw in cleaned_narration_words:
+                            if len(nw) >= 4 and len(cw) >= 4 and (nw.startswith(cw) or cw.startswith(nw)):
+                                matched = nw
+                                break
+                    if matched:
+                        beat.trigger_word = matched
+
         return ScriptVisualStrategyResult(
             strategy=strategy,
             provider_metadata=response.metadata,
