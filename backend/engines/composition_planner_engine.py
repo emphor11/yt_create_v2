@@ -111,11 +111,22 @@ def build_candidate_composition_data(
 
     if composition_id == "metric_hero":
         if intent.measurements:
-            candidate["value"] = intent.measurements[0].raw_value
-            if intent.measurements[0].metric_name:
-                candidate["label"] = intent.measurements[0].metric_name
-            elif intent.measurements[0].entity_name:
-                candidate["label"] = intent.measurements[0].entity_name
+            m0 = intent.measurements[0]
+            candidate["value"] = m0.raw_value
+            if m0.metric_name:
+                candidate["label"] = m0.metric_name
+            elif m0.entity_name:
+                candidate["label"] = m0.entity_name
+            if m0.polarity:
+                candidate["polarity"] = m0.polarity
+            if m0.direction:
+                candidate["direction"] = m0.direction
+            baseline_m = next((m for m in intent.measurements if m.role == "baseline" and m != m0), None)
+            if baseline_m:
+                candidate["baseline_value"] = baseline_m.raw_value
+            delta_m = next((m for m in intent.measurements if m.role == "delta"), None)
+            if delta_m:
+                candidate["delta"] = delta_m.raw_value
         elif intent.entities:
             candidate["label"] = intent.entities[0].name
 
@@ -150,6 +161,11 @@ def build_candidate_composition_data(
                 candidate["result_label"] = result_m.metric_name
             elif result_m.entity_name:
                 candidate["result_label"] = result_m.entity_name
+            if result_m.polarity:
+                candidate["polarity"] = result_m.polarity
+
+        if intent.temporal and intent.temporal.horizon:
+            candidate["timeframe"] = intent.temporal.horizon
 
         # Note: operation_label is NOT invented here. LLM provides it during refinement.
         if intent.visual_dynamics and intent.visual_dynamics.focal_point:
@@ -206,6 +222,28 @@ def build_candidate_composition_data(
             elif sev == "neutral":
                 candidate["outcome_severity"] = "neutral"
 
+        if intent.causal and intent.causal.mechanism:
+            candidate["outcome_note"] = intent.causal.mechanism
+
+        # Match outcome_value if available in measurements
+        if intent.measurements:
+            for m in intent.measurements:
+                if m.role in ("result", "delta", "impact") or (candidate.get("outcome_label") and m.entity_name and m.entity_name.lower() in candidate["outcome_label"].lower()):
+                    candidate["outcome_value"] = m.raw_value
+                    break
+
+        # Map variant based on number of causes
+        causes_count = len(candidate.get("causes", []))
+        if causes_count == 1:
+            candidate["variant"] = "single_cause"
+        elif causes_count == 2:
+            candidate["variant"] = "dual_cause"
+        elif causes_count >= 3:
+            candidate["variant"] = "multi_cause"
+
+        if candidate.get("outcome_severity"):
+            candidate["polarity"] = candidate["outcome_severity"]
+
     elif composition_id == "multi_factor_pressure":
         if intent.causal and intent.causal.causes:
             factors: list[dict[str, Any]] = []
@@ -221,6 +259,22 @@ def build_candidate_composition_data(
             if risk_entities:
                 candidate["factors"] = [{"label": e.name} for e in risk_entities[:4]]
 
+        # Match factor values from measurements if entity name matches factor label
+        if candidate.get("factors") and intent.measurements:
+            for item in candidate["factors"]:
+                f_label = item.get("label", "").lower()
+                m_match = next(
+                    (
+                        m
+                        for m in intent.measurements
+                        if (m.entity_name and m.entity_name.lower() in f_label)
+                        or (m.metric_name and m.metric_name.lower() in f_label)
+                    ),
+                    None,
+                )
+                if m_match and not item.get("value"):
+                    item["value"] = m_match.raw_value
+
         if intent.causal and intent.causal.outcome:
             candidate["combined_label"] = intent.causal.outcome
 
@@ -231,6 +285,29 @@ def build_candidate_composition_data(
 
         if intent.causal and intent.causal.mechanism:
             candidate["outcome_note"] = intent.causal.mechanism
+
+        # Match outcome_value from measurements with role result/delta/impact or matching combined_label
+        if intent.measurements:
+            res_m = next((m for m in intent.measurements if m.role in ("result", "delta", "impact")), None)
+            if not res_m and candidate.get("combined_label"):
+                cl = candidate["combined_label"].lower()
+                res_m = next((m for m in intent.measurements if m.entity_name and m.entity_name.lower() in cl), None)
+            if res_m:
+                candidate["outcome_value"] = res_m.raw_value
+
+        # Determine variant by factor count
+        factor_count = len(candidate.get("factors", []))
+        if factor_count == 2:
+            candidate["variant"] = "dual_factor"
+        elif factor_count == 3:
+            candidate["variant"] = "tri_factor"
+        elif factor_count >= 4:
+            candidate["variant"] = "quad_factor"
+
+        # Polarity and header label if severity exists (do NOT invent severity!)
+        if candidate.get("combined_severity"):
+            candidate["polarity"] = candidate["combined_severity"]
+            candidate["outcome_header_label"] = f"{candidate['combined_severity'].upper()} THREAT"
 
     elif composition_id == "time_decay":
         # Meaning-based: baseline role vs result role
@@ -255,8 +332,29 @@ def build_candidate_composition_data(
 
         if result_m:
             candidate["annotation"] = f"Erodes to {result_m.raw_value}"
+            candidate["end_value"] = result_m.raw_value
+            if result_m.entity_name:
+                candidate["end_label"] = result_m.entity_name
+            elif result_m.metric_name:
+                candidate["end_label"] = result_m.metric_name
         elif intent.visual_dynamics and intent.visual_dynamics.focal_point:
             candidate["annotation"] = intent.visual_dynamics.focal_point
+
+        rate_m = next((m for m in intent.measurements if m.role == "rate"), None)
+        if rate_m:
+            candidate["rate_label"] = rate_m.raw_value
+            candidate["drop_rate"] = rate_m.raw_value
+
+        if intent.visual_dynamics:
+            if intent.visual_dynamics.visual_priority in ("high", "primary"):
+                candidate["severity"] = "severe"
+            elif intent.visual_dynamics.visual_priority in ("secondary", "context"):
+                candidate["severity"] = "mild"
+            elif intent.visual_dynamics.desired_visual_outcome and any(
+                w in intent.visual_dynamics.desired_visual_outcome.lower()
+                for w in ("rapid", "severe", "dramatic", "cliff", "catastrophic", "heavy")
+            ):
+                candidate["severity"] = "severe"
 
     elif composition_id == "ranked_list":
         if intent.entities:
@@ -303,6 +401,28 @@ def build_candidate_composition_data(
         if author_entity:
             candidate["author"] = author_entity.name
 
+        # Variant selection based on relationship type and signals
+        if intent.relationship_type == "quote" or candidate.get("author"):
+            candidate["variant"] = "quote"
+            candidate["header_label"] = "NOTABLE PERSPECTIVE"
+        elif intent.relationship_type == "statement":
+            candidate["variant"] = "statement"
+            candidate["header_label"] = "CORE PRINCIPLE"
+        elif intent.relationship_type in ("broll", "definition"):
+            candidate["variant"] = "ambient_broll"
+            candidate["header_label"] = "CONTEXTUAL OVERVIEW"
+        else:
+            candidate["variant"] = "statement"
+
+        # Check for citation/source entity for quote/statement context
+        source_entity = next((e for e in intent.entities if e.role in ("source", "citation", "publication")), None)
+        if source_entity:
+            candidate["source_context"] = source_entity.name
+
+        # Polarity from causal severity
+        if intent.causal and intent.causal.outcome_severity:
+            candidate["polarity"] = intent.causal.outcome_severity.lower()
+
     return candidate
 
 
@@ -331,6 +451,9 @@ def merge_factual_and_presentation_data(
             result["context"] = candidate_facts["context"]
         if "emphasis" in candidate_facts and not result.get("emphasis"):
             result["emphasis"] = candidate_facts["emphasis"]
+        for k in ("polarity", "direction", "baseline_value", "delta"):
+            if k in candidate_facts and candidate_facts[k] is not None:
+                result[k] = candidate_facts[k]
 
     elif composition_id == "calculation_story":
         if "input_value" in candidate_facts:
@@ -350,6 +473,9 @@ def merge_factual_and_presentation_data(
             result["result_label"] = candidate_facts["result_label"]
         if "note" in candidate_facts and not result.get("note"):
             result["note"] = candidate_facts["note"]
+        for k in ("polarity", "timeframe"):
+            if k in candidate_facts and candidate_facts[k] is not None:
+                result[k] = candidate_facts[k]
 
     elif composition_id == "comparison_split":
         for k in ("left_role", "left_value", "right_role", "right_value", "delta", "winner"):
@@ -362,6 +488,9 @@ def merge_factual_and_presentation_data(
             result["left_unit"] = candidate_facts["left_unit"]
         if "right_unit" in candidate_facts and not result.get("right_unit"):
             result["right_unit"] = candidate_facts["right_unit"]
+        for key in ("header_label", "variant", "tone"):
+            if key in candidate_facts and not result.get(key):
+                result[key] = candidate_facts[key]
 
     elif composition_id == "cause_effect":
         if "causes" in candidate_facts and candidate_facts["causes"]:
@@ -384,6 +513,21 @@ def merge_factual_and_presentation_data(
         if "outcome_severity" in candidate_facts and not result.get("outcome_severity"):
             result["outcome_severity"] = candidate_facts["outcome_severity"]
 
+        if "outcome_value" in candidate_facts and not result.get("outcome_value"):
+            result["outcome_value"] = candidate_facts["outcome_value"]
+
+        if "outcome_header_label" in candidate_facts and not result.get("outcome_header_label"):
+            result["outcome_header_label"] = candidate_facts["outcome_header_label"]
+
+        if "outcome_note" in candidate_facts and not result.get("outcome_note"):
+            result["outcome_note"] = candidate_facts["outcome_note"]
+
+        if "variant" in candidate_facts and not result.get("variant"):
+            result["variant"] = candidate_facts["variant"]
+
+        if "polarity" in candidate_facts and not result.get("polarity"):
+            result["polarity"] = candidate_facts["polarity"]
+
     elif composition_id == "multi_factor_pressure":
         if "factors" in candidate_facts and candidate_facts["factors"]:
             cand_factors = candidate_facts["factors"]
@@ -396,6 +540,8 @@ def merge_factual_and_presentation_data(
                         item["severity"] = llm_factors[i]["severity"]
                     if llm_factors[i].get("value"):
                         item["value"] = llm_factors[i]["value"]
+                    if llm_factors[i].get("icon"):
+                        item["icon"] = llm_factors[i]["icon"]
                 merged_factors.append(item)
             result["factors"] = merged_factors
 
@@ -408,6 +554,10 @@ def merge_factual_and_presentation_data(
         if "outcome_note" in candidate_facts and not result.get("outcome_note"):
             result["outcome_note"] = candidate_facts["outcome_note"]
 
+        for key in ("outcome_value", "outcome_header_label", "variant", "polarity"):
+            if key in candidate_facts and not result.get(key):
+                result[key] = candidate_facts[key]
+
     elif composition_id == "time_decay":
         if "fixed_amount" in candidate_facts:
             result["fixed_amount"] = candidate_facts["fixed_amount"]
@@ -419,18 +569,27 @@ def merge_factual_and_presentation_data(
             result["emphasis"] = candidate_facts["emphasis"]
         if "annotation" in candidate_facts and not result.get("annotation"):
             result["annotation"] = candidate_facts["annotation"]
+        for key in ("end_value", "end_label", "drop_rate", "severity", "rate_label", "variant"):
+            if key in candidate_facts and not result.get(key):
+                result[key] = candidate_facts[key]
 
     elif composition_id == "ranked_list":
         if "items" in candidate_facts and candidate_facts["items"]:
             result["items"] = candidate_facts["items"]
         if "header_label" in candidate_facts and not result.get("header_label"):
             result["header_label"] = candidate_facts["header_label"]
+        for key in ("variant", "footer_label"):
+            if key in candidate_facts and not result.get(key):
+                result[key] = candidate_facts[key]
 
     elif composition_id == "process_flow":
         if "steps" in candidate_facts and candidate_facts["steps"]:
             result["steps"] = candidate_facts["steps"]
         if "header_label" in candidate_facts and not result.get("header_label"):
             result["header_label"] = candidate_facts["header_label"]
+        for key in ("variant", "layout", "footer_label"):
+            if key in candidate_facts and not result.get(key):
+                result[key] = candidate_facts[key]
 
     elif composition_id == "broll_caption":
         if "caption" in candidate_facts and not result.get("caption"):
@@ -439,6 +598,9 @@ def merge_factual_and_presentation_data(
             result["emphasis_phrase"] = candidate_facts["emphasis_phrase"]
         if "author" in candidate_facts and not result.get("author"):
             result["author"] = candidate_facts["author"]
+        for key in ("header_label", "variant", "source_context", "polarity"):
+            if key in candidate_facts and not result.get(key):
+                result[key] = candidate_facts[key]
 
     return result
 

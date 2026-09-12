@@ -59,6 +59,26 @@ class MetricHeroData(BaseModel):
         description="'hero' for climax/central moments, 'supporting' for secondary metrics. "
                     "Default treatment applied when null.",
     )
+    variant: str | None = Field(
+        default=None,
+        description="'hero_milestone' | 'supporting_metric' | 'warning_metric' | 'before_after_metric'",
+    )
+    polarity: str | None = Field(
+        default=None,
+        description="'positive' | 'negative' | 'neutral' | 'warning'",
+    )
+    direction: str | None = Field(
+        default=None,
+        description="'up' | 'down' | 'flat' | 'neutral'",
+    )
+    baseline_value: str | None = Field(
+        default=None,
+        description="Optional baseline value for before/after comparison",
+    )
+    delta: str | None = Field(
+        default=None,
+        description="Optional change indicator, e.g. '+40%', '-₹5 lakh'",
+    )
 
 
 class CalculationStoryData(BaseModel):
@@ -71,16 +91,32 @@ class CalculationStoryData(BaseModel):
     input_label: str = Field(description="Label for the input, e.g. 'Portfolio'")
     input_value: str = Field(description="Value of the input, e.g. '₹50 lakh'")
     operation_label: str = Field(
-        description="The operation symbol or word, e.g. '×', '÷', 'minus', '+'",
+        description="The operation symbol or word, e.g. '×', '÷', 'minus', '+', '→'. Use '→' for neutral transformation.",
     )
     rate_label: str = Field(
-        description="Label for the rate/modifier, e.g. '4% withdrawal rate'",
+        description="Label for the rate/modifier, e.g. '4% withdrawal rate', '₹10,000 bonus', '20 years'",
     )
     result_label: str = Field(description="Label for the result, e.g. 'Annual Income'")
     result_value: str = Field(description="Value of the result, e.g. '₹2 lakh'")
     note: str | None = Field(
         default=None,
         description="Optional supporting note below the result, e.g. 'Safe Withdrawal Rate'",
+    )
+    operation_type: str | None = Field(
+        default=None,
+        description="'multiplication' | 'addition' | 'subtraction' | 'allocation' | 'growth' | 'neutral'",
+    )
+    variant: str | None = Field(
+        default=None,
+        description="'multiplication' | 'addition' | 'subtraction' | 'allocation' | 'growth' | 'neutral'",
+    )
+    polarity: str | None = Field(
+        default=None,
+        description="'positive' | 'negative' | 'neutral' | 'warning'",
+    )
+    timeframe: str | None = Field(
+        default=None,
+        description="Optional timeframe context, e.g. 'over 20 years', 'per year'",
     )
 
 
@@ -113,6 +149,22 @@ class CauseEffectData(BaseModel):
         default=None,
         description="'negative' | 'positive' | 'neutral' — controls outcome card color",
     )
+    outcome_header_label: str | None = Field(
+        default=None,
+        description="Optional eyebrow or header label above outcome, e.g. 'Ultimate Consequence', 'Causal Payoff'",
+    )
+    outcome_note: str | None = Field(
+        default=None,
+        description="Optional mechanism or explanatory note shown inside the outcome card",
+    )
+    variant: str | None = Field(
+        default=None,
+        description="Visual treatment variant: 'single_cause' | 'dual_cause' | 'multi_cause' | 'standard'",
+    )
+    polarity: str | None = Field(
+        default=None,
+        description="Outcome polarity override: 'positive' | 'negative' | 'neutral' | 'warning'",
+    )
 
 
 class TimeDecayData(BaseModel):
@@ -136,6 +188,30 @@ class TimeDecayData(BaseModel):
         default=True,
         description="Whether to show a decline curve. False = text-only version.",
     )
+    end_value: str | None = Field(
+        default=None,
+        description="Optional terminal/ending value after decay, e.g. '₹26,000' or '₹13,000'",
+    )
+    end_label: str | None = Field(
+        default=None,
+        description="Optional label for ending value, e.g. 'Real Purchasing Power'",
+    )
+    drop_rate: str | None = Field(
+        default=None,
+        description="Optional percentage drop, e.g. '60%', '74%', '18%'",
+    )
+    severity: str | None = Field(
+        default=None,
+        description="'mild' | 'moderate' | 'severe' | 'catastrophic'",
+    )
+    variant: str | None = Field(
+        default=None,
+        description="'mild_decay' | 'severe_decay' | 'inflation_erosion' | 'standard'",
+    )
+    rate_label: str | None = Field(
+        default=None,
+        description="Optional inflation rate or annual decay rate, e.g. '6.8% Inflation'",
+    )
 
 
 class FactorItem(BaseModel):
@@ -144,6 +220,10 @@ class FactorItem(BaseModel):
     severity: str | None = Field(
         default=None,
         description="'high' | 'medium' | 'low' — controls card accent color",
+    )
+    icon: str | None = Field(
+        default=None,
+        description="Optional icon identifier or emoji representing the factor",
     )
 
 
@@ -167,6 +247,22 @@ class MultiFactorPressureData(BaseModel):
         default=None,
         description="Optional brief outcome statement shown below the combined callout.",
     )
+    outcome_value: str | None = Field(
+        default=None,
+        description="Optional high-impact hero outcome value (e.g. '-42% Real Wealth', '$180K Gap')",
+    )
+    outcome_header_label: str | None = Field(
+        default=None,
+        description="Optional category or header label above the outcome (e.g. 'SYSTEMIC CONVERGENCE')",
+    )
+    variant: str | None = Field(
+        default=None,
+        description="'dual_factor' | 'tri_factor' | 'quad_factor' | 'standard'",
+    )
+    polarity: str | None = Field(
+        default=None,
+        description="'negative' | 'positive' | 'neutral' | 'critical' | 'high' | 'medium'",
+    )
 
 
 class BrollCaptionData(BaseModel):
@@ -184,6 +280,22 @@ class BrollCaptionData(BaseModel):
     author: str | None = Field(
         default=None,
         description="For quote intents: the person being quoted.",
+    )
+    header_label: str | None = Field(
+        default=None,
+        description="Optional eyebrow or category header, e.g. 'CORE PRINCIPLE'.",
+    )
+    variant: str | None = Field(
+        default=None,
+        description="'statement' | 'quote' | 'ambient_broll' | 'standard'.",
+    )
+    source_context: str | None = Field(
+        default=None,
+        description="Optional publication, book title, or year for quotes/statements.",
+    )
+    polarity: str | None = Field(
+        default=None,
+        description="'critical' | 'high' | 'medium' | 'positive' | 'neutral'.",
     )
 
 
@@ -207,7 +319,15 @@ class ComparisonSplitData(BaseModel):
     winner: str | None = Field(default=None, description="Optional winner: 'left' | 'right'")
     tone: str | None = Field(
         default=None,
-        description="Optional color tone: 'neutral' | 'positive_negative' | 'before_after'",
+        description="Optional color tone: 'neutral' | 'positive_negative' | 'before_after' | 'superiority'",
+    )
+    header_label: str | None = Field(
+        default=None,
+        description="Optional category or eyebrow label, e.g. 'HEAD-TO-HEAD COMPARISON', 'STRATEGY BENCHMARK'",
+    )
+    variant: str | None = Field(
+        default=None,
+        description="'cards' | 'versus' | 'metric_compare' | 'editorial'",
     )
 
 
@@ -230,6 +350,14 @@ class RankedListData(BaseModel):
     items: list[RankedItem] = Field(description="List of 2–5 ranked items ordered by rank or value.")
     header_label: str | None = Field(default=None, description="Optional title or category, e.g. 'TOP HOUSEHOLD EXPENSES'")
     show_bars: bool = Field(default=True, description="Whether to show relative proportional comparison bars.")
+    variant: str | None = Field(
+        default=None,
+        description="'standard' | 'dominance' | 'compact'",
+    )
+    footer_label: str | None = Field(
+        default=None,
+        description="Optional footer summary or note",
+    )
 
 
 class ProcessStepItem(BaseModel):
@@ -253,6 +381,14 @@ class ProcessFlowData(BaseModel):
     steps: list[ProcessStepItem] = Field(description="List of 2–5 ordered steps in the process.")
     header_label: str | None = Field(default=None, description="Optional title or category, e.g. 'WEALTH ACCUMULATION PROCESS'")
     layout: str | None = Field(default="auto", description="'horizontal' | 'vertical' | 'auto'")
+    variant: str | None = Field(
+        default=None,
+        description="'horizontal' | 'vertical' | 'auto'",
+    )
+    footer_label: str | None = Field(
+        default=None,
+        description="Optional footer summary or note",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -505,7 +641,14 @@ CompositionRegistry.register(
         description="A single important metric displayed with strong visual emphasis.",
         supported_relationship_types=["metric"],
         data_model=MetricHeroData,
-        allowed_variants=["hero", "supporting"],
+        allowed_variants=[
+            "hero_milestone",
+            "supporting_metric",
+            "warning_metric",
+            "before_after_metric",
+            "hero",
+            "supporting",
+        ],
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="MetricHero",
         fallback_component_id="NumberCounter",
@@ -519,7 +662,14 @@ CompositionRegistry.register(
         description="Shows an input × rate → result math argument as a visual equation.",
         supported_relationship_types=["calculation"],
         data_model=CalculationStoryData,
-        allowed_variants=[],
+        allowed_variants=[
+            "multiplication",
+            "addition",
+            "subtraction",
+            "allocation",
+            "growth",
+            "neutral",
+        ],
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="CalculationStory",
         fallback_component_id="SplitComparison",
@@ -533,7 +683,7 @@ CompositionRegistry.register(
         description="Shows 1–3 causes converging via arrows into a single outcome.",
         supported_relationship_types=["cause_effect"],
         data_model=CauseEffectData,
-        allowed_variants=[],
+        allowed_variants=["single_cause", "dual_cause", "multi_cause", "standard"],
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="CauseEffect",
         fallback_component_id="ProcessFlow",
@@ -547,7 +697,7 @@ CompositionRegistry.register(
         description="Shows a side-by-side comparison of two options, strategies, or values.",
         supported_relationship_types=["comparison"],
         data_model=ComparisonSplitData,
-        allowed_variants=["cards", "versus", "metric_compare"],
+        allowed_variants=["cards", "versus", "metric_compare", "editorial"],
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="SplitComparison",
         fallback_component_id="Typography",
@@ -561,7 +711,7 @@ CompositionRegistry.register(
         description="Shows an ordered list of items by rank, magnitude, or priority.",
         supported_relationship_types=["ranking"],
         data_model=RankedListData,
-        allowed_variants=[],
+        allowed_variants=["standard", "dominance", "compact"],
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="RankedList",
         fallback_component_id="Typography",
@@ -589,7 +739,7 @@ CompositionRegistry.register(
         description="Shows a fixed value losing purchasing power or real value over time (strictly decline/erosion).",
         supported_relationship_types=["decline", "trend"],
         data_model=TimeDecayData,
-        allowed_variants=[],
+        allowed_variants=["mild_decay", "severe_decay", "inflation_erosion", "standard"],
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="TimeDecay",
         fallback_component_id="Charts",
@@ -603,7 +753,7 @@ CompositionRegistry.register(
         description="Shows 2–4 independent risk factors converging into combined pressure.",
         supported_relationship_types=["multi_factor"],
         data_model=MultiFactorPressureData,
-        allowed_variants=[],
+        allowed_variants=["dual_factor", "tri_factor", "quad_factor", "standard"],
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="MultiFactorPressure",
         fallback_component_id="ProgressiveList",
@@ -620,7 +770,7 @@ CompositionRegistry.register(
         ),
         supported_relationship_types=["broll", "statement", "quote", "definition"],
         data_model=BrollCaptionData,
-        allowed_variants=[],
+        allowed_variants=["statement", "quote", "ambient_broll", "standard"],
         asset_requirement=AssetRequirement.OPTIONAL_BROLL,
         remotion_component_id="BrollCaption",
         fallback_component_id="Typography",

@@ -14,6 +14,12 @@ import { StockImage } from "./StockImage";
 import { StockVideo } from "./StockVideo";
 import { Typography } from "./Typography";
 import { IconAnimation } from "./IconAnimation";
+import { MetricHero } from "./compositions/MetricHero";
+import { CalculationStory } from "./compositions/CalculationStory";
+import { TimeDecay } from "./compositions/TimeDecay";
+import { CauseEffect } from "./compositions/CauseEffect";
+import { MultiFactorPressure } from "./compositions/MultiFactorPressure";
+import { BrollCaption } from "./compositions/BrollCaption";
 import { VideoAssembly } from "./VideoAssembly";
 import { Thumbnail, defaultThumbnailProps } from "./Thumbnail";
 import { type SplitComparisonRenderSpec, type VideoAssemblyRenderSpec } from "./types";
@@ -74,7 +80,7 @@ export function RemotionRoot() {
         fps={30}
         width={1920}
         height={1080}
-        defaultProps={defaultProps as any}
+        defaultProps={{} as any}
       />
       <Composition
         id="Timeline"
@@ -92,7 +98,7 @@ export function RemotionRoot() {
         fps={30}
         width={1920}
         height={1080}
-        defaultProps={defaultProps as any}
+        defaultProps={{} as any}
       />
       <Composition
         id="KPIGrid"
@@ -119,7 +125,7 @@ export function RemotionRoot() {
         fps={30}
         width={1920}
         height={1080}
-        defaultProps={defaultProps as any}
+        defaultProps={{} as any}
       />
       <Composition
         id="DataTable"
@@ -201,6 +207,60 @@ export function RemotionRoot() {
         width={1920}
         height={1080}
         defaultProps={defaultProps as any}
+      />
+      <Composition
+        id="MetricHero"
+        component={MetricHero as any}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{} as any}
+      />
+      <Composition
+        id="CalculationStory"
+        component={CalculationStory as any}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{} as any}
+      />
+      <Composition
+        id="TimeDecay"
+        component={TimeDecay as any}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{} as any}
+      />
+      <Composition
+        id="CauseEffect"
+        component={CauseEffect as any}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{} as any}
+      />
+      <Composition
+        id="MultiFactorPressure"
+        component={MultiFactorPressure as any}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{} as any}
+      />
+      <Composition
+        id="BrollCaption"
+        component={BrollCaption as any}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{} as any}
       />
       <Composition
         id="VideoAssembly"

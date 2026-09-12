@@ -37,4 +37,24 @@ export const tokens = {
     chip: 8,
     pill: 9999,
   },
+  semantic: {
+    info: "#38bdf8",     // Sky / Cyan
+    success: "#10b981",  // Emerald
+    warning: "#f59e0b",  // Warm Amber
+    danger: "#f43f5e",   // Rose / Red
+    hero: "#06b6d4",     // Vivid Cyan
+    neutral: "#71717a",  // Zinc
+  },
+  motion: {
+    reveal: { damping: 16, stiffness: 120 },
+    settle: { damping: 14, stiffness: 90 },
+    impact: { damping: 18, stiffness: 140, mass: 1.2 },
+    gentle: { damping: 20, stiffness: 80 },
+  },
+  gradients: {
+    darkAtmosphere: "radial-gradient(ellipse at center, rgba(15, 23, 42, 0.6) 0%, rgba(9, 9, 11, 0.95) 100%)",
+    heroGlow: "radial-gradient(circle, rgba(56, 189, 248, 0.16) 0%, transparent 70%)",
+    warningGlow: "radial-gradient(circle, rgba(244, 63, 94, 0.18) 0%, transparent 70%)",
+    successGlow: "radial-gradient(circle, rgba(16, 185, 129, 0.18) 0%, transparent 70%)",
+  },
 };

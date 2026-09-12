@@ -100,8 +100,8 @@ export interface SplitComparisonSide {
 export interface SplitComparisonProps {
   headerLabel?: string;
   comparisonLabel?: string;
-  variant?: "cards" | "versus" | "metric_compare";
-  tone?: "neutral" | "positive_negative" | "before_after";
+  variant?: "cards" | "versus" | "metric_compare" | "editorial" | string;
+  tone?: "neutral" | "positive_negative" | "before_after" | "superiority" | string;
   left?: SplitComparisonSide;
   right?: SplitComparisonSide;
   leftRole?: string;
@@ -142,6 +142,7 @@ export interface ProcessStep {
 export interface ProcessFlowProps {
   headerLabel?: string;
   layout?: "horizontal" | "vertical" | "auto";
+  variant?: "horizontal" | "vertical" | "auto" | "standard" | string;
   title?: string;
   footerLabel?: string;
   steps?: ProcessStep[];
@@ -203,6 +204,7 @@ export interface RankedListItem {
 export interface RankedListProps {
   headerLabel?: string;
   showBars?: boolean;
+  variant?: "standard" | "dominance" | "compact" | string;
   title?: string;
   footerLabel?: string;
   items?: RankedListItem[];
@@ -256,18 +258,29 @@ export interface MetricHeroProps {
   label: string;
   context?: string | null;
   emphasis?: string | null;
-  variant?: "hero" | "supporting" | string | null;
+  variant?: "hero" | "supporting" | "hero_milestone" | "supporting_metric" | "warning_metric" | "before_after_metric" | string | null;
+  polarity?: "positive" | "negative" | "warning" | "neutral" | string | null;
+  direction?: "up" | "down" | "flat" | "neutral" | string | null;
+  baselineValue?: string | null;
+  baselineLabel?: string | null;
+  delta?: string | null;
 }
 
 export interface CalculationStoryProps {
   headerLabel?: string;
   inputLabel: string;
   inputValue: string;
-  operationLabel: string;
-  rateLabel: string;
+  operationLabel?: string | null;
+  rateLabel?: string | null;
   resultLabel: string;
   resultValue: string;
   note?: string | null;
+  operationType?: "multiplication" | "addition" | "subtraction" | "allocation" | "growth" | "neutral" | string | null;
+  variant?: "multiplication" | "addition" | "subtraction" | "allocation" | "growth" | "neutral" | string | null;
+  polarity?: "positive" | "negative" | "neutral" | "warning" | string | null;
+  timeframe?: string | null;
+  secondaryLabel?: string | null;
+  secondaryValue?: string | null;
 }
 
 export interface CauseItemProp {
@@ -283,6 +296,10 @@ export interface CauseEffectProps {
   outcomeLabel: string;
   outcomeValue?: string | null;
   outcomeSeverity?: "negative" | "positive" | "neutral" | string | null;
+  outcomeHeaderLabel?: string | null;
+  outcomeNote?: string | null;
+  variant?: "single_cause" | "dual_cause" | "multi_cause" | "standard" | string | null;
+  polarity?: "negative" | "positive" | "neutral" | "warning" | string | null;
 }
 
 export interface TimeDecayProps {
@@ -290,30 +307,48 @@ export interface TimeDecayProps {
   fixedAmount: string;
   amountLabel: string;
   timePeriod: string;
-  emphasis: string;
+  emphasis?: string;
   annotation?: string | null;
   showChart?: boolean;
+  endValue?: string | null;
+  endLabel?: string | null;
+  dropRate?: string | null;
+  severity?: "mild" | "moderate" | "severe" | "catastrophic" | string | null;
+  variant?: "mild_decay" | "severe_decay" | "inflation_erosion" | "standard" | string | null;
+  rateLabel?: string | null;
 }
 
 export interface FactorItemProp {
   label: string;
   value?: string | null;
   severity?: "high" | "medium" | "low" | string | null;
+  icon?: string | null;
 }
 
 export interface MultiFactorPressureProps {
-  headerLabel?: string;
+  headerLabel?: string | null;
   factors: FactorItemProp[];
   combinedLabel: string;
   combinedSeverity: "critical" | "high" | "medium" | string;
   outcomeNote?: string | null;
+  outcomeValue?: string | null;
+  outcomeHeaderLabel?: string | null;
+  variant?: "dual_factor" | "tri_factor" | "quad_factor" | "standard" | string | null;
+  polarity?: "negative" | "positive" | "neutral" | "critical" | "high" | "medium" | string | null;
 }
 
 export interface BrollCaptionProps {
-  headerLabel?: string;
+  headerLabel?: string | null;
   caption: string;
   emphasisPhrase?: string | null;
   author?: string | null;
+  variant?: "statement" | "quote" | "ambient_broll" | "standard" | string | null;
+  sourceContext?: string | null;
+  polarity?: "critical" | "high" | "medium" | "positive" | "negative" | "neutral" | string | null;
+  asset?: {
+    asset_type?: "image" | "video" | string;
+    local_path?: string;
+  } | null;
 }
 
 export type ComparisonSplitProps = SplitComparisonProps;

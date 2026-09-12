@@ -56,18 +56,28 @@ class CompositionResolver:
                 "label": data.get("label", ""),
                 "context": data.get("context"),
                 "emphasis": data.get("emphasis"),
-                "variant": variant or data.get("emphasis") or "hero",
+                "variant": variant or data.get("variant") or data.get("emphasis") or "hero_milestone",
+                "polarity": data.get("polarity"),
+                "direction": data.get("direction"),
+                "baselineValue": data.get("baseline_value"),
+                "delta": data.get("delta"),
             }
 
         elif cid == "calculation_story":
             props = {
                 "inputLabel": data.get("input_label", ""),
                 "inputValue": data.get("input_value", ""),
-                "operationLabel": data.get("operation_label", "×"),
-                "rateLabel": data.get("rate_label", ""),
+                "operationLabel": data.get("operation_label"),
+                "rateLabel": data.get("rate_label"),
                 "resultLabel": data.get("result_label", ""),
                 "resultValue": data.get("result_value", ""),
                 "note": data.get("note"),
+                "operationType": data.get("operation_type") or data.get("variant") or variant or None,
+                "variant": data.get("variant") or variant or None,
+                "polarity": data.get("polarity"),
+                "timeframe": data.get("timeframe"),
+                "secondaryLabel": data.get("secondary_label"),
+                "secondaryValue": data.get("secondary_value"),
             }
 
         elif cid == "cause_effect":
@@ -86,6 +96,10 @@ class CompositionResolver:
                 "outcomeLabel": data.get("outcome_label", ""),
                 "outcomeValue": data.get("outcome_value"),
                 "outcomeSeverity": data.get("outcome_severity", "neutral"),
+                "outcomeHeaderLabel": data.get("outcome_header_label"),
+                "outcomeNote": data.get("outcome_note"),
+                "variant": data.get("variant") or variant,
+                "polarity": data.get("polarity"),
             }
 
         elif cid == "time_decay":
@@ -96,6 +110,12 @@ class CompositionResolver:
                 "emphasis": data.get("emphasis", "purchasing_power_decline"),
                 "annotation": data.get("annotation"),
                 "showChart": data.get("show_chart", True),
+                "endValue": data.get("end_value"),
+                "endLabel": data.get("end_label"),
+                "dropRate": data.get("drop_rate"),
+                "severity": data.get("severity"),
+                "variant": data.get("variant") or variant,
+                "rateLabel": data.get("rate_label"),
             }
 
         elif cid == "multi_factor_pressure":
@@ -105,6 +125,7 @@ class CompositionResolver:
                     "label": f.get("label", "") if isinstance(f, dict) else getattr(f, "label", ""),
                     "value": f.get("value") if isinstance(f, dict) else getattr(f, "value", None),
                     "severity": f.get("severity") if isinstance(f, dict) else getattr(f, "severity", None),
+                    "icon": f.get("icon") if isinstance(f, dict) else getattr(f, "icon", None),
                 }
                 for f in factors_raw
             ]
@@ -113,12 +134,24 @@ class CompositionResolver:
                 "combinedLabel": data.get("combined_label", ""),
                 "combinedSeverity": data.get("combined_severity", "critical"),
                 "outcomeNote": data.get("outcome_note"),
+                "outcomeValue": data.get("outcome_value"),
+                "outcomeHeaderLabel": data.get("outcome_header_label"),
+                "variant": data.get("variant") or variant,
+                "polarity": data.get("polarity"),
             }
 
         elif cid == "comparison_split":
+            header_label = data.get("header_label")
+            comp_label = data.get("comparison_label")
+            # Disambiguate so we don't duplicate identical text in both eyebrow and badge
+            if not header_label and comp_label:
+                header_label = "HEAD-TO-HEAD COMPARISON"
+            elif header_label and comp_label and header_label.strip().lower() == comp_label.strip().lower():
+                header_label = "HEAD-TO-HEAD COMPARISON"
+
             props = {
-                "headerLabel": data.get("comparison_label"),
-                "comparisonLabel": data.get("comparison_label"),
+                "headerLabel": header_label or "HEAD-TO-HEAD COMPARISON",
+                "comparisonLabel": comp_label,
                 "variant": variant or data.get("variant") or "cards",
                 "tone": data.get("tone") or "neutral",
                 "leftRole": data.get("left_role", ""),
@@ -131,6 +164,7 @@ class CompositionResolver:
                 "rightUnit": data.get("right_unit"),
                 "delta": data.get("delta"),
                 "winner": data.get("winner"),
+                "footerLabel": data.get("footer_label"),
             }
 
         elif cid == "ranked_list":
@@ -143,6 +177,9 @@ class CompositionResolver:
                     "value": item.get("value") if isinstance(item, dict) else getattr(item, "value", None),
                     "numericValue": item.get("numeric_value") if isinstance(item, dict) else getattr(item, "numeric_value", None),
                     "badge": item.get("badge") if isinstance(item, dict) else getattr(item, "badge", None),
+                    "change": item.get("change") if isinstance(item, dict) else getattr(item, "change", None),
+                    "logo": item.get("logo") if isinstance(item, dict) else getattr(item, "logo", None),
+                    "icon": item.get("icon") if isinstance(item, dict) else getattr(item, "icon", None),
                 }
                 for item in items_raw
             ]
@@ -150,6 +187,8 @@ class CompositionResolver:
                 "headerLabel": data.get("header_label", ""),
                 "showBars": data.get("show_bars", True),
                 "items": mapped_items,
+                "variant": variant or data.get("variant") or "standard",
+                "footerLabel": data.get("footer_label"),
             }
 
         elif cid == "process_flow":
@@ -161,13 +200,16 @@ class CompositionResolver:
                     "type": s.get("type", "step") if isinstance(s, dict) else getattr(s, "type", "step"),
                     "value": s.get("value") if isinstance(s, dict) else getattr(s, "value", None),
                     "connectorLabel": s.get("connector_label") if isinstance(s, dict) else getattr(s, "connector_label", None),
+                    "icon": s.get("icon") if isinstance(s, dict) else getattr(s, "icon", None),
                 }
                 for s in steps_raw
             ]
             props = {
                 "headerLabel": data.get("header_label", ""),
                 "layout": variant or data.get("layout") or "auto",
+                "variant": variant or data.get("variant") or "standard",
                 "steps": mapped_steps,
+                "footerLabel": data.get("footer_label"),
             }
 
         elif cid == "broll_caption":
@@ -175,6 +217,10 @@ class CompositionResolver:
                 "caption": data.get("caption", visual_goal or narration_text),
                 "emphasisPhrase": data.get("emphasis_phrase"),
                 "author": data.get("author"),
+                "headerLabel": data.get("header_label"),
+                "variant": data.get("variant") or variant or "statement",
+                "sourceContext": data.get("source_context"),
+                "polarity": data.get("polarity"),
             }
 
         else:

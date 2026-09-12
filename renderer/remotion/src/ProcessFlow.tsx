@@ -1,3 +1,4 @@
+import React from "react";
 import {
   AbsoluteFill,
   interpolate,
@@ -7,6 +8,7 @@ import {
 } from "remotion";
 import { type ProcessFlowProps, type ProcessStep } from "./types";
 import { tokens } from "./design-tokens";
+import { safeAnimationWindow, safeSpringDelay } from "./animation-safety";
 
 export function ProcessFlow(props: ProcessFlowProps | any) {
   const frame = useCurrentFrame();
@@ -14,7 +16,7 @@ export function ProcessFlow(props: ProcessFlowProps | any) {
 
   // Normalize boundary props wrapper
   const resolvedProps: ProcessFlowProps = props.props ? props.props : props;
-  const duration_frames = (props as any).duration_frames || 180;
+  const duration_frames = (props as any).duration_frames || (props as any).durationInFrames || 180;
 
   const headerLabel = resolvedProps.headerLabel || "";
   const stepList: ProcessStep[] = Array.isArray(resolvedProps.steps) ? resolvedProps.steps : [];
@@ -22,33 +24,55 @@ export function ProcessFlow(props: ProcessFlowProps | any) {
 
   const stepCount = stepList.length;
 
-  // Auto-determine layout: 2 or 3 steps -> horizontal, 4 or 5 steps -> vertical
-  const preferredLayout = resolvedProps.layout || "auto";
+  // Layout selection: 2 or 3 steps default to horizontal, 4 or 5 steps default to vertical
+  const preferredLayout = (resolvedProps.layout || resolvedProps.variant || "auto").toLowerCase();
   const isHorizontal =
     preferredLayout === "horizontal" ||
     (preferredLayout === "auto" && stepCount <= 3);
 
-  // Staggered Timing Construction Logic
-  // Allocate 75% of total scene duration for chain construction, hold remaining 25%
-  const totalBuildDuration = Math.round(duration_frames * 0.75);
-  const timePerStep = Math.round(totalBuildDuration / Math.max(1, stepCount));
+  // Cascade Animation Timing: Brisk cascade so all steps and connectors settle early in the scene
+  const totalBuildDuration = Math.min(36, Math.max(1, Math.floor(duration_frames * 0.40)));
+  const timePerStep = Math.max(2, Math.floor(totalBuildDuration / Math.max(1, stepCount)));
 
-  // Determine current active step for reading focus
-  const currentActiveIndex = Math.min(
-    stepCount - 1,
-    Math.floor(frame / timePerStep)
-  );
+  const headerDelay = safeSpringDelay(0, duration_frames, 0.15);
+  const headerSpring = spring({
+    frame: Math.max(0, frame - headerDelay),
+    fps,
+    config: tokens.motion.reveal,
+  });
 
   return (
     <AbsoluteFill
       style={{
-        background: tokens.bg.base,
+        background: "radial-gradient(ellipse 90% 70% at 50% 40%, rgba(15, 23, 42, 0.96) 0%, rgba(5, 7, 10, 0.99) 100%)",
         color: tokens.text.primary,
         fontFamily: tokens.font.family,
         overflow: "hidden",
-        padding: tokens.spacing.padding,
+        padding: "50px 80px",
       }}
     >
+      {/* Cinematic Top and Bottom Subtle Letterbox Hairlines */}
+      <div
+        style={{
+          position: "absolute",
+          top: 24,
+          left: 80,
+          right: 80,
+          height: "1px",
+          background: "linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.12) 30%, rgba(255, 255, 255, 0.12) 70%, transparent 100%)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          bottom: 24,
+          left: 80,
+          right: 80,
+          height: "1px",
+          background: "linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.12) 30%, rgba(255, 255, 255, 0.12) 70%, transparent 100%)",
+        }}
+      />
+
       <div
         style={{
           position: "relative",
@@ -56,26 +80,50 @@ export function ProcessFlow(props: ProcessFlowProps | any) {
           flexDirection: "column",
           height: "100%",
           justifyContent: "space-between",
+          zIndex: 1,
         }}
       >
         {/* Header Eyebrow */}
-        {headerLabel ? (
-          <header>
+        <header
+          style={{
+            textAlign: "center",
+            opacity: headerSpring,
+            transform: `translateY(${(1 - headerSpring) * -14}px)`,
+          }}
+        >
+          {headerLabel ? (
             <div
               style={{
-                color: tokens.accent.blue,
-                fontSize: tokens.font.eyebrow,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 18px",
+                borderRadius: tokens.radius.pill,
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+                color: tokens.accent.cyan,
+                fontSize: 13,
                 fontWeight: 800,
                 textTransform: "uppercase",
                 letterSpacing: 2,
+                boxShadow: "0 2px 10px rgba(0, 0, 0, 0.2)",
               }}
             >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  backgroundColor: tokens.accent.cyan,
+                  boxShadow: `0 0 8px ${tokens.accent.cyan}`,
+                }}
+              />
               {headerLabel}
             </div>
-          </header>
-        ) : null}
+          ) : null}
+        </header>
 
-        {/* Main Causal Flow Chain */}
+        {/* Main Process Flow Journey Chain */}
         <main
           style={{
             position: "relative",
@@ -85,101 +133,106 @@ export function ProcessFlow(props: ProcessFlowProps | any) {
             justifyContent: "center",
             gap: isHorizontal ? "12px" : "10px",
             flex: 1,
-            margin: "16px 0",
+            margin: "20px 0",
+            width: "100%",
           }}
         >
           {stepList.map((step, idx) => {
-            const stepFrameStart = idx * timePerStep;
+            const isFirst = idx === 0;
+            const isLast = idx === stepCount - 1;
+            const nominalDelay = idx * timePerStep;
+            const stepDelay = safeSpringDelay(nominalDelay, duration_frames, 0.65);
 
             const stepSpring = spring({
-              frame: Math.max(0, frame - stepFrameStart),
+              frame: Math.max(0, frame - stepDelay),
               fps,
-              config: { damping: 14, stiffness: 95 },
+              config: tokens.motion.reveal,
             });
 
-            // Active Reading Focus
-            const isCurrentActive = idx === currentActiveIndex && frame < totalBuildDuration;
-            const isRevealed = frame >= stepFrameStart;
-
-            // Connector timing (draws after step appears)
-            const connectorFrameStart = stepFrameStart + Math.round(timePerStep * 0.45);
+            // Connector timing (strictly monotonic window)
+            const [connStart, connEnd] = safeAnimationWindow(
+              stepDelay + 2,
+              stepDelay + Math.max(4, timePerStep),
+              duration_frames,
+              2
+            );
             const connectorProgress = interpolate(
               frame,
-              [connectorFrameStart, connectorFrameStart + Math.round(timePerStep * 0.45)],
+              [connStart, connEnd],
               [0, 1],
               { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
             );
 
             // Node Role Styling
-            const stepType = step.type || (idx === 0 ? "cause" : idx === stepCount - 1 ? "outcome" : "step");
-            
-            const roleBadgeText =
-              stepType === "cause"
-                ? "CAUSE"
-                : stepType === "outcome"
-                ? "OUTCOME"
-                : "MECHANISM";
+            const stepType = step.type || (isFirst ? "cause" : isLast ? "outcome" : "step");
 
-            const roleBadgeColor =
-              stepType === "cause"
-                ? "#f59e0b"
-                : stepType === "outcome"
-                ? "#10b981"
-                : tokens.accent.blue;
+            let roleBadgeText: string;
+            let roleColor: string;
 
-            const cardBorderColor = isCurrentActive
-              ? roleBadgeColor
-              : isRevealed
-              ? "rgba(59, 130, 246, 0.25)"
-              : "transparent";
+            if (stepType === "cause" || isFirst) {
+              roleBadgeText = `STEP 01 // INITIATION`;
+              roleColor = tokens.accent.cyan;
+            } else if (stepType === "outcome" || isLast) {
+              roleBadgeText = `FINAL STEP // PAYOFF`;
+              roleColor = tokens.accent.emerald;
+            } else {
+              roleBadgeText = `STEP 0${idx + 1} // MECHANISM`;
+              roleColor = tokens.accent.blue;
+            }
 
             const connectorText = step.connectorLabel || (idx < stepCount - 1 ? "leads to" : "");
 
             return (
-              <div
-                key={idx}
-                style={{
-                  display: "flex",
-                  flexDirection: isHorizontal ? "row" : "column",
-                  alignItems: "center",
-                  flex: isHorizontal ? 1 : undefined,
-                  width: isHorizontal ? undefined : "100%",
-                  maxWidth: isHorizontal ? "440px" : "900px",
-                }}
-              >
+              <React.Fragment key={idx}>
                 {/* CAUSAL STEP NODE CARD */}
                 <div
                   style={{
                     position: "relative",
-                    width: "100%",
-                    background: isCurrentActive
-                      ? "linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)"
-                      : "rgba(15, 23, 42, 0.75)",
-                    border: `2px solid ${cardBorderColor}`,
-                    borderRadius: "16px",
-                    padding: isHorizontal ? "24px 20px" : "18px 28px",
-                    boxShadow: isCurrentActive
-                      ? `0 10px 30px ${roleBadgeColor}33`
-                      : "0 6px 20px rgba(0, 0, 0, 0.2)",
-                    backdropFilter: "blur(6px)",
-                    opacity: isRevealed ? (isCurrentActive ? 1 : 0.82) : 0,
-                    transform: `scale(${isRevealed ? (isCurrentActive ? 1.04 : 1) : 0.92})`,
-                    transition: "border 0.2s, opacity 0.2s, transform 0.2s",
+                    flex: isHorizontal ? (isLast ? 1.05 : 1) : undefined,
+                    width: isHorizontal ? undefined : "100%",
+                    maxWidth: isHorizontal ? `${Math.floor(1400 / Math.max(2, stepCount))}px` : "860px",
+                    background: isLast
+                      ? "linear-gradient(135deg, rgba(30, 41, 59, 0.90) 0%, rgba(15, 23, 42, 0.95) 100%)"
+                      : "rgba(15, 23, 42, 0.70)",
+                    border: isLast
+                      ? `2px solid ${roleColor}`
+                      : `1px solid rgba(255, 255, 255, 0.10)`,
+                    borderRadius: "18px",
+                    padding: isHorizontal
+                      ? stepCount >= 4 ? "20px 16px" : "26px 22px"
+                      : stepCount >= 5 ? "14px 22px" : "18px 26px",
+                    boxShadow: isLast
+                      ? `0 10px 30px ${roleColor}25, 0 0 16px ${roleColor}15`
+                      : "0 6px 20px rgba(0, 0, 0, 0.25)",
+                    backdropFilter: "blur(14px)",
+                    opacity: stepSpring,
+                    transform: isHorizontal
+                      ? `translateY(${(1 - stepSpring) * 25}px) scale(${isLast ? 1.02 : 1})`
+                      : `translateX(${(1 - stepSpring) * -25}px) scale(${isLast ? 1.02 : 1})`,
+                    zIndex: isLast ? 2 : 1,
+                    transition: "transform 0.25s ease",
                   }}
                 >
                   {/* Role Tag & Icon */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 10,
+                    }}
+                  >
                     <span
                       style={{
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: 900,
                         letterSpacing: 1.5,
                         textTransform: "uppercase",
                         padding: "3px 10px",
-                        borderRadius: "12px",
-                        background: `${roleBadgeColor}22`,
-                        color: roleBadgeColor,
-                        border: `1px solid ${roleBadgeColor}66`,
+                        borderRadius: tokens.radius.pill,
+                        background: `${roleColor}18`,
+                        color: roleColor,
+                        border: `1px solid ${roleColor}55`,
                       }}
                     >
                       {roleBadgeText}
@@ -190,10 +243,11 @@ export function ProcessFlow(props: ProcessFlowProps | any) {
                   {/* Title */}
                   <div
                     style={{
-                      fontSize: isHorizontal ? 24 : 26,
+                      fontSize: isHorizontal ? (stepCount >= 4 ? 20 : 24) : stepCount >= 5 ? 20 : 23,
                       fontWeight: 900,
                       color: "#ffffff",
                       lineHeight: 1.25,
+                      letterSpacing: -0.3,
                     }}
                   >
                     {step.title}
@@ -203,10 +257,12 @@ export function ProcessFlow(props: ProcessFlowProps | any) {
                   {step.value !== undefined && step.value !== null ? (
                     <div
                       style={{
-                        fontSize: 22,
+                        fontSize: isLast ? (isHorizontal ? 26 : 24) : 20,
                         fontWeight: 900,
-                        color: roleBadgeColor,
-                        marginTop: 6,
+                        color: roleColor,
+                        marginTop: 8,
+                        fontVariantNumeric: "tabular-nums",
+                        textShadow: isLast ? `0 0 16px ${roleColor}44` : "none",
                       }}
                     >
                       {step.value}
@@ -217,10 +273,11 @@ export function ProcessFlow(props: ProcessFlowProps | any) {
                   {step.subtitle ? (
                     <div
                       style={{
-                        fontSize: 15,
+                        fontSize: 14,
                         color: tokens.text.secondary,
-                        marginTop: 4,
+                        marginTop: 6,
                         fontWeight: 500,
+                        lineHeight: 1.35,
                       }}
                     >
                       {step.subtitle}
@@ -229,61 +286,93 @@ export function ProcessFlow(props: ProcessFlowProps | any) {
                 </div>
 
                 {/* CAUSAL CONNECTOR (Arrow + Relationship Label) */}
-                {idx < stepCount - 1 ? (
+                {idx < stepCount - 1 && (
                   <div
                     style={{
                       display: "flex",
                       flexDirection: isHorizontal ? "column" : "row",
                       alignItems: "center",
                       justifyContent: "center",
-                      padding: isHorizontal ? "0 8px" : "6px 0",
+                      padding: isHorizontal ? "0 4px" : "4px 0",
                       opacity: connectorProgress,
                       transform: `scale(${connectorProgress})`,
                       flexShrink: 0,
+                      zIndex: 3,
                     }}
                   >
                     {/* Relationship Badge */}
                     {connectorText ? (
                       <span
                         style={{
-                          fontSize: 13,
+                          fontSize: 11,
                           fontWeight: 800,
-                          color: tokens.accent.blue,
-                          background: "rgba(30, 41, 59, 0.9)",
-                          border: `1px solid ${tokens.accent.blue}66`,
-                          padding: "4px 10px",
-                          borderRadius: "12px",
+                          color: tokens.accent.cyan,
+                          background: "rgba(15, 23, 42, 0.95)",
+                          border: "1px solid rgba(6, 182, 212, 0.35)",
+                          padding: "3px 8px",
+                          borderRadius: tokens.radius.pill,
                           whiteSpace: "nowrap",
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-                          zIndex: 2,
-                          marginBottom: isHorizontal ? 4 : 0,
+                          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.4)",
+                          marginBottom: isHorizontal ? 6 : 0,
+                          marginRight: isHorizontal ? 0 : 8,
+                          letterSpacing: 1,
+                          textTransform: "uppercase",
                         }}
                       >
                         {connectorText}
                       </span>
                     ) : null}
 
-                    {/* Arrow Indicator */}
+                    {/* Modern SVG Directional Chevron Indicator */}
                     <div
                       style={{
-                        fontSize: 22,
-                        fontWeight: 900,
-                        color: tokens.accent.blue,
-                        lineHeight: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: isHorizontal ? 28 : 20,
+                        height: isHorizontal ? 20 : 28,
                       }}
                     >
-                      {isHorizontal ? "➔" : "↓"}
+                      {isHorizontal ? (
+                        <svg width="24" height="16" viewBox="0 0 24 16" fill="none">
+                          <path
+                            d="M2 8H20M20 8L14 2M20 8L14 14"
+                            stroke={tokens.accent.cyan}
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      ) : (
+                        <svg width="16" height="24" viewBox="0 0 16 24" fill="none">
+                          <path
+                            d="M8 2V20M8 20L2 14M8 20L14 14"
+                            stroke={tokens.accent.cyan}
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
                     </div>
                   </div>
-                ) : null}
-              </div>
+                )}
+              </React.Fragment>
             );
           })}
         </main>
 
         {/* Footer */}
         {footerLabel ? (
-          <footer style={{ textAlign: "center", fontSize: 20, color: tokens.text.muted, fontWeight: 600 }}>
+          <footer
+            style={{
+              textAlign: "center",
+              fontSize: 16,
+              color: tokens.text.muted,
+              fontWeight: 600,
+              letterSpacing: 0.5,
+            }}
+          >
             {footerLabel}
           </footer>
         ) : null}
@@ -291,3 +380,4 @@ export function ProcessFlow(props: ProcessFlowProps | any) {
     </AbsoluteFill>
   );
 }
+

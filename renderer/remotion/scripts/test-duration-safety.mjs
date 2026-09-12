@@ -260,6 +260,93 @@ const compositionModels = [
       return { sceneOpacity, boxY, authorOpacity };
     },
   },
+  {
+    name: "SplitComparison",
+    durations: [10, 15, 24, 34, 45, 60, 120, 180, 300],
+    simulateFrame: (frame, duration_frames) => {
+      const headerDelay = safeSpringDelay(0, duration_frames, 0.2);
+      const headerSpring = spring({ frame: Math.max(0, frame - headerDelay), fps: 30 });
+      const leftDelay = safeSpringDelay(4, duration_frames, 0.25);
+      const leftSpring = spring({ frame: Math.max(0, frame - leftDelay), fps: 30 });
+      const rightDelay = safeSpringDelay(8, duration_frames, 0.3);
+      const rightSpring = spring({ frame: Math.max(0, frame - rightDelay), fps: 30 });
+      const vsDelay = safeSpringDelay(12, duration_frames, 0.35);
+      const vsSpring = spring({ frame: Math.max(0, frame - vsDelay), fps: 30 });
+
+      const [countStart, countEnd] = safeAnimationWindow(14, 46, duration_frames, 2);
+      const countProgress = interpolate(frame, [countStart, countEnd], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
+
+      const deltaDelay = safeSpringDelay(24, duration_frames, 0.55);
+      const deltaSpring = spring({ frame: Math.max(0, frame - deltaDelay), fps: 30 });
+
+      return { headerSpring, leftSpring, rightSpring, vsSpring, countProgress, deltaSpring };
+    },
+  },
+  {
+    name: "RankedList",
+    durations: [10, 15, 24, 34, 45, 60, 120, 180, 300],
+    simulateFrame: (frame, duration_frames) => {
+      const itemCount = 5;
+      const totalBuildDuration = Math.max(1, Math.floor(duration_frames * 0.70));
+      const timePerItem = Math.max(1, Math.floor(totalBuildDuration / itemCount));
+
+      const headerDelay = safeSpringDelay(0, duration_frames, 0.15);
+      const headerSpring = spring({ frame: Math.max(0, frame - headerDelay), fps: 30 });
+
+      const results = [];
+      for (let i = 0; i < itemCount; i++) {
+        const itemDelay = safeSpringDelay(i * timePerItem, duration_frames, 0.65);
+        const rowSpring = spring({ frame: Math.max(0, frame - itemDelay), fps: 30 });
+
+        const [barStart, barEnd] = safeAnimationWindow(
+          itemDelay + 2,
+          itemDelay + Math.max(4, timePerItem),
+          duration_frames,
+          2
+        );
+        const barProgress = interpolate(frame, [barStart, barEnd], [0, 1], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
+        results.push({ rowSpring, barProgress });
+      }
+      return { headerSpring, results };
+    },
+  },
+  {
+    name: "ProcessFlow",
+    durations: [10, 15, 24, 34, 45, 60, 120, 180, 300],
+    simulateFrame: (frame, duration_frames) => {
+      const stepCount = 5;
+      const totalBuildDuration = Math.max(1, Math.floor(duration_frames * 0.72));
+      const timePerStep = Math.max(1, Math.floor(totalBuildDuration / stepCount));
+
+      const headerDelay = safeSpringDelay(0, duration_frames, 0.15);
+      const headerSpring = spring({ frame: Math.max(0, frame - headerDelay), fps: 30 });
+
+      const results = [];
+      for (let i = 0; i < stepCount; i++) {
+        const stepDelay = safeSpringDelay(i * timePerStep, duration_frames, 0.65);
+        const stepSpring = spring({ frame: Math.max(0, frame - stepDelay), fps: 30 });
+
+        const [connStart, connEnd] = safeAnimationWindow(
+          stepDelay + 2,
+          stepDelay + Math.max(4, timePerStep),
+          duration_frames,
+          2
+        );
+        const connectorProgress = interpolate(frame, [connStart, connEnd], [0, 1], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
+        results.push({ stepSpring, connectorProgress });
+      }
+      return { headerSpring, results };
+    },
+  },
 ];
 
 for (const comp of compositionModels) {
