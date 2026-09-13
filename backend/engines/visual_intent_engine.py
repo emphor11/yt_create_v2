@@ -200,13 +200,15 @@ class VisualIntentEngine:
         narration: str,
         topic: str = "",
         audience: str = "",
+        is_hook: bool = False,
     ) -> VisualIntentResult:
         """
         Args:
-            idea_id:   The idea_id from the ScriptVisualStrategy (e.g. "idea_01").
-            narration: The full narration text for this idea.
+            idea_id:   The idea_id from the ScriptVisualStrategy (e.g. "idea_01") or "hook".
+            narration: The full narration text for this idea or hook.
             topic:     Optional — injected into the prompt for context.
             audience:  Optional — injected into the prompt for context.
+            is_hook:   Optional — if True, applies hook-specific pacing (2-3 beats max, immediate engagement).
 
         Returns:
             VisualIntentResult containing the validated VisualIntentSequence.
@@ -216,10 +218,21 @@ class VisualIntentEngine:
         """
         system_content = load_prompt("visual_intent_system.txt")
 
+        hook_instructions = ""
+        if is_hook:
+            hook_instructions = (
+                "\nHOOK-SPECIFIC CONSTRAINTS:\n"
+                "- This is the opening HOOK of the video (15-25 seconds total).\n"
+                "- Generate exactly 2 to 3 punchy, high-retention visual intents (never more than 3).\n"
+                "- The first intent MUST have immediate first-frame engagement (starts immediately at frame 0).\n"
+                "- Focus on high visual contrast: bold metric, startling comparison, multi-factor convergence, or key claim.\n"
+            )
+
         user_content = (
             f"Topic: {topic}\n"
             f"Audience: {audience}\n"
-            f"Idea ID: {idea_id}\n\n"
+            f"Idea ID: {idea_id}\n"
+            f"{hook_instructions}\n"
             f"NARRATION:\n{narration}\n\n"
             "Analyze this narration and produce the list of VisualIntents."
         )

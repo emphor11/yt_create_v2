@@ -343,45 +343,76 @@ class TimelineBuilder:
 
         # Process Hook section
         hook_timestamps = section_timestamps[0]
-        hook_beats = hook.visual_directives
+        using_hook_comp_plan = (
+            composition_plan is not None
+            and composition_plan.hook_plan is not None
+            and len(composition_plan.hook_plan.beats) > 0
+        )
+        if using_hook_comp_plan:
+            hook_beats = composition_plan.hook_plan.beats
+        else:
+            hook_beats = hook.visual_directives
+
         hook_beats_count = len(hook_beats)
         if hook_beats_count > 0:
-            hook_start_indices = [0]
-            for b_idx in range(1, hook_beats_count):
-                trigger = hook_beats[b_idx].trigger_word
-                if not trigger or not trigger.strip():
-                    raise TimelineBuilderError(
-                        f"Beat '{hook_beats[b_idx].beat_id}' in hook requires trigger_word."
-                    )
-                match_idx = _find_trigger_index(
-                    timestamps=hook_timestamps,
-                    trigger_raw=trigger,
-                    section_text=hook.script_text,
-                    prev_start_idx=hook_start_indices[-1] + 1,
-                )
-                if match_idx == -1:
-                    raise TimelineBuilderError(
-                        f"Trigger word '{trigger}' for beat '{hook_beats[b_idx].beat_id}' in hook "
-                        f"was not found in the voice track words."
-                    )
-                hook_start_indices.append(match_idx)
-
-            hook_start_indices.append(len(hook_timestamps))
-
-            # Assign bounds to hook beats
-            for b_idx in range(hook_beats_count):
-                start_idx = hook_start_indices[b_idx]
-                end_idx = hook_start_indices[b_idx + 1]
-
-                if start_idx < end_idx and start_idx < len(hook_timestamps):
-                    start_ms = float(hook_timestamps[start_idx].start_ms)
-                    actual_end_idx = min(end_idx - 1, len(hook_timestamps) - 1)
-                    end_ms = float(hook_timestamps[actual_end_idx].end_ms)
+            if hook_beats_count == 1:
+                if len(hook_timestamps) > 0:
+                    start_ms = float(hook_timestamps[0].start_ms)
+                    end_ms = float(hook_timestamps[-1].end_ms)
                     beat_time_bounds.append((start_ms, end_ms))
                 else:
-                    raise TimelineBuilderError(
-                        f"Invalid trigger word order or empty range for beat '{hook_beats[b_idx].beat_id}' in hook."
-                    )
+                    beat_time_bounds.append((0.0, 0.0))
+            else:
+                hook_start_indices = [0]
+                for b_idx in range(1, hook_beats_count):
+                    trigger = hook_beats[b_idx].trigger_word
+                    match_idx = -1
+                    if trigger and trigger.strip():
+                        match_idx = _find_trigger_index(
+                            timestamps=hook_timestamps,
+                            trigger_raw=trigger,
+                            section_text=hook.script_text,
+                            prev_start_idx=hook_start_indices[-1] + 1,
+                        )
+                    if match_idx == -1:
+                        if using_hook_comp_plan:
+                            # Graceful proportional split if trigger word not matched or missing in composition mode
+                            remaining_words = len(hook_timestamps) - hook_start_indices[-1]
+                            remaining_beats = hook_beats_count - b_idx + 1
+                            step = max(1, remaining_words // remaining_beats)
+                            match_idx = hook_start_indices[-1] + step
+                            match_idx = min(match_idx, len(hook_timestamps) - (hook_beats_count - b_idx))
+                            match_idx = max(hook_start_indices[-1] + 1, match_idx)
+                        else:
+                            if not trigger or not trigger.strip():
+                                raise TimelineBuilderError(
+                                    f"Beat '{hook_beats[b_idx].beat_id}' in hook requires trigger_word."
+                                )
+                            raise TimelineBuilderError(
+                                f"Trigger word '{trigger}' for beat '{hook_beats[b_idx].beat_id}' in hook "
+                                f"was not found in the voice track words."
+                            )
+                    hook_start_indices.append(match_idx)
+
+                hook_start_indices.append(len(hook_timestamps))
+
+                # Assign bounds to hook beats
+                for b_idx in range(hook_beats_count):
+                    start_idx = hook_start_indices[b_idx]
+                    end_idx = hook_start_indices[b_idx + 1]
+
+                    if start_idx < end_idx and start_idx < len(hook_timestamps):
+                        start_ms = float(hook_timestamps[start_idx].start_ms)
+                        actual_end_idx = min(end_idx - 1, len(hook_timestamps) - 1)
+                        end_ms = float(hook_timestamps[actual_end_idx].end_ms)
+                        beat_time_bounds.append((start_ms, end_ms))
+                    else:
+                        if using_hook_comp_plan:
+                            beat_time_bounds.append((0.0, 0.0))
+                        else:
+                            raise TimelineBuilderError(
+                                f"Invalid trigger word order or empty range for beat '{hook_beats[b_idx].beat_id}' in hook."
+                            )
 
         # Process Body Sections
         if composition_plan is not None:
@@ -488,8 +519,12 @@ class TimelineBuilder:
         # Construct flat list of beats metadata for index references
         flat_beat_refs = []
         # Hook index
-        for b_idx, directive in enumerate(hook.visual_directives):
-            flat_beat_refs.append(("hook", 0, b_idx, directive.beat_id))
+        if using_hook_comp_plan:
+            for b_idx, comp_beat in enumerate(composition_plan.hook_plan.beats):
+                flat_beat_refs.append(("hook", 0, b_idx, comp_beat.beat_id))
+        else:
+            for b_idx, directive in enumerate(hook.visual_directives):
+                flat_beat_refs.append(("hook", 0, b_idx, directive.beat_id))
 
         if composition_plan is not None:
             # Body ideas from composition_plan

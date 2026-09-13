@@ -10,7 +10,12 @@ from app.dependencies import get_artifact_store, get_pipeline_service
 from app.main import create_app
 from app.pipeline_service import build_pipeline_service
 from artifact_store.sqlite_store import ArtifactStore
-from domain.composition_plan import CompositionBeat, FullCompositionPlan, IdeaCompositionPlan
+from domain.composition_plan import (
+    CompositionBeat,
+    FullCompositionPlan,
+    HookCompositionPlan,
+    IdeaCompositionPlan,
+)
 from domain.validation import ValidationResult
 from domain.validators.render_spec_validator import RenderSpecValidator
 from providers.media_storage import LocalMediaStorage
@@ -84,6 +89,25 @@ def test_composition_path_produces_valid_renderspec(tmp_path: Path):
     comp_plan = FullCompositionPlan(
         thesis="Retirement calculations require real-world stress testing.",
         visual_mode="composition",
+        hook_plan=HookCompositionPlan(
+            hook_id="hook",
+            narration="Imagine retiring with fifty lakh.",
+            beats=[
+                CompositionBeat(
+                    beat_id="hook_beat_1",
+                    composition_id="metric_hero",
+                    variant="hero",
+                    composition_data={
+                        "value": "₹50 Lakh",
+                        "label": "Starting Retirement Portfolio",
+                        "context": "Is your nest egg safe?",
+                        "emphasis": "hero",
+                    },
+                    trigger_word=None,
+                    visual_goal="Opening metric hero",
+                )
+            ],
+        ),
         ideas=[
             IdeaCompositionPlan(
                 idea_id="idea_01",
@@ -243,8 +267,10 @@ def test_composition_path_produces_valid_renderspec(tmp_path: Path):
     # 1 hook scene + 3 composition idea scenes = 4 scenes total
     assert len(scenes) == 4
 
-    # Scene 0: Hook scene (Typography)
-    assert scenes[0]["component"]["component_id"] == "Typography"
+    # Scene 0: Hook scene resolved through CompositionResolver
+    assert scenes[0]["component"]["component_id"] == "MetricHero"
+    assert scenes[0]["component"]["props"]["value"] == "₹50 Lakh"
+    assert scenes[0]["component"]["props"]["context"] == "Is your nest egg safe?"
 
     # Scene 1: MetricHero
     assert scenes[1]["component"]["component_id"] == "MetricHero"
@@ -268,3 +294,160 @@ def test_composition_path_produces_valid_renderspec(tmp_path: Path):
     validation = RenderSpecValidator().validate(render_spec_model)
     assert validation.status == "valid"
     assert len(validation.errors) == 0
+
+
+def test_composition_path_hook_legacy_fallback_when_hook_plan_none(tmp_path: Path):
+    """When hook_plan is None, CompositionAssemblyEngine falls back to legacy component resolution for Hook."""
+    store = ArtifactStore(tmp_path / "comp_fallback_test.db")
+    store.initialize()
+
+    media_path = tmp_path / "media"
+    media_storage = LocalMediaStorage(media_path)
+
+    project = store.create_project("Composition Pipeline Fallback Test")
+    run = store.create_run(project.id, mode="ai")
+
+    store.save_artifact(
+        project_id=project.id,
+        run_id=run.id,
+        artifact_type="generate_video_request",
+        schema_version="1",
+        payload_json={
+            "topic": "Retirement Math",
+            "audience": "retail investors",
+            "language": "English",
+            "style": "educational",
+            "channel": "FinanceChannel",
+            "duration_profile": "short_2min",
+            "visual_mode": "composition",
+        },
+        parent_artifact_roles_json={},
+        validation_json=ValidationResult(status="valid"),
+    )
+
+    store.save_artifact(
+        project_id=project.id,
+        run_id=run.id,
+        artifact_type="hook",
+        schema_version="1",
+        payload_json={
+            "conceptual_hook": "The Safe Withdrawal Rule",
+            "script_text": "Imagine retiring with fifty lakh.",
+            "visual_directives": [
+                {
+                    "beat_id": "hook_beat_1",
+                    "preferred_component": "Typography",
+                    "visual_instruction": "Show starting retirement portfolio",
+                    "component_data": {
+                        "text": "The 4% Retirement Rule",
+                        "subtitle": "Is your nest egg truly safe?",
+                    },
+                }
+            ],
+        },
+        parent_artifact_roles_json={},
+        validation_json=ValidationResult(status="valid"),
+    )
+
+    comp_plan = FullCompositionPlan(
+        thesis="Retirement calculations require real-world stress testing.",
+        visual_mode="composition",
+        hook_plan=None,  # Legacy fallback: no hook_plan
+        ideas=[
+            IdeaCompositionPlan(
+                idea_id="idea_01",
+                narration="You retire with fifty lakh.",
+                beats=[
+                    CompositionBeat(
+                        beat_id="beat_01_01",
+                        composition_id="metric_hero",
+                        variant="hero",
+                        composition_data={
+                            "value": "₹50 lakh",
+                            "label": "Starting Retirement Portfolio",
+                            "context": "Initial Nest Egg",
+                            "emphasis": "hero",
+                        },
+                        trigger_word=None,
+                        visual_goal="Show ₹50 lakh hero opening metric",
+                    ),
+                ],
+            )
+        ],
+    )
+
+    store.save_artifact(
+        project_id=project.id,
+        run_id=run.id,
+        artifact_type="script_visual_strategy",
+        schema_version="1",
+        payload_json={
+            "schema_version": "1",
+            "visual_mode": "composition",
+            "thesis": "Retirement calculations require real-world stress testing.",
+            "ideas": [
+                {
+                    "idea_id": "idea_01",
+                    "title": "The Math",
+                    "focus_concept": "4% Rule",
+                    "core_teaching_point": "Inflation decays fixed withdrawals.",
+                    "narration": "You retire with fifty lakh.",
+                    "visual_sequence": [
+                        {
+                            "beat_id": "beat_01_01",
+                            "preferred_component": "Typography",
+                            "visual_goal": "Opening metric",
+                            "trigger_word": None,
+                            "component_data": {"text": "₹50 lakh"},
+                        },
+                    ],
+                }
+            ],
+            "composition_plan": comp_plan.model_dump(),
+        },
+        parent_artifact_roles_json={},
+        validation_json=ValidationResult(status="valid"),
+    )
+
+    audio_path = media_storage.path_for_key("narration.mp3")
+    audio_path.parent.mkdir(parents=True, exist_ok=True)
+    audio_path.write_bytes(b"\x00" * 1000)
+
+    store.save_artifact(
+        project_id=project.id,
+        run_id=run.id,
+        artifact_type="voice_track",
+        schema_version="1",
+        payload_json={
+            "voice_id": "Joanna",
+            "audio_file_name": "narration.mp3",
+            "storage_key": "narration.mp3",
+            "duration_seconds": 6.0,
+            "full_script_text": "Imagine retiring with fifty lakh. You retire with fifty lakh.",
+            "word_timestamps": [
+                {"word": "Imagine", "start_ms": 0, "end_ms": 300},
+                {"word": "retiring", "start_ms": 400, "end_ms": 800},
+                {"word": "with", "start_ms": 900, "end_ms": 1100},
+                {"word": "fifty", "start_ms": 1200, "end_ms": 1500},
+                {"word": "lakh", "start_ms": 1600, "end_ms": 2000},
+                {"word": "You", "start_ms": 2200, "end_ms": 2500},
+                {"word": "retire", "start_ms": 2600, "end_ms": 2900},
+                {"word": "with", "start_ms": 3000, "end_ms": 3300},
+                {"word": "fifty", "start_ms": 3400, "end_ms": 3700},
+                {"word": "lakh", "start_ms": 3800, "end_ms": 4200},
+            ],
+        },
+        parent_artifact_roles_json={},
+        validation_json=ValidationResult(status="valid"),
+    )
+
+    service = build_pipeline_service(store, media_storage=media_storage)
+    result_artifact = service.run_stage("video_assembly", project.id, run.id)
+    assert result_artifact.status == "valid"
+
+    scenes = result_artifact.payload_json["props"]["scenes"]
+    assert len(scenes) == 2
+    # Scene 0: Hook scene should fall back to legacy Typography
+    assert scenes[0]["component"]["component_id"] == "Typography"
+    # Scene 1: Idea scene should be MetricHero
+    assert scenes[1]["component"]["component_id"] == "MetricHero"

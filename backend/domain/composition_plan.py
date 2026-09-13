@@ -70,6 +70,14 @@ class CompositionBeat(BaseModel):
     )
 
 
+class HookCompositionPlan(BaseModel):
+    """Composition beats for opening hook."""
+
+    hook_id: str = "hook"
+    narration: str
+    beats: list[CompositionBeat] = Field(default_factory=list)
+
+
 class IdeaCompositionPlan(BaseModel):
     """Composition beats for one narrative idea."""
 
@@ -89,4 +97,5 @@ class FullCompositionPlan(BaseModel):
     schema_version: str = "1"
     visual_mode: str = "composition"  # detector flag for VideoAssemblyHandler
     thesis: str
+    hook_plan: HookCompositionPlan | None = None
     ideas: list[IdeaCompositionPlan] = Field(default_factory=list)

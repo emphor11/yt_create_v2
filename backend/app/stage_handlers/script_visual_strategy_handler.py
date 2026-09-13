@@ -14,7 +14,7 @@ from engines.script_visual_strategy_engine import ScriptVisualStrategyEngine, Sc
 from registries.component_registry import ComponentRegistry
 
 
-from domain.composition_plan import FullCompositionPlan, IdeaCompositionPlan
+from domain.composition_plan import FullCompositionPlan, HookCompositionPlan, IdeaCompositionPlan
 from engines.visual_intent_engine import VisualIntentEngine
 from engines.composition_planner_engine import CompositionPlannerEngine
 
@@ -101,6 +101,33 @@ class ScriptVisualStrategyHandler:
 
             # In composition mode, run intent analysis + composition planner pipeline
             if visual_mode == "composition" and self.visual_intent_engine and self.composition_planner_engine:
+                # 1. Plan Hook Composition Beats
+                hook_plan = None
+                if hook and hook.script_text and hook.script_text.strip():
+                    hook_intent_res = self.visual_intent_engine.run(
+                        idea_id="hook",
+                        narration=hook.script_text,
+                        topic=research_packet.topic,
+                        audience=research_packet.audience,
+                        is_hook=True,
+                    )
+                    hook_beats = []
+                    for b_idx, intent in enumerate(hook_intent_res.sequence.intents):
+                        beat_id = f"beat_hook_{b_idx + 1:02d}"
+                        plan_res = self.composition_planner_engine.run(
+                            intent=intent,
+                            beat_id=beat_id,
+                            topic=research_packet.topic,
+                            audience=research_packet.audience,
+                        )
+                        hook_beats.append(plan_res.beat)
+                    hook_plan = HookCompositionPlan(
+                        hook_id="hook",
+                        narration=hook.script_text,
+                        beats=hook_beats,
+                    )
+
+                # 2. Plan Body Ideas Composition Beats
                 comp_ideas = []
                 for idea_idx, idea in enumerate(strategy.ideas):
                     intent_res = self.visual_intent_engine.run(
@@ -129,6 +156,7 @@ class ScriptVisualStrategyHandler:
                 full_comp_plan = FullCompositionPlan(
                     thesis=strategy.thesis,
                     visual_mode="composition",
+                    hook_plan=hook_plan,
                     ideas=comp_ideas,
                 )
                 payload_json["composition_plan"] = full_comp_plan.model_dump()
