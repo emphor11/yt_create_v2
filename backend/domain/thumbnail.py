@@ -2,7 +2,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class Thumbnail(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     schema_version: str = "1"
     storage_key: str
@@ -15,3 +15,4 @@ class Thumbnail(BaseModel):
     image_prompt: str | None = None
     visual_concept: str | None = None
     provider_used: str | None = None
+

@@ -12,10 +12,26 @@ from providers.llm_provider import (
 
 
 class ThumbnailPromptConcept(BaseModel):
-    headline: str = Field(description="A short, punchy 2-4 word phrase representing the psychological hook")
-    visual_concept: str = Field(description="2-3 sentence strategic explanation of why this visual triggers clicks")
-    image_prompt: str = Field(description="Detailed text-to-image prompt following the universal formula")
-    negative_prompt: str = Field(default="blurry, low quality, deformed hands, extra fingers, cartoon, 3d render, watermark, text, logos, cluttered, bad anatomy")
+    headline: str = Field(
+        description="The exact 2-4 word text to be rendered on the thumbnail in quotes (e.g. 'SALARY UP / BUT POORER' or '₹1 CRORE TRAP')"
+    )
+    visual_tension: str = Field(
+        default="",
+        description="The central visual contradiction, tension, or curiosity gap emerging from the specific story",
+    )
+    focal_element: str = Field(
+        default="",
+        description="The dominant visual hero (human subject, financial object, or physical metaphor)",
+    )
+    visual_concept: str = Field(
+        description="2-3 sentence strategic explanation of why this visual triggers clicks and complements the title"
+    )
+    image_prompt: str = Field(
+        description="Complete production-grade text-to-image prompt instructing the AI to render the entire thumbnail with native typography"
+    )
+    negative_prompt: str = Field(
+        default="blurry, low quality, deformed hands, extra fingers, cartoon, watermark, signature, misspelled words, illegible text, distorted letters, cluttered background, bad anatomy, low contrast"
+    )
 
 
 THUMBNAIL_PROMPT_SCHEMA: dict[str, Any] = {
@@ -23,22 +39,37 @@ THUMBNAIL_PROMPT_SCHEMA: dict[str, Any] = {
     "properties": {
         "headline": {
             "type": "string",
-            "description": "A short, punchy 2-4 word phrase representing the psychological hook",
+            "description": "Short, punchy 2-4 word phrase in uppercase to be rendered natively inside the thumbnail (e.g. 'SALARY UP / BUT POORER', '₹1 CRORE TRAP', '6% VS 12%'). Must NOT repeat the full video title.",
+        },
+        "visual_tension": {
+            "type": "string",
+            "description": "The central visual contradiction, tension, or curiosity gap emerging from the specific story that stops the viewer from scrolling.",
+        },
+        "focal_element": {
+            "type": "string",
+            "description": "The single dominant visual hero (e.g. human subject with specific emotion, specific financial object, or physical metaphor).",
         },
         "visual_concept": {
             "type": "string",
-            "description": "2-3 sentence strategic explanation of why this visual triggers clicks",
+            "description": "Strategic explanation of the packaging: how the visual tension, focal element, and headline hook the viewer's curiosity without repeating the title.",
         },
         "image_prompt": {
             "type": "string",
-            "description": "Detailed text-to-image prompt following the universal formula",
+            "description": "Production-grade text-to-image prompt for modern AI generators. MUST specify: 16:9 aspect ratio, exact headline text enclosed in quotation marks with size/style/placement instructions, dominant focal subject, visual tension elements, cinematic lighting, and dark high-contrast backdrop.",
         },
         "negative_prompt": {
             "type": "string",
-            "description": "Artifacts and attributes to avoid in generation",
+            "description": "Negative prompt. Must NOT include 'text' or 'typography'. Must include: 'blurry, low quality, deformed hands, extra fingers, cartoon, watermark, signature, misspelled words, illegible text, distorted letters, cluttered background, bad anatomy'.",
         },
     },
-    "required": ["headline", "visual_concept", "image_prompt", "negative_prompt"],
+    "required": [
+        "headline",
+        "visual_tension",
+        "focal_element",
+        "visual_concept",
+        "image_prompt",
+        "negative_prompt",
+    ],
 }
 
 
@@ -67,32 +98,23 @@ class ThumbnailPromptEngine:
         thumbnail_concept: str = "",
     ) -> ThumbnailPromptConcept:
         if self.llm_provider is None:
-            # Fallback heuristic if LLM is unavailable
-            headline = thumbnail_concept or "THE TRAP"
-            visual_concept = f"Dramatic visual showing the high-stakes dilemma behind {topic}."
-            image_prompt = (
-                f"Cinematic 16:9 photography, 8k resolution, shot on 35mm lens, dramatic lighting, "
-                f"intense emotion, subject dealing with {topic}, high contrast, dark moody background, "
-                f"vibrant amber rim lighting, rule of thirds, clean negative space."
-            )
-            return ThumbnailPromptConcept(
-                headline=headline,
-                visual_concept=visual_concept,
-                image_prompt=image_prompt,
+            raise ThumbnailPromptEngineError(
+                "LLM provider is required for ThumbnailPromptEngine. Fallback prompts are disabled."
             )
 
         system_instruction = self.system_prompt_path.read_text(encoding="utf-8")
 
-        user_content = f"""Please design a viral YouTube thumbnail concept and FLUX.1 image prompt for this video:
+        user_content = f"""Please design a high-CTR YouTube finance thumbnail concept and complete image generation prompt for this video:
 
 VIDEO TOPIC: {topic}
 YOUTUBE TITLE: {title}
 SCRIPT THESIS: {thesis}
-HOOK CONCEPT / SCRIPT: {hook_text}
-PRELIMINARY THUMBNAIL HOOK: {thumbnail_concept}
+HOOK SCRIPT: {hook_text}
+INITIAL THUMBNAIL HOOK: {thumbnail_concept}
 
-Design the ultimate high-CTR visual concept, punchy headline, and detailed image prompt adhering to the 3-second rule and high emotional contrast.
+Analyze the financial core of this specific story. Independently invent the single strongest visual concept for THIS exact video without forcing it into any predefined template or category. Identify the central visual tension, select the most powerful 2-4 word headline (which complements rather than repeats the title), determine the dominant focal point, and construct a complete production-grade image prompt where the headline typography is natively rendered as part of the image.
 """
+
 
         request = LLMJsonRequest(
             messages=[

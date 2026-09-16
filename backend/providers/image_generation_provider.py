@@ -34,18 +34,26 @@ class HuggingFaceImageProvider(ImageGenerationProvider):
 
         client = InferenceClient(api_key=self.token)
         last_exc = None
+        neg = negative_prompt.strip() if negative_prompt else None
 
         for model in self.models:
-            try:
-                logger.info("Attempting Hugging Face text_to_image with model: %s", model)
-                img = client.text_to_image(prompt, model=model)
-                buf = io.BytesIO()
-                # Save as PNG
-                img.save(buf, format="PNG")
-                return buf.getvalue()
-            except Exception as exc:
-                logger.warning("Hugging Face model %s failed: %s", model, exc)
-                last_exc = exc
+            for w, h in [(1280, 720), (1344, 768)]:
+                try:
+                    logger.info("Attempting Hugging Face text_to_image with model: %s (%dx%d)", model, w, h)
+                    img = client.text_to_image(
+                        prompt,
+                        model=model,
+                        width=w,
+                        height=h,
+                        negative_prompt=neg,
+                    )
+                    buf = io.BytesIO()
+                    # Save as PNG
+                    img.save(buf, format="PNG")
+                    return buf.getvalue()
+                except Exception as exc:
+                    logger.warning("Hugging Face model %s (%dx%d) failed: %s", model, w, h, exc)
+                    last_exc = exc
 
         raise ImageGenerationError(f"All Hugging Face models failed. Last error: {last_exc}") from last_exc
 
@@ -130,6 +138,39 @@ class StockImageThumbnailProvider(ImageGenerationProvider):
             raise ImageGenerationError(f"Stock photo fallback failed: {exc}") from exc
 
 
+class PollinationsFluxImageProvider(ImageGenerationProvider):
+    """Reliable FLUX.1 generator via Pollinations with no API key requirement."""
+
+    def __init__(self, model: str = "flux"):
+        self.model = model
+
+    def generate_image(self, prompt: str, negative_prompt: str = "") -> bytes:
+        import time
+        import urllib.parse
+        import requests
+
+        encoded_prompt = urllib.parse.quote(prompt)
+        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1280&height=720&model={self.model}&nologo=true"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+
+        last_exc = None
+        for attempt in range(1, 4):
+            try:
+                logger.info("Attempting Pollinations FLUX generation (attempt %d/3)...", attempt)
+                resp = requests.get(url, headers=headers, timeout=60)
+                if resp.status_code == 200 and len(resp.content) > 1000:
+                    return resp.content
+                logger.warning("Pollinations returned status %d on attempt %d: %s", resp.status_code, attempt, resp.text[:100])
+            except Exception as exc:
+                logger.warning("Pollinations attempt %d failed: %s", attempt, exc)
+                last_exc = exc
+            time.sleep(2)
+
+        raise ImageGenerationError(f"Pollinations FLUX generation failed after 3 attempts: {last_exc}") from last_exc
+
+
 class CompositeImageProvider(ImageGenerationProvider):
     def __init__(self, providers: list[tuple[str, ImageGenerationProvider]]):
         self.providers = providers
@@ -152,13 +193,13 @@ class CompositeImageProvider(ImageGenerationProvider):
                 logger.warning("Provider '%s' failed: %s", name, exc)
                 errors.append(f"{name}: {exc}")
 
-        raise ImageGenerationError(f"All image providers failed: {'; '.join(errors)}")
+        raise ImageGenerationError(f"All AI image generators failed: {'; '.join(errors)}")
 
 
 def build_image_generation_provider() -> CompositeImageProvider:
     providers: list[tuple[str, ImageGenerationProvider]] = []
 
-    # 1. Hugging Face FLUX.1 (User's primary selection)
+    # 1. Hugging Face FLUX.1
     hf_token = os.getenv("HF_TOKEN", "").strip() or os.getenv("HUGGINGFACE_API_KEY", "").strip()
     if hf_token:
         providers.append(("huggingface_flux", HuggingFaceImageProvider(token=hf_token)))
@@ -167,10 +208,5 @@ def build_image_generation_provider() -> CompositeImageProvider:
     gemini_key = os.getenv("GEMINI_API_KEY", "").strip() or os.getenv("GOOGLE_API_KEY", "").strip()
     if gemini_key:
         providers.append(("gemini_image", GeminiImageProvider(api_key=gemini_key)))
-
-    # 3. Pexels Stock Photo Fallback
-    pexels_key = os.getenv("PEXELS_API_KEY", "").strip()
-    if pexels_key:
-        providers.append(("pexels_stock", StockImageThumbnailProvider(api_key=pexels_key)))
 
     return CompositeImageProvider(providers)
