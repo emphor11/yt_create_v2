@@ -2,7 +2,10 @@ import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { tokens } from '../design-tokens';
 import { CalculationStoryProps } from '../types';
-import { safeAnimationWindow, safeSpringDelay } from '../animation-safety';
+import { safeAnimationWindow, getCalculationPhases, CalculationPhases } from '../animation-safety';
+export { getCalculationPhases };
+export type { CalculationPhases };
+
 
 function parsePercent(str: string): number {
   const match = str.match(/(\d+(?:\.\d+)?)\s*%/);
@@ -13,6 +16,8 @@ function parsePercent(str: string): number {
   return 40; // Default illustrative 40%
 }
 
+
+
 export function CalculationStory(props: CalculationStoryProps | any) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -20,6 +25,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
   const resolvedProps: CalculationStoryProps = (props as any).props || props;
   const duration_frames = (props as any).duration_frames || 180;
 
+  const headerLabel = resolvedProps.headerLabel || null;
   const inputLabel = resolvedProps.inputLabel || "Input";
   const inputValue = resolvedProps.inputValue || "0";
   const operationLabel = resolvedProps.operationLabel || "";
@@ -105,42 +111,54 @@ export function CalculationStory(props: CalculationStoryProps | any) {
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
 
+  // Normalized, duration-aware phase keyframe coordinator
+  const phases = getCalculationPhases(duration_frames);
+
   // -------------------------------------------------------------------------
   // Treatment 1: MULTIPLICATION (Base × Rate Modifier → Result)
   // -------------------------------------------------------------------------
   if (treatment === "multiplication") {
-    const inputDelay = safeSpringDelay(8, duration_frames, 0.2);
+    // Phase 1: ESTABLISH (Input enters alone)
     const inputSpring = spring({
-      frame: Math.max(0, frame - inputDelay),
+      frame: Math.max(0, frame - phases.inputDelay),
       fps,
       config: tokens.motion.reveal,
     });
 
-    const opDelay = safeSpringDelay(18, duration_frames, 0.35);
+    // Phase 2: BUILD (Rate / Driver enters)
+    const driverSpring = spring({
+      frame: Math.max(0, frame - phases.driverDelay),
+      fps,
+      config: tokens.motion.reveal,
+    });
+
+    // Phase 3: TRANSFORM (Operator badge pops in & vector arrow draws across)
     const opSpring = spring({
-      frame: Math.max(0, frame - opDelay),
+      frame: Math.max(0, frame - phases.operatorDelay),
+      fps,
+      config: tokens.motion.impact,
+    });
+    const arrowProgress = interpolate(
+      frame,
+      [phases.vectorStart, phases.vectorEnd],
+      [0, 1],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+    );
+    const arrowOpacity = interpolate(arrowProgress, [0, 0.12], [0, 1], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+
+    // Phase 4: PAYOFF (Result Card impacts in)
+    const resultSpring = spring({
+      frame: Math.max(0, frame - phases.resultDelay),
       fps,
       config: tokens.motion.impact,
     });
 
-    const [arrowStart, arrowEnd] = safeAnimationWindow(24, 46, duration_frames);
-    const arrowProgress = interpolate(
-      frame,
-      [arrowStart, arrowEnd],
-      [0, 1],
-      { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
-    );
-
-    const resultDelay = safeSpringDelay(38, duration_frames, 0.58);
-    const resultSpring = spring({
-      frame: Math.max(0, frame - resultDelay),
-      fps,
-      config: tokens.motion.settle,
-    });
-
-    const noteDelay = safeSpringDelay(48, duration_frames, 0.72);
+    // Phase 5: RESOLVE (Note pill settles in; full equation holds)
     const noteSpring = spring({
-      frame: Math.max(0, frame - noteDelay),
+      frame: Math.max(0, frame - phases.noteDelay),
       fps,
       config: tokens.motion.gentle,
     });
@@ -158,6 +176,33 @@ export function CalculationStory(props: CalculationStoryProps | any) {
           overflow: "hidden",
         }}
       >
+        {/* Optional Eyebrow Header */}
+        {headerLabel && (
+          <div
+            style={{
+              position: "absolute",
+              top: "50px",
+              left: "100px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              zIndex: 10,
+            }}
+          >
+            <div
+              style={{
+                fontSize: "15px",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.14em",
+                color: tokens.text.muted,
+              }}
+            >
+              {headerLabel}
+            </div>
+          </div>
+        )}
+
         <div
           style={{
             display: "flex",
@@ -169,7 +214,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             maxWidth: "1600px",
           }}
         >
-          {/* Base Input Card */}
+          {/* Phase 1: ESTABLISH - Base Input Card */}
           <div
             style={{
               opacity: inputSpring,
@@ -211,44 +256,49 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             </div>
           </div>
 
-          {/* Center Multiplier Connector */}
+          {/* Phases 2 & 3: BUILD & TRANSFORM - Multiplier Connector & Vector */}
           <div
             style={{
-              opacity: opSpring,
-              transform: `scale(${interpolate(opSpring, [0, 1], [0.6, 1])})`,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              width: "180px",
+              width: "200px",
               position: "relative",
             }}
           >
+            {/* Phase 3: Dynamic Vector Arrow */}
             <svg
-              width="180"
+              width="200"
               height="40"
-              viewBox="0 0 180 40"
-              style={{ overflow: "visible", marginBottom: "8px" }}
+              viewBox="0 0 200 40"
+              style={{
+                overflow: "visible",
+                marginBottom: "8px",
+                opacity: arrowOpacity,
+              }}
             >
               <path
-                d="M 0 20 L 170 20 M 155 10 L 170 20 L 155 30"
+                d="M 0 20 L 190 20 M 175 10 L 190 20 L 175 30"
                 stroke={tokens.accent.cyan}
                 strokeWidth="3.5"
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeDasharray="200"
-                strokeDashoffset={200 * (1 - arrowProgress)}
+                strokeDasharray="220"
+                strokeDashoffset={220 * (1 - arrowProgress)}
               />
             </svg>
 
-            {/* Operator Badge */}
+            {/* Phase 3: Operator Badge */}
             <div
               style={{
+                opacity: opSpring,
+                transform: `scale(${interpolate(opSpring, [0, 1], [0.4, 1])})`,
                 width: "68px",
                 height: "68px",
                 borderRadius: "50%",
-                backgroundColor: "rgba(15, 23, 42, 0.9)",
+                backgroundColor: "rgba(15, 23, 42, 0.95)",
                 border: `2px solid ${tokens.accent.cyan}`,
                 display: "flex",
                 alignItems: "center",
@@ -256,23 +306,25 @@ export function CalculationStory(props: CalculationStoryProps | any) {
                 fontSize: "36px",
                 fontWeight: 800,
                 color: tokens.accent.cyan,
-                boxShadow: `0 0 20px rgba(6, 182, 212, 0.3)`,
-                marginBottom: "10px",
+                boxShadow: `0 0 24px rgba(6, 182, 212, 0.35)`,
+                marginBottom: "12px",
               }}
             >
               {operationLabel || "×"}
             </div>
 
-            {/* Rate Modifier Pill */}
+            {/* Phase 2: Rate Modifier Pill / Driver */}
             {rateLabel && (
               <div
                 style={{
+                  opacity: driverSpring,
+                  transform: `translateY(${interpolate(driverSpring, [0, 1], [14, 0])}px) scale(${interpolate(driverSpring, [0, 1], [0.9, 1])})`,
                   fontSize: "17px",
                   fontWeight: 600,
                   color: tokens.accent.cyan,
                   backgroundColor: "rgba(6, 182, 212, 0.12)",
-                  border: "1px solid rgba(6, 182, 212, 0.25)",
-                  padding: "4px 12px",
+                  border: "1px solid rgba(6, 182, 212, 0.28)",
+                  padding: "6px 14px",
                   borderRadius: tokens.radius.chip,
                   textAlign: "center",
                   lineHeight: 1.2,
@@ -283,22 +335,22 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             )}
           </div>
 
-          {/* Dominant Result Card */}
+          {/* Phase 4: PAYOFF - Dominant Result Card */}
           <div
             style={{
               opacity: resultSpring,
-              transform: `translateX(${interpolate(resultSpring, [0, 1], [40, 0])}px)`,
+              transform: `translateX(${interpolate(resultSpring, [0, 1], [40, 0])}px) scale(${interpolate(resultSpring, [0, 1], [0.94, 1])})`,
               flex: 1.3,
               maxWidth: "580px",
               minHeight: "360px",
               backgroundColor: tokens.bg.surface,
               borderRadius: tokens.radius.card,
-              border: `2px solid rgba(6, 182, 212, 0.45)`,
+              border: `2px solid rgba(6, 182, 212, 0.55)`,
               padding: "44px 40px",
               display: "flex",
               flexDirection: "column",
               justifyContent: "center",
-              boxShadow: "0 25px 60px -15px rgba(6, 182, 212, 0.2), 0 20px 40px -15px rgba(0, 0, 0, 0.7)",
+              boxShadow: "0 25px 60px -15px rgba(6, 182, 212, 0.25), 0 20px 40px -15px rgba(0, 0, 0, 0.7)",
               position: "relative",
             }}
           >
@@ -326,10 +378,12 @@ export function CalculationStory(props: CalculationStoryProps | any) {
               {resultValue}
             </div>
 
+            {/* Phase 5: RESOLVE - Contextual Note Badge */}
             {note && (
               <div
                 style={{
                   opacity: noteSpring,
+                  transform: `translateY(${interpolate(noteSpring, [0, 1], [8, 0])}px)`,
                   display: "inline-flex",
                   alignSelf: "flex-start",
                   padding: "8px 16px",
@@ -354,33 +408,49 @@ export function CalculationStory(props: CalculationStoryProps | any) {
   // Treatment 2: ADDITION (Input A + Input B ↘ Converging Sum)
   // -------------------------------------------------------------------------
   if (treatment === "addition") {
-    const cardADelay = safeSpringDelay(8, duration_frames, 0.2);
+    // Phase 1: ESTABLISH (Card A enters alone)
     const cardASpring = spring({
-      frame: Math.max(0, frame - cardADelay),
+      frame: Math.max(0, frame - phases.inputDelay),
       fps,
       config: tokens.motion.reveal,
     });
 
-    const cardBDelay = safeSpringDelay(16, duration_frames, 0.35);
+    // Phase 2: BUILD (Card B enters below Card A)
     const cardBSpring = spring({
-      frame: Math.max(0, frame - cardBDelay),
+      frame: Math.max(0, frame - phases.driverDelay),
       fps,
       config: tokens.motion.reveal,
     });
 
-    const [splineStart, splineEnd] = safeAnimationWindow(24, 48, duration_frames);
+    // Phase 3: TRANSFORM (+ operator badge pops in & converging splines draw across)
+    const opSpring = spring({
+      frame: Math.max(0, frame - phases.operatorDelay),
+      fps,
+      config: tokens.motion.impact,
+    });
     const splineProgress = interpolate(
       frame,
-      [splineStart, splineEnd],
+      [phases.vectorStart, phases.vectorEnd],
       [0, 1],
       { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
+    const splineOpacity = interpolate(splineProgress, [0, 0.12], [0, 1], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
 
-    const sumDelay = safeSpringDelay(42, duration_frames, 0.6);
+    // Phase 4: PAYOFF (Combined Sum Card reveals with emerald bloom)
     const sumSpring = spring({
-      frame: Math.max(0, frame - sumDelay),
+      frame: Math.max(0, frame - phases.resultDelay),
       fps,
       config: tokens.motion.impact,
+    });
+
+    // Phase 5: RESOLVE (Explanatory Note settles in; hold for comprehension)
+    const noteSpring = spring({
+      frame: Math.max(0, frame - phases.noteDelay),
+      fps,
+      config: tokens.motion.gentle,
     });
 
     const secLabel = secondaryLabel || rateLabel || "Additional Input";
@@ -399,6 +469,33 @@ export function CalculationStory(props: CalculationStoryProps | any) {
           overflow: "hidden",
         }}
       >
+        {/* Optional Eyebrow Header */}
+        {headerLabel && (
+          <div
+            style={{
+              position: "absolute",
+              top: "50px",
+              left: "100px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              zIndex: 10,
+            }}
+          >
+            <div
+              style={{
+                fontSize: "15px",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.14em",
+                color: tokens.text.muted,
+              }}
+            >
+              {headerLabel}
+            </div>
+          </div>
+        )}
+
         <div
           style={{
             display: "flex",
@@ -421,7 +518,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
               position: "relative",
             }}
           >
-            {/* Input Card A */}
+            {/* Phase 1: ESTABLISH - Input Card A */}
             <div
               style={{
                 opacity: cardASpring,
@@ -458,15 +555,16 @@ export function CalculationStory(props: CalculationStoryProps | any) {
               </div>
             </div>
 
-            {/* Centered Addition Badge */}
+            {/* Phase 3: TRANSFORM - Centered Addition Badge */}
             <div
               style={{
                 position: "absolute",
                 left: "50%",
                 top: "50%",
-                transform: "translate(-50%, -50%)",
-                width: "40px",
-                height: "40px",
+                transform: `translate(-50%, -50%) scale(${interpolate(opSpring, [0, 1], [0.4, 1])})`,
+                opacity: opSpring,
+                width: "42px",
+                height: "42px",
                 borderRadius: "50%",
                 backgroundColor: "rgba(15, 23, 42, 0.95)",
                 border: `2px solid ${tokens.accent.emerald}`,
@@ -477,13 +575,13 @@ export function CalculationStory(props: CalculationStoryProps | any) {
                 fontSize: "24px",
                 fontWeight: 800,
                 zIndex: 2,
-                boxShadow: "0 0 16px rgba(16, 185, 129, 0.4)",
+                boxShadow: "0 0 20px rgba(16, 185, 129, 0.5)",
               }}
             >
               +
             </div>
 
-            {/* Input Card B */}
+            {/* Phase 2: BUILD - Input Card B */}
             <div
               style={{
                 opacity: cardBSpring,
@@ -521,7 +619,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             </div>
           </div>
 
-          {/* Center: Converging Dual Splines */}
+          {/* Phase 3: TRANSFORM - Converging Dual Splines */}
           <div
             style={{
               display: "flex",
@@ -534,7 +632,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
               width="160"
               height="180"
               viewBox="0 0 160 180"
-              style={{ overflow: "visible" }}
+              style={{ overflow: "visible", opacity: splineOpacity }}
             >
               {/* Top spline from Card A */}
               <path
@@ -564,12 +662,12 @@ export function CalculationStory(props: CalculationStoryProps | any) {
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                opacity={splineProgress > 0.8 ? 1 : 0}
+                opacity={splineProgress > 0.75 ? 1 : 0}
               />
             </svg>
           </div>
 
-          {/* Right: Combined Sum Card */}
+          {/* Phase 4: PAYOFF - Combined Sum Card */}
           <div
             style={{
               opacity: sumSpring,
@@ -579,12 +677,12 @@ export function CalculationStory(props: CalculationStoryProps | any) {
               minHeight: "360px",
               backgroundColor: tokens.bg.surface,
               borderRadius: tokens.radius.card,
-              border: `2px solid rgba(16, 185, 129, 0.6)`,
+              border: `2px solid rgba(16, 185, 129, 0.65)`,
               padding: "44px 40px",
               display: "flex",
               flexDirection: "column",
               justifyContent: "center",
-              boxShadow: "0 25px 60px -15px rgba(16, 185, 129, 0.25), 0 20px 40px -15px rgba(0, 0, 0, 0.7)",
+              boxShadow: "0 25px 60px -15px rgba(16, 185, 129, 0.28), 0 20px 40px -15px rgba(0, 0, 0, 0.7)",
             }}
           >
             <div
@@ -610,9 +708,12 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             >
               {resultValue}
             </div>
+
+            {/* Phase 5: RESOLVE - Explanatory Note */}
             {note && (
               <div
                 style={{
+                  opacity: noteSpring,
                   fontSize: "18px",
                   fontWeight: 500,
                   color: tokens.text.secondary,
@@ -631,33 +732,44 @@ export function CalculationStory(props: CalculationStoryProps | any) {
   // Treatment 3: SUBTRACTION / DEDUCTION (Starting - Deduction → Net Retained)
   // -------------------------------------------------------------------------
   if (treatment === "subtraction") {
-    const grossDelay = safeSpringDelay(8, duration_frames, 0.2);
+    // Phase 1: ESTABLISH (Gross Corpus enters alone)
     const grossSpring = spring({
-      frame: Math.max(0, frame - grossDelay),
+      frame: Math.max(0, frame - phases.inputDelay),
       fps,
       config: tokens.motion.reveal,
     });
 
-    const deductDelay = safeSpringDelay(20, duration_frames, 0.38);
+    // Phase 2: BUILD (Deduction component reveals with rose alert styling)
     const deductSpring = spring({
-      frame: Math.max(0, frame - deductDelay),
+      frame: Math.max(0, frame - phases.driverDelay),
       fps,
       config: tokens.motion.impact,
     });
 
-    const [arrowStart, arrowEnd] = safeAnimationWindow(28, 50, duration_frames);
+    // Phase 3: TRANSFORM (Subtraction vector arrow cuts across)
     const arrowProgress = interpolate(
       frame,
-      [arrowStart, arrowEnd],
+      [phases.vectorStart, phases.vectorEnd],
       [0, 1],
       { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
+    const arrowOpacity = interpolate(arrowProgress, [0, 0.12], [0, 1], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
 
-    const netDelay = safeSpringDelay(42, duration_frames, 0.62);
+    // Phase 4: PAYOFF (Net Remaining Card reveals)
     const netSpring = spring({
-      frame: Math.max(0, frame - netDelay),
+      frame: Math.max(0, frame - phases.resultDelay),
       fps,
       config: tokens.motion.settle,
+    });
+
+    // Phase 5: RESOLVE (Takeaway Note settles in; hold for comprehension)
+    const noteSpring = spring({
+      frame: Math.max(0, frame - phases.noteDelay),
+      fps,
+      config: tokens.motion.gentle,
     });
 
     return (
@@ -673,6 +785,33 @@ export function CalculationStory(props: CalculationStoryProps | any) {
           overflow: "hidden",
         }}
       >
+        {/* Optional Eyebrow Header */}
+        {headerLabel && (
+          <div
+            style={{
+              position: "absolute",
+              top: "50px",
+              left: "100px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              zIndex: 10,
+            }}
+          >
+            <div
+              style={{
+                fontSize: "15px",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.14em",
+                color: tokens.text.muted,
+              }}
+            >
+              {headerLabel}
+            </div>
+          </div>
+        )}
+
         <div
           style={{
             display: "flex",
@@ -684,7 +823,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             maxWidth: "1650px",
           }}
         >
-          {/* Starting Gross Corpus */}
+          {/* Phase 1: ESTABLISH - Starting Gross Corpus */}
           <div
             style={{
               opacity: grossSpring,
@@ -726,7 +865,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             </div>
           </div>
 
-          {/* Deduction Component (Distinct Rose Alert) */}
+          {/* Phase 2: BUILD - Deduction Component (Distinct Rose Alert) */}
           <div
             style={{
               opacity: deductSpring,
@@ -785,9 +924,9 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             )}
           </div>
 
-          {/* Subtraction Vector Arrow */}
+          {/* Phase 3: TRANSFORM - Subtraction Vector Arrow */}
           <div style={{ width: "80px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="80" height="30" viewBox="0 0 80 30">
+            <svg width="80" height="30" viewBox="0 0 80 30" style={{ opacity: arrowOpacity }}>
               <path
                 d="M 0 15 L 70 15 M 55 5 L 70 15 L 55 25"
                 stroke={tokens.accent.cyan}
@@ -801,17 +940,17 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             </svg>
           </div>
 
-          {/* Net Remaining Card */}
+          {/* Phase 4: PAYOFF - Net Remaining Card */}
           <div
             style={{
               opacity: netSpring,
-              transform: `translateX(${interpolate(netSpring, [0, 1], [40, 0])}px)`,
+              transform: `translateX(${interpolate(netSpring, [0, 1], [40, 0])}px) scale(${interpolate(netSpring, [0, 1], [0.95, 1])})`,
               flex: 1.2,
               maxWidth: "520px",
               minHeight: "340px",
               backgroundColor: tokens.bg.surface,
               borderRadius: tokens.radius.card,
-              border: `2px solid rgba(56, 189, 248, 0.4)`,
+              border: `2px solid rgba(56, 189, 248, 0.45)`,
               padding: "40px 38px",
               display: "flex",
               flexDirection: "column",
@@ -842,9 +981,12 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             >
               {resultValue}
             </div>
+
+            {/* Phase 5: RESOLVE - Takeaway Note */}
             {note && (
               <div
                 style={{
+                  opacity: noteSpring,
                   fontSize: "17px",
                   fontWeight: 600,
                   color: tokens.text.secondary,
@@ -863,28 +1005,52 @@ export function CalculationStory(props: CalculationStoryProps | any) {
   // Treatment 4: PERCENTAGE ALLOCATION (Total → Proportional Bar Segment → Carved Portion)
   // -------------------------------------------------------------------------
   if (treatment === "allocation") {
-    const totalDelay = safeSpringDelay(8, duration_frames, 0.2);
+    // Phase 1: ESTABLISH (Total Corpus Source Card enters alone)
     const totalSpring = spring({
-      frame: Math.max(0, frame - totalDelay),
+      frame: Math.max(0, frame - phases.inputDelay),
       fps,
       config: tokens.motion.reveal,
     });
 
     const allocPercent = parsePercent(rateLabel || "40%");
 
-    const [barStart, barEnd] = safeAnimationWindow(20, 48, duration_frames);
+    // Phase 2: BUILD (Allocation Chip reveals)
+    const driverSpring = spring({
+      frame: Math.max(0, frame - phases.driverDelay),
+      fps,
+      config: tokens.motion.reveal,
+    });
+
+    // Phase 3: TRANSFORM (Dynamic Bar Fill & Carve-Out Arrow)
     const barProgress = interpolate(
       frame,
-      [barStart, barEnd],
+      [phases.vectorStart, phases.vectorEnd],
       [0, 1],
       { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
+    const arrowProgress = interpolate(
+      frame,
+      [phases.vectorStart, phases.vectorEnd],
+      [0, 1],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+    );
+    const arrowOpacity = interpolate(arrowProgress, [0, 0.12], [0, 1], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
 
-    const allocDelay = safeSpringDelay(40, duration_frames, 0.6);
+    // Phase 4: PAYOFF (Allocated Portion Result Card reveals)
     const allocSpring = spring({
-      frame: Math.max(0, frame - allocDelay),
+      frame: Math.max(0, frame - phases.resultDelay),
       fps,
       config: tokens.motion.settle,
+    });
+
+    // Phase 5: RESOLVE (Allocation Note settles in; hold for comprehension)
+    const noteSpring = spring({
+      frame: Math.max(0, frame - phases.noteDelay),
+      fps,
+      config: tokens.motion.gentle,
     });
 
     return (
@@ -901,6 +1067,33 @@ export function CalculationStory(props: CalculationStoryProps | any) {
           overflow: "hidden",
         }}
       >
+        {/* Optional Eyebrow Header */}
+        {headerLabel && (
+          <div
+            style={{
+              position: "absolute",
+              top: "50px",
+              left: "100px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              zIndex: 10,
+            }}
+          >
+            <div
+              style={{
+                fontSize: "15px",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.14em",
+                color: tokens.text.muted,
+              }}
+            >
+              {headerLabel}
+            </div>
+          </div>
+        )}
+
         <div
           style={{
             display: "flex",
@@ -913,7 +1106,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             marginBottom: "32px",
           }}
         >
-          {/* Total Corpus Source Card */}
+          {/* Phase 1: ESTABLISH - Total Corpus Source Card */}
           <div
             style={{
               opacity: totalSpring,
@@ -955,7 +1148,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             </div>
           </div>
 
-          {/* Center: Visual Proportional Carve-Out Bar */}
+          {/* Phases 2 & 3: BUILD & TRANSFORM - Proportional Carve-Out Bar */}
           <div
             style={{
               display: "flex",
@@ -965,8 +1158,11 @@ export function CalculationStory(props: CalculationStoryProps | any) {
               width: "380px",
             }}
           >
+            {/* Phase 2: Allocation Percentage Chip */}
             <div
               style={{
+                opacity: driverSpring,
+                transform: `translateY(${interpolate(driverSpring, [0, 1], [14, 0])}px)`,
                 fontSize: "17px",
                 fontWeight: 700,
                 color: tokens.accent.cyan,
@@ -978,9 +1174,10 @@ export function CalculationStory(props: CalculationStoryProps | any) {
               {rateLabel || `${allocPercent}% ALLOCATION`}
             </div>
 
-            {/* Proportional Segment Bar */}
+            {/* Phase 3: Dynamic Proportional Segment Bar */}
             <div
               style={{
+                opacity: driverSpring,
                 width: "100%",
                 height: "36px",
                 borderRadius: tokens.radius.chip,
@@ -1002,8 +1199,8 @@ export function CalculationStory(props: CalculationStoryProps | any) {
               />
             </div>
 
-            {/* Arrow indicating carved-out portion */}
-            <svg width="240" height="24" viewBox="0 0 240 24">
+            {/* Phase 3: Dynamic Carve-Out Arrow */}
+            <svg width="240" height="24" viewBox="0 0 240 24" style={{ opacity: arrowOpacity }}>
               <path
                 d="M 0 12 L 230 12 M 215 4 L 230 12 L 215 20"
                 stroke={tokens.accent.cyan}
@@ -1011,11 +1208,13 @@ export function CalculationStory(props: CalculationStoryProps | any) {
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                strokeDasharray="240"
+                strokeDashoffset={240 * (1 - arrowProgress)}
               />
             </svg>
           </div>
 
-          {/* Allocated Portion Result Card */}
+          {/* Phase 4: PAYOFF - Allocated Portion Result Card */}
           <div
             style={{
               opacity: allocSpring,
@@ -1058,9 +1257,11 @@ export function CalculationStory(props: CalculationStoryProps | any) {
           </div>
         </div>
 
+        {/* Phase 5: RESOLVE - Allocation Note */}
         {note && (
           <div
             style={{
+              opacity: noteSpring,
               fontSize: "20px",
               fontWeight: 500,
               color: tokens.text.secondary,
@@ -1078,39 +1279,52 @@ export function CalculationStory(props: CalculationStoryProps | any) {
   // Treatment 5: GROWTH / TRANSFORMATION (Starting → Growth Vector → Future Result)
   // -------------------------------------------------------------------------
   if (treatment === "growth") {
-    const startDelay = safeSpringDelay(8, duration_frames, 0.2);
+    // Phase 1: ESTABLISH (Initial Principal Investment Card enters alone)
     const startSpring = spring({
-      frame: Math.max(0, frame - startDelay),
+      frame: Math.max(0, frame - phases.inputDelay),
       fps,
       config: tokens.motion.reveal,
     });
 
-    const [journeyStart, journeyEnd] = safeAnimationWindow(20, 50, duration_frames);
+    // Phase 2: BUILD (Timeline Horizon Chip & Compounding Rate reveal)
+    const driverSpring = spring({
+      frame: Math.max(0, frame - phases.driverDelay),
+      fps,
+      config: tokens.motion.reveal,
+    });
+
+    // Phase 3: TRANSFORM (Compounding Trajectory Beam & Radiant Aura Expansion)
     const journeyProgress = interpolate(
       frame,
-      [journeyStart, journeyEnd],
+      [phases.vectorStart, phases.vectorEnd],
       [0, 1],
       { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
+    const journeyOpacity = interpolate(journeyProgress, [0, 0.12], [0, 1], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
 
-    const futureDelay = safeSpringDelay(40, duration_frames, 0.6);
+    const glowBloom = interpolate(
+      frame,
+      [phases.vectorStart, phases.resultDelay],
+      [0.05, 0.28],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+    );
+
+    // Phase 4: PAYOFF (Future Expanded Result Card reveals with emerald bloom)
     const futureSpring = spring({
-      frame: Math.max(0, frame - futureDelay),
+      frame: Math.max(0, frame - phases.resultDelay),
       fps,
       config: tokens.motion.impact,
     });
 
-    const [glowStart, glowEnd] = safeAnimationWindow(
-      Math.round(duration_frames * 0.4),
-      Math.round(duration_frames * 0.7),
-      duration_frames
-    );
-    const glowBloom = interpolate(
-      frame,
-      [glowStart, glowEnd],
-      [0.08, 0.25],
-      { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
-    );
+    // Phase 5: RESOLVE (Compounding Note settles in; hold for comprehension)
+    const noteSpring = spring({
+      frame: Math.max(0, frame - phases.noteDelay),
+      fps,
+      config: tokens.motion.gentle,
+    });
 
     return (
       <AbsoluteFill
@@ -1125,7 +1339,34 @@ export function CalculationStory(props: CalculationStoryProps | any) {
           overflow: "hidden",
         }}
       >
-        {/* Future Growth Radiant Aura */}
+        {/* Optional Eyebrow Header */}
+        {headerLabel && (
+          <div
+            style={{
+              position: "absolute",
+              top: "50px",
+              left: "100px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              zIndex: 10,
+            }}
+          >
+            <div
+              style={{
+                fontSize: "15px",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.14em",
+                color: tokens.text.muted,
+              }}
+            >
+              {headerLabel}
+            </div>
+          </div>
+        )}
+
+        {/* Phase 3 & 4: Future Growth Radiant Aura Bloom */}
         <div
           style={{
             position: "absolute",
@@ -1151,7 +1392,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             zIndex: 1,
           }}
         >
-          {/* Starting Corpus Card */}
+          {/* Phase 1: ESTABLISH - Starting Corpus Card */}
           <div
             style={{
               opacity: startSpring,
@@ -1193,7 +1434,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             </div>
           </div>
 
-          {/* Growth Journey Vector */}
+          {/* Phases 2 & 3: BUILD & TRANSFORM - Growth Journey Vector */}
           <div
             style={{
               display: "flex",
@@ -1203,9 +1444,11 @@ export function CalculationStory(props: CalculationStoryProps | any) {
               width: "240px",
             }}
           >
-            {/* Timeline Horizon Chip */}
+            {/* Phase 2: Timeline Horizon Chip */}
             <div
               style={{
+                opacity: driverSpring,
+                transform: `translateY(${interpolate(driverSpring, [0, 1], [14, 0])}px)`,
                 fontSize: "16px",
                 fontWeight: 700,
                 color: tokens.accent.emerald,
@@ -1222,12 +1465,12 @@ export function CalculationStory(props: CalculationStoryProps | any) {
               {timeframe || "COMPOUNDING JOURNEY"}
             </div>
 
-            {/* Gradient Vector Beam */}
+            {/* Phase 3: Gradient Vector Beam */}
             <svg
               width="240"
               height="36"
               viewBox="0 0 240 36"
-              style={{ overflow: "visible" }}
+              style={{ overflow: "visible", opacity: journeyOpacity }}
             >
               <defs>
                 <linearGradient id="growthGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -1247,10 +1490,12 @@ export function CalculationStory(props: CalculationStoryProps | any) {
               />
             </svg>
 
-            {/* Compounding Rate / Driver Subtitle */}
+            {/* Phase 2: Compounding Rate / Driver Subtitle */}
             {rateLabel && (
               <div
                 style={{
+                  opacity: driverSpring,
+                  transform: `translateY(${interpolate(driverSpring, [0, 1], [8, 0])}px)`,
                   fontSize: "15px",
                   fontWeight: 600,
                   color: tokens.text.secondary,
@@ -1264,7 +1509,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             )}
           </div>
 
-          {/* Future Expanded Result Card */}
+          {/* Phase 4: PAYOFF - Future Expanded Result Card */}
           <div
             style={{
               opacity: futureSpring,
@@ -1274,12 +1519,12 @@ export function CalculationStory(props: CalculationStoryProps | any) {
               minHeight: "380px",
               backgroundColor: tokens.bg.surface,
               borderRadius: tokens.radius.card,
-              border: `2px solid rgba(16, 185, 129, 0.6)`,
+              border: `2px solid rgba(16, 185, 129, 0.65)`,
               padding: "48px 44px",
               display: "flex",
               flexDirection: "column",
               justifyContent: "center",
-              boxShadow: "0 25px 60px -15px rgba(16, 185, 129, 0.3), 0 20px 40px -15px rgba(0, 0, 0, 0.8)",
+              boxShadow: "0 25px 60px -15px rgba(16, 185, 129, 0.35), 0 20px 40px -15px rgba(0, 0, 0, 0.8)",
               position: "relative",
             }}
           >
@@ -1306,9 +1551,12 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             >
               {resultValue}
             </div>
+
+            {/* Phase 5: RESOLVE - Compounding Note Badge */}
             {note && (
               <div
                 style={{
+                  opacity: noteSpring,
                   display: "inline-flex",
                   alignSelf: "flex-start",
                   padding: "8px 16px",
@@ -1332,26 +1580,44 @@ export function CalculationStory(props: CalculationStoryProps | any) {
   // -------------------------------------------------------------------------
   // Treatment 6: NEUTRAL / FALLBACK TRANSFORMATION
   // -------------------------------------------------------------------------
-  const inDelay = safeSpringDelay(8, duration_frames, 0.2);
+  // Phase 1: ESTABLISH (Input Card enters alone)
   const inSpring = spring({
-    frame: Math.max(0, frame - inDelay),
+    frame: Math.max(0, frame - phases.inputDelay),
     fps,
     config: tokens.motion.reveal,
   });
 
-  const [arrStart, arrEnd] = safeAnimationWindow(20, 44, duration_frames);
+  // Phase 2: BUILD (Transition Subtitle / Driver reveals)
+  const driverSpring = spring({
+    frame: Math.max(0, frame - phases.driverDelay),
+    fps,
+    config: tokens.motion.reveal,
+  });
+
+  // Phase 3: TRANSFORM (Directional connection vector draws across)
   const arrProgress = interpolate(
     frame,
-    [arrStart, arrEnd],
+    [phases.vectorStart, phases.vectorEnd],
     [0, 1],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
+  const arrOpacity = interpolate(arrProgress, [0, 0.12], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
-  const outDelay = safeSpringDelay(36, duration_frames, 0.58);
+  // Phase 4: PAYOFF (Destination Result Card arrives)
   const outSpring = spring({
-    frame: Math.max(0, frame - outDelay),
+    frame: Math.max(0, frame - phases.resultDelay),
     fps,
     config: tokens.motion.settle,
+  });
+
+  // Phase 5: RESOLVE (Note settles in; hold for comprehension)
+  const noteSpring = spring({
+    frame: Math.max(0, frame - phases.noteDelay),
+    fps,
+    config: tokens.motion.gentle,
   });
 
   return (
@@ -1367,6 +1633,33 @@ export function CalculationStory(props: CalculationStoryProps | any) {
         overflow: "hidden",
       }}
     >
+      {/* Optional Eyebrow Header */}
+      {headerLabel && (
+        <div
+          style={{
+            position: "absolute",
+            top: "50px",
+            left: "100px",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            zIndex: 10,
+          }}
+        >
+          <div
+            style={{
+              fontSize: "15px",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.14em",
+              color: tokens.text.muted,
+            }}
+          >
+            {headerLabel}
+          </div>
+        </div>
+      )}
+
       <div
         style={{
           display: "flex",
@@ -1378,7 +1671,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
           maxWidth: "1600px",
         }}
       >
-        {/* Input Card */}
+        {/* Phase 1: ESTABLISH - Input Card */}
         <div
           style={{
             opacity: inSpring,
@@ -1420,7 +1713,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
           </div>
         </div>
 
-        {/* Center Neutral Arrow (No invented operator symbol) */}
+        {/* Phases 2 & 3: BUILD & TRANSFORM - Neutral Directional Arrow */}
         <div
           style={{
             display: "flex",
@@ -1430,7 +1723,8 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             width: "180px",
           }}
         >
-          <svg width="180" height="36" viewBox="0 0 180 36">
+          {/* Phase 3: Directional Vector Arrow */}
+          <svg width="180" height="36" viewBox="0 0 180 36" style={{ opacity: arrOpacity }}>
             <path
               d="M 0 18 L 170 18 M 155 10 L 170 18 L 155 26"
               stroke={tokens.accent.cyan}
@@ -1442,9 +1736,13 @@ export function CalculationStory(props: CalculationStoryProps | any) {
               strokeDashoffset={200 * (1 - arrProgress)}
             />
           </svg>
+
+          {/* Phase 2: Rate / Transition Driver Subtitle */}
           {rateLabel && (
             <div
               style={{
+                opacity: driverSpring,
+                transform: `translateY(${interpolate(driverSpring, [0, 1], [10, 0])}px)`,
                 fontSize: "17px",
                 fontWeight: 600,
                 color: tokens.text.secondary,
@@ -1457,7 +1755,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
           )}
         </div>
 
-        {/* Result Card */}
+        {/* Phase 4: PAYOFF - Result Card */}
         <div
           style={{
             opacity: outSpring,
@@ -1467,7 +1765,7 @@ export function CalculationStory(props: CalculationStoryProps | any) {
             minHeight: "340px",
             backgroundColor: tokens.bg.surface,
             borderRadius: tokens.radius.card,
-            border: `2px solid rgba(56, 189, 248, 0.4)`,
+            border: `2px solid rgba(56, 189, 248, 0.45)`,
             padding: "44px 40px",
             display: "flex",
             flexDirection: "column",
@@ -1498,9 +1796,12 @@ export function CalculationStory(props: CalculationStoryProps | any) {
           >
             {resultValue}
           </div>
+
+          {/* Phase 5: RESOLVE - Contextual Note */}
           {note && (
             <div
               style={{
+                opacity: noteSpring,
                 fontSize: "18px",
                 fontWeight: 500,
                 color: tokens.text.secondary,

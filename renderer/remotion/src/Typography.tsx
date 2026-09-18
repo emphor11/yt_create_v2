@@ -7,6 +7,7 @@ import {
 } from "remotion";
 import { type TypographyProps } from "./types";
 import { tokens } from "./design-tokens";
+import { safeSpringDelay } from "./animation-safety";
 
 /**
  * Helper to highlight a specific keyword or phrase within a text string
@@ -15,7 +16,8 @@ function renderHighlightedText(
   fullText: string,
   highlightStr: string | undefined,
   accentColor: string,
-  baseFontSize: number
+  baseFontSize: number,
+  highlightSpring: number
 ) {
   if (!highlightStr || !highlightStr.trim()) {
     return fullText;
@@ -46,7 +48,8 @@ function renderHighlightedText(
           padding: "2px 14px",
           borderRadius: "12px",
           margin: "0 4px",
-          boxShadow: `0 4px 15px ${accentColor}33`,
+          boxShadow: `0 4px 15px ${accentColor}${Math.round(highlightSpring * 51).toString(16).padStart(2, "0")}`,
+          transform: `scale(${0.96 + highlightSpring * 0.04})`,
         }}
       >
         {matchedText}
@@ -67,7 +70,11 @@ export function Typography(props: TypographyProps | any) {
     ? props
     : (props as any).renderSpec?.props || props;
 
-  const duration_frames = (props as any).duration_frames || 180;
+  const duration_frames: number =
+    (props as any).duration_frames ||
+    (props as any).durationInFrames ||
+    (props as any).renderSpec?.duration_frames ||
+    180;
 
   const headerLabel = resolvedProps.headerLabel || "";
   const text = resolvedProps.text || resolvedProps.title || "";
@@ -89,29 +96,72 @@ export function Typography(props: TypographyProps | any) {
     resolvedProps.align === "center" ||
     (!resolvedProps.align && (variant === "question" || variant === "metric"));
 
-  // Staggered Motion Springs (NO CONTINUOUS PULSE!)
+  // ─────────────────────────────────────────────────────────────────────────
+  // DURATION-SAFE PROGRESSIVE SPRINGS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Phase 1: Header eyebrow (0% D)
+  const headerDelay = safeSpringDelay(0, duration_frames, 0.08);
   const headerSpring = spring({
-    frame,
+    frame: Math.max(0, frame - headerDelay),
     fps,
     config: { damping: 15, stiffness: 100 },
   });
 
+  // Phase 1 (for metric): giant number enters first
+  const metricDelay = safeSpringDelay(0, duration_frames, 0.08);
+  const metricSpring = spring({
+    frame: Math.max(0, frame - metricDelay),
+    fps,
+    config: { damping: 14, stiffness: 120 },
+  });
+
+  // Phase 2: Main editorial text
+  // For standard headline: starts near beginning (~8% D)
+  // For metric variant: enters as explanatory context after the number is established (~20% D)
+  const mainNominal = variant === "metric" && val ? Math.floor(duration_frames * 0.20) : 8;
+  const mainDelay = safeSpringDelay(
+    mainNominal,
+    duration_frames,
+    variant === "metric" ? 0.35 : 0.18
+  );
   const mainSpring = spring({
-    frame: Math.max(0, frame - 10),
+    frame: Math.max(0, frame - mainDelay),
     fps,
     config: { damping: 14, stiffness: 95 },
   });
 
+  // Phase 2b: Highlight emphasis (activates after text has entered)
+  const highlightNominal = mainNominal + Math.max(6, Math.floor(duration_frames * 0.12));
+  const highlightDelay = safeSpringDelay(highlightNominal, duration_frames, 0.45);
   const highlightSpring = spring({
-    frame: Math.max(0, frame - 25),
+    frame: Math.max(0, frame - highlightDelay),
     fps,
     config: { damping: 12, stiffness: 110 },
   });
 
+  // Phase 3: Subtitle / Author Attribution (~45% D)
+  const subtitleDelay = safeSpringDelay(
+    Math.floor(duration_frames * 0.45),
+    duration_frames,
+    0.70
+  );
   const subtitleSpring = spring({
-    frame: Math.max(0, frame - 35),
+    frame: Math.max(0, frame - subtitleDelay),
     fps,
     config: { damping: 15, stiffness: 90 },
+  });
+
+  // Phase 3b: Footer attribution / source (~60% D)
+  const footerDelay = safeSpringDelay(
+    Math.floor(duration_frames * 0.60),
+    duration_frames,
+    0.80
+  );
+  const footerSpring = spring({
+    frame: Math.max(0, frame - footerDelay),
+    fps,
+    config: { damping: 16, stiffness: 85 },
   });
 
   // Variant Accent Color
@@ -198,8 +248,8 @@ export function Typography(props: TypographyProps | any) {
                 lineHeight: 1,
                 letterSpacing: -2,
                 marginBottom: 12,
-                opacity: mainSpring,
-                transform: `scale(${0.92 + mainSpring * 0.08})`,
+                opacity: metricSpring,
+                transform: `scale(${0.92 + metricSpring * 0.08})`,
               }}
             >
               <span
@@ -246,7 +296,7 @@ export function Typography(props: TypographyProps | any) {
               transform: `translateY(${(1 - mainSpring) * 20}px)`,
             }}
           >
-            {renderHighlightedText(text, highlight, accentColor, baseFontSize)}
+            {renderHighlightedText(text, highlight, accentColor, baseFontSize, highlightSpring)}
           </div>
 
           {/* SUBTITLE OR AUTHOR ATTRIBUTION */}
@@ -276,6 +326,7 @@ export function Typography(props: TypographyProps | any) {
               fontSize: 18,
               color: tokens.text.muted,
               fontWeight: 600,
+              opacity: footerSpring,
             }}
           >
             {footerLabel}

@@ -7,6 +7,7 @@ import {
 } from "remotion";
 import { type ProgressiveListItem, type ProgressiveListProps } from "./types";
 import { tokens } from "./design-tokens";
+import { safeSpringDelay } from "./animation-safety";
 
 export function ProgressiveList(props: ProgressiveListProps | any) {
   const frame = useCurrentFrame();
@@ -14,7 +15,11 @@ export function ProgressiveList(props: ProgressiveListProps | any) {
 
   // Normalize boundary props wrapper
   const resolvedProps: ProgressiveListProps = props.props ? props.props : props;
-  const duration_frames = (props as any).duration_frames || 180;
+  const duration_frames: number =
+    (props as any).duration_frames ||
+    (props as any).durationInFrames ||
+    (props as any).renderSpec?.duration_frames ||
+    180;
 
   const headerLabel = resolvedProps.headerLabel || "";
   const itemList: ProgressiveListItem[] = Array.isArray(resolvedProps.items)
@@ -22,22 +27,62 @@ export function ProgressiveList(props: ProgressiveListProps | any) {
     : [];
   const footerLabel = resolvedProps.footerLabel || "";
 
-  const itemCount = itemList.length;
+  const itemCount = Math.max(1, itemList.length);
 
   // Auto-detect variant if not explicitly passed
   const isDetailed =
     resolvedProps.variant === "detailed" ||
     (!resolvedProps.variant && itemList.some((it) => Boolean(it.subtitle)));
 
-  // Pacing Construction Timeline (Allocate 75% for list reveal, hold 25%)
-  const totalBuildDuration = Math.round(duration_frames * 0.75);
-  const timePerItem = Math.round(totalBuildDuration / Math.max(1, itemCount));
+  // ─────────────────────────────────────────────────────────────────────────
+  // PHASE 1 — HEADER & GUIDE ACCENT (0 → ~10% D)
+  // ─────────────────────────────────────────────────────────────────────────
+  const headerDelay = safeSpringDelay(0, duration_frames, 0.08);
+  const headerSpring = spring({
+    frame: Math.max(0, frame - headerDelay),
+    fps,
+    config: { damping: 16, stiffness: 110 },
+  });
 
-  // Determine current active item index for reading focus
-  const currentActiveIndex = Math.min(
-    itemCount - 1,
-    Math.floor(frame / timePerItem)
+  // Vertical guide line draws down smoothly during Phase 1
+  const guideProgress = interpolate(
+    frame,
+    [0, Math.max(2, Math.floor(duration_frames * 0.22))],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PHASE 2 — PROGRESSIVE ITEM REVEAL (10% D → 72% D)
+  // Each item enters sequentially with safeSpringDelay.
+  // In the build phase, the active item has reading spotlight; in Phase 3
+  // (hold phase), all items settle into balanced, unified readability.
+  // ─────────────────────────────────────────────────────────────────────────
+  const buildStart = Math.floor(duration_frames * 0.08);
+  const totalBuildDuration = Math.max(
+    1,
+    Math.floor(duration_frames * 0.72) - buildStart
+  );
+  const timePerItem = Math.max(1, Math.floor(totalBuildDuration / itemCount));
+
+  const isHoldPhase = frame >= Math.floor(duration_frames * 0.72);
+  const currentActiveIndex = isHoldPhase
+    ? -1
+    : Math.min(itemCount - 1, Math.max(0, Math.floor((frame - buildStart) / timePerItem)));
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PHASE 3 — FOOTER & CONSOLIDATION HOLD (72% D → 100% D)
+  // ─────────────────────────────────────────────────────────────────────────
+  const footerDelay = safeSpringDelay(
+    Math.floor(duration_frames * 0.72),
+    duration_frames,
+    0.85
+  );
+  const footerSpring = spring({
+    frame: Math.max(0, frame - footerDelay),
+    fps,
+    config: { damping: 16, stiffness: 90 },
+  });
 
   return (
     <AbsoluteFill
@@ -60,7 +105,12 @@ export function ProgressiveList(props: ProgressiveListProps | any) {
       >
         {/* Header Question / Eyebrow Context */}
         {headerLabel ? (
-          <header>
+          <header
+            style={{
+              opacity: headerSpring,
+              transform: `translateY(${(1 - headerSpring) * -12}px)`,
+            }}
+          >
             <div
               style={{
                 color: tokens.accent.blue,
@@ -88,7 +138,7 @@ export function ProgressiveList(props: ProgressiveListProps | any) {
             paddingLeft: "20px",
           }}
         >
-          {/* Vertical Guide Accent Line */}
+          {/* Vertical Guide Accent Line (animated scaleY) */}
           <div
             style={{
               position: "absolute",
@@ -96,33 +146,48 @@ export function ProgressiveList(props: ProgressiveListProps | any) {
               top: "20px",
               bottom: "20px",
               width: "2px",
-              background: "rgba(59, 130, 246, 0.2)",
+              background: "rgba(59, 130, 246, 0.25)",
+              transformOrigin: "top",
+              transform: `scaleY(${guideProgress})`,
               zIndex: 0,
             }}
           />
 
           {itemList.map((item, idx) => {
-            const itemFrameStart = idx * timePerItem;
-            const isRevealed = frame >= itemFrameStart;
+            const nominalItemStart = buildStart + idx * timePerItem;
+            const itemDelay = safeSpringDelay(
+              nominalItemStart,
+              duration_frames,
+              0.72
+            );
 
             const itemSpring = spring({
-              frame: Math.max(0, frame - itemFrameStart),
+              frame: Math.max(0, frame - itemDelay),
               fps,
-              config: { damping: 14, stiffness: 95 },
+              config: { damping: 15, stiffness: 100 },
             });
 
-            // Active Reading Focus Logic (Story Pacing)
+            // Entrance state: item has arrived once frame >= itemDelay
+            const isRevealed = frame >= itemDelay;
             const isCurrentActive =
-              (idx === currentActiveIndex && frame < totalBuildDuration) ||
-              Boolean(item.highlight);
+              (!isHoldPhase && idx === currentActiveIndex) || Boolean(item.highlight);
 
             const displayTitle = item.title || item.text || "Key Takeaway";
             const indexStr = String(idx + 1).padStart(2, "0");
 
-            const numberBg = isCurrentActive
+            // Frame-interpolated active emphasis (NO CSS transition)
+            const baseOpacity = isHoldPhase ? 1.0 : isCurrentActive ? 1.0 : 0.72;
+            const currentOpacity = isRevealed ? baseOpacity * itemSpring : 0;
+            const currentScale = isRevealed
+              ? 0.96 + itemSpring * (isCurrentActive && !isHoldPhase ? 0.06 : 0.04)
+              : 0.95;
+
+            const numberBg = isCurrentActive && !isHoldPhase
               ? tokens.accent.blue
               : "rgba(30, 41, 59, 0.9)";
-            const numberTextColor = isCurrentActive ? "#ffffff" : tokens.accent.blue;
+            const numberTextColor = isCurrentActive && !isHoldPhase
+              ? "#ffffff"
+              : tokens.accent.blue;
 
             const titleFontSize = isDetailed
               ? itemCount >= 5 ? 24 : 28
@@ -137,11 +202,8 @@ export function ProgressiveList(props: ProgressiveListProps | any) {
                   alignItems: isDetailed ? "flex-start" : "center",
                   gap: "24px",
                   zIndex: 1,
-                  opacity: isRevealed ? (isCurrentActive ? 1 : 0.72) : 0,
-                  transform: `translateX(${(1 - itemSpring) * -30}px) scale(${
-                    isRevealed ? (isCurrentActive ? 1.02 : 1) : 0.95
-                  })`,
-                  transition: "opacity 0.2s, transform 0.2s",
+                  opacity: currentOpacity,
+                  transform: `translateX(${(1 - itemSpring) * -24}px) scale(${currentScale})`,
                 }}
               >
                 {/* Visual Anchor: Index Number Badge 01, 02, 03 */}
@@ -152,7 +214,9 @@ export function ProgressiveList(props: ProgressiveListProps | any) {
                     borderRadius: "14px",
                     background: numberBg,
                     border: `2px solid ${
-                      isCurrentActive ? tokens.accent.blue : "rgba(59, 130, 246, 0.3)"
+                      isCurrentActive && !isHoldPhase
+                        ? tokens.accent.blue
+                        : "rgba(59, 130, 246, 0.3)"
                     }`,
                     display: "flex",
                     alignItems: "center",
@@ -160,7 +224,7 @@ export function ProgressiveList(props: ProgressiveListProps | any) {
                     fontSize: 22,
                     fontWeight: 900,
                     color: numberTextColor,
-                    boxShadow: isCurrentActive
+                    boxShadow: isCurrentActive && !isHoldPhase
                       ? "0 6px 20px rgba(59, 130, 246, 0.4)"
                       : "0 4px 12px rgba(0,0,0,0.2)",
                     flexShrink: 0,
@@ -173,15 +237,14 @@ export function ProgressiveList(props: ProgressiveListProps | any) {
                 <div
                   style={{
                     flex: 1,
-                    background: isCurrentActive
+                    background: isCurrentActive && !isHoldPhase
                       ? "rgba(30, 41, 59, 0.6)"
                       : "transparent",
-                    borderLeft: isCurrentActive
+                    borderLeft: isCurrentActive && !isHoldPhase
                       ? `3px solid ${tokens.accent.blue}`
                       : "3px solid transparent",
-                    padding: isCurrentActive ? "10px 16px" : "4px 0",
+                    padding: isCurrentActive && !isHoldPhase ? "10px 16px" : "4px 0",
                     borderRadius: "0 10px 10px 0",
-                    transition: "background 0.2s, border 0.2s",
                   }}
                 >
                   {/* Headline Title */}
@@ -191,12 +254,14 @@ export function ProgressiveList(props: ProgressiveListProps | any) {
                       alignItems: "center",
                       gap: "10px",
                       fontSize: titleFontSize,
-                      fontWeight: isCurrentActive ? 900 : 700,
-                      color: isCurrentActive ? "#ffffff" : tokens.text.primary,
+                      fontWeight: isCurrentActive || isHoldPhase ? 900 : 700,
+                      color: isCurrentActive || isHoldPhase ? "#ffffff" : tokens.text.primary,
                       lineHeight: 1.25,
                     }}
                   >
-                    {item.icon ? <span style={{ fontSize: titleFontSize - 2 }}>{item.icon}</span> : null}
+                    {item.icon ? (
+                      <span style={{ fontSize: titleFontSize - 2 }}>{item.icon}</span>
+                    ) : null}
                     <span>{displayTitle}</span>
                     {item.value ? (
                       <span
@@ -217,7 +282,7 @@ export function ProgressiveList(props: ProgressiveListProps | any) {
                     <div
                       style={{
                         fontSize: itemCount >= 5 ? 16 : 18,
-                        color: isCurrentActive
+                        color: isCurrentActive || isHoldPhase
                           ? tokens.text.secondary
                           : tokens.text.muted,
                         fontWeight: 500,
@@ -235,7 +300,15 @@ export function ProgressiveList(props: ProgressiveListProps | any) {
 
         {/* Footer */}
         {footerLabel ? (
-          <footer style={{ textAlign: "center", fontSize: 20, color: tokens.text.muted, fontWeight: 600 }}>
+          <footer
+            style={{
+              textAlign: "center",
+              fontSize: 20,
+              color: tokens.text.muted,
+              fontWeight: 600,
+              opacity: footerSpring,
+            }}
+          >
             {footerLabel}
           </footer>
         ) : null}

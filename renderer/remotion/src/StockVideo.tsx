@@ -7,19 +7,45 @@ import {
 } from "remotion";
 import { type StockVideoRenderSpec } from "./types";
 import { tokens } from "./design-tokens";
+import { safeSpringDelay } from "./animation-safety";
 
-export function StockVideo(renderSpec: StockVideoRenderSpec) {
+export function StockVideo(renderSpec: StockVideoRenderSpec | any) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const props = renderSpec.props as any;
-  const headerLabel = props.headerLabel || "";
-  const text = props.text || "";
+  const props = renderSpec?.props ? renderSpec.props : renderSpec || {};
+  const duration_frames: number =
+    renderSpec?.duration_frames ||
+    renderSpec?.durationInFrames ||
+    renderSpec?.props?.duration_frames ||
+    240;
 
-  const scaleSpring = spring({
-    frame,
+  const headerLabel = props.headerLabel || "";
+  const text = props.text || props.title || props.label || "";
+  const subtitle = props.subtitle || "";
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PHASE 1 — VIDEO CUT & HEADER EYEBROW ENTRANCE (0 → ~12% D)
+  // Allows the kinetic action of the underlying video footage to register
+  // before the lower-third text card enters.
+  // ─────────────────────────────────────────────────────────────────────────
+  const headerDelay = safeSpringDelay(0, duration_frames, 0.08);
+  const headerSpring = spring({
+    frame: Math.max(0, frame - headerDelay),
     fps,
-    config: { damping: 20, stiffness: 70 },
+    config: { damping: 16, stiffness: 110 },
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PHASE 2 — EDITORIAL LOWER-THIRD ENTRANCE (12% D → ~35% D)
+  // Frosted glass card smoothly lifts up and reveals takeaway statement.
+  // ─────────────────────────────────────────────────────────────────────────
+  const captionNominal = Math.floor(duration_frames * 0.12);
+  const captionDelay = safeSpringDelay(captionNominal, duration_frames, 0.28);
+  const captionSpring = spring({
+    frame: Math.max(0, frame - captionDelay),
+    fps,
+    config: { damping: 18, stiffness: 85 },
   });
 
   return (
@@ -37,7 +63,8 @@ export function StockVideo(renderSpec: StockVideoRenderSpec) {
           style={{
             position: "absolute",
             inset: 0,
-            background: "linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.05) 45%, rgba(0,0,0,0.75) 100%)",
+            background:
+              "linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.05) 45%, rgba(0,0,0,0.80) 100%)",
             pointerEvents: "none",
           }}
         />
@@ -54,7 +81,12 @@ export function StockVideo(renderSpec: StockVideoRenderSpec) {
         }}
       >
         {headerLabel ? (
-          <header>
+          <header
+            style={{
+              opacity: headerSpring,
+              transform: `translateY(${(1 - headerSpring) * -12}px)`,
+            }}
+          >
             <div
               style={{
                 display: "inline-block",
@@ -78,8 +110,8 @@ export function StockVideo(renderSpec: StockVideoRenderSpec) {
         {text ? (
           <footer
             style={{
-              transform: `translateY(${(1 - scaleSpring) * 20}px)`,
-              opacity: scaleSpring,
+              transform: `translateY(${(1 - captionSpring) * 24}px)`,
+              opacity: captionSpring,
             }}
           >
             <div
@@ -93,9 +125,28 @@ export function StockVideo(renderSpec: StockVideoRenderSpec) {
                 maxWidth: "92%",
               }}
             >
-              <div style={{ fontSize: 52, fontWeight: 950, color: tokens.text.primary, lineHeight: 1.2 }}>
+              <div
+                style={{
+                  fontSize: 52,
+                  fontWeight: 950,
+                  color: tokens.text.primary,
+                  lineHeight: 1.2,
+                }}
+              >
                 {text}
               </div>
+              {subtitle ? (
+                <div
+                  style={{
+                    fontSize: 24,
+                    color: tokens.text.secondary,
+                    marginTop: 12,
+                    fontWeight: 500,
+                  }}
+                >
+                  {subtitle}
+                </div>
+              ) : null}
             </div>
           </footer>
         ) : null}

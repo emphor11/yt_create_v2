@@ -68,6 +68,8 @@ class PipelineServiceError(Exception):
     """Raised when a pipeline stage cannot run due to a business rule violation."""
 
 
+OPTIONAL_STAGES: set[str] = {"thumbnail"}
+
 AI_STAGE_DEFINITIONS: list[tuple[str, str]] = [
     ("generate_video_request",  "generate_video_request"),
     ("research",                "research_packet"),
@@ -93,7 +95,7 @@ NEXT_STAGE_BY_ARTIFACT_TYPE: dict[str, str | None] = {
     "voice_track":            "video_assembly",
     "render_spec":            "render",
     "video":                  "youtube_metadata",
-    "youtube_metadata":       "thumbnail",
+    "youtube_metadata":       "youtube_upload",
     "thumbnail":              "youtube_upload",
     "youtube_upload":         None,
 }
@@ -184,12 +186,17 @@ class PipelineService:
         for stage, artifact_type in AI_STAGE_DEFINITIONS:
             artifact = self.store.find_artifact_by_type(project_id, run_id, artifact_type)
             validation = artifact.validation_json if artifact is not None else None
+            status = (
+                artifact.status
+                if artifact is not None
+                else ("skipped" if stage in OPTIONAL_STAGES else "missing")
+            )
             summaries.append(
                 {
                     "stage": stage,
                     "artifact_type": artifact_type,
                     "artifact_id": artifact.id if artifact is not None else None,
-                    "status": artifact.status if artifact is not None else "missing",
+                    "status": status,
                     "error_count": len(validation.errors) if validation is not None else 0,
                     "warning_count": len(validation.warnings) if validation is not None else 0,
                     "errors": validation.errors if validation is not None else [],
@@ -266,6 +273,9 @@ def build_pipeline_service(
         media_storage=media_storage,
     )
 
+    import os
+    thumbnail_enabled = os.getenv("ENABLE_THUMBNAIL_GENERATION", "false").lower() in {"true", "1", "yes"}
+
     handlers = {
         PipelineStage.RESEARCH: ResearchHandler(
             store=store,
@@ -330,6 +340,7 @@ def build_pipeline_service(
             thumbnail_engine=thumbnail_engine,
             thumbnail_validator=ThumbnailValidator(),
             stage_logger=stage_logger,
+            enabled=thumbnail_enabled,
         ),
         PipelineStage.YOUTUBE_UPLOAD: YoutubeUploadHandler(
             store=store,

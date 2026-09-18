@@ -2,7 +2,7 @@ import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig, Img, OffthreadVideo, staticFile } from 'remotion';
 import { tokens } from '../design-tokens';
 import { BrollCaptionProps } from '../types';
-import { safeAnimationWindow, safeSpringDelay, safeKeyframeWindow } from '../animation-safety';
+import { safeAnimationWindow, safeSpringDelay } from '../animation-safety';
 
 export function BrollCaption(props: BrollCaptionProps | any) {
   const frame = useCurrentFrame();
@@ -67,10 +67,10 @@ export function BrollCaption(props: BrollCaptionProps | any) {
     defaultEyebrow = 'CONTEXTUAL OVERVIEW';
   }
 
-  // Scene fade
+  // Scene fade in
   const sceneOpacity = interpolate(
     frame,
-    [0, Math.min(10, Math.max(1, duration_frames - 1))],
+    [0, Math.min(8, Math.max(1, duration_frames - 1))],
     [0, 1],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
   );
@@ -79,34 +79,63 @@ export function BrollCaption(props: BrollCaptionProps | any) {
   const bgDriftX = interpolate(frame, [0, duration_frames], [-15, 15]);
   const bgDriftY = interpolate(frame, [0, duration_frames], [-10, 10]);
 
-  // Duration-safe text reveal calculation
-  const words = caption.split(' ');
-  const [textStart, textEnd] = safeAnimationWindow(10, Math.min(48, 14 + words.length * 2.2), duration_frames);
-  const framesPerWord = Math.max(0.8, (textEnd - textStart) / Math.max(1, words.length));
+  // ─────────────────────────────────────────────────────────────────────────
+  // PHASE 1 — HEADER & CONTAINER ENTRANCE (0 → ~15% D)
+  // ─────────────────────────────────────────────────────────────────────────
+  const headerDelay = safeSpringDelay(0, duration_frames, 0.08);
+  const headerSpring = spring({
+    frame: Math.max(0, frame - headerDelay),
+    fps,
+    config: { damping: 16, stiffness: 110 },
+  });
 
-  // Emphasis box motion
-  const boxDelay = safeSpringDelay(32, duration_frames, 0.55);
+  // Ambient card container spring (used in ambient_broll variant)
+  const cardSpring = spring({
+    frame: Math.max(0, frame - headerDelay),
+    fps,
+    config: { damping: 18, stiffness: 90 },
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PHASE 2 — WORD-BY-WORD PROGRESSIVE REVEAL (8% D → 55% D)
+  // ─────────────────────────────────────────────────────────────────────────
+  const words = caption.split(' ');
+  const nominalTextStart = Math.floor(duration_frames * 0.08);
+  const nominalTextEnd = Math.min(
+    Math.floor(duration_frames * 0.55),
+    nominalTextStart + Math.max(10, Math.round(words.length * 2.2))
+  );
+  const [textStart, textEnd] = safeAnimationWindow(nominalTextStart, nominalTextEnd, duration_frames);
+  const framesPerWord = Math.max(0.6, (textEnd - textStart) / Math.max(1, words.length));
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PHASE 3 — EMPHASIS PAYOFF & ATTRIBUTION (55% D → 75% D)
+  // Causally anchored: lands AFTER text reading completes.
+  // ─────────────────────────────────────────────────────────────────────────
+  const payoffNominal = textEnd + 3;
+
+  // Emphasis box spring (statement & ambient_broll variants)
+  const boxDelay = safeSpringDelay(payoffNominal, duration_frames, 0.72);
   const boxSpring = spring({
     frame: Math.max(0, frame - boxDelay),
     fps,
-    config: { damping: 14, stiffness: 110 },
+    config: { damping: 14, stiffness: 115 },
   });
-  const boxY = interpolate(boxSpring, [0, 1], [24, 0]);
+  const boxY = interpolate(boxSpring, [0, 1], [20, 0]);
   const boxOpacity = interpolate(boxSpring, [0, 1], [0, 1]);
 
-  // Author / attribution entrance
-  const authorDelay = safeSpringDelay(42, duration_frames, 0.65);
+  // Author attribution spring (quote variant)
+  const authorDelay = safeSpringDelay(payoffNominal, duration_frames, 0.72);
   const authorSpring = spring({
     frame: Math.max(0, frame - authorDelay),
     fps,
-    config: { damping: 14, stiffness: 110 },
+    config: { damping: 15, stiffness: 110 },
   });
-  const authorY = interpolate(authorSpring, [0, 1], [20, 0]);
+  const authorY = interpolate(authorSpring, [0, 1], [18, 0]);
   const authorOpacity = interpolate(authorSpring, [0, 1], [0, 1]);
 
-  // Pulse keyframes
-  const pulseFrames = safeKeyframeWindow([60, 68, 78], duration_frames);
-  const pulseGlow = interpolate(frame, pulseFrames, [0.4, 1.0, 0.6], {
+  // Synchronized One-Shot Bloom tied directly to payoff landing (NO arbitrary frame jump)
+  const pulseGlow = interpolate(boxSpring, [0, 0.7, 1], [0.4, 1.0, 0.65], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
@@ -169,7 +198,7 @@ export function BrollCaption(props: BrollCaptionProps | any) {
           />
         </div>
       ) : (
-        /* Rich No-Asset Atmospheric Canvas (never a blank slide) */
+        /* Rich No-Asset Atmospheric Canvas */
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
           {/* Deep space radial glow */}
           <div
@@ -273,7 +302,7 @@ export function BrollCaption(props: BrollCaptionProps | any) {
               maxWidth: '1420px',
             }}
           >
-            {/* Eyebrow Chip */}
+            {/* Eyebrow Chip — Phase 1 */}
             <div
               style={{
                 display: 'inline-flex',
@@ -285,6 +314,8 @@ export function BrollCaption(props: BrollCaptionProps | any) {
                 border: `1px solid ${accentColor}60`,
                 boxShadow: `0 0 16px ${glowColor}`,
                 marginBottom: '36px',
+                opacity: headerSpring,
+                transform: `translateY(${(1 - headerSpring) * -12}px)`,
               }}
             >
               <div
@@ -309,7 +340,7 @@ export function BrollCaption(props: BrollCaptionProps | any) {
               </span>
             </div>
 
-            {/* Main Statement Text with Word-by-Word Reveal */}
+            {/* Main Statement Text with Word-by-Word Reveal — Phase 2 */}
             <div
               style={{
                 fontSize: captionFontSize,
@@ -352,7 +383,7 @@ export function BrollCaption(props: BrollCaptionProps | any) {
               })}
             </div>
 
-            {/* Emphasis Highlight Box */}
+            {/* Emphasis Highlight Box — Phase 3 (Lands after text completes) */}
             {emphasisPhrase && (
               <div
                 style={{
@@ -413,7 +444,7 @@ export function BrollCaption(props: BrollCaptionProps | any) {
               padding: '0 40px',
             }}
           >
-            {/* Top Eyebrow */}
+            {/* Top Eyebrow — Phase 1 */}
             <div
               style={{
                 display: 'inline-flex',
@@ -424,6 +455,8 @@ export function BrollCaption(props: BrollCaptionProps | any) {
                 backgroundColor: 'rgba(99, 102, 241, 0.15)',
                 border: '1px solid rgba(99, 102, 241, 0.40)',
                 marginBottom: '28px',
+                opacity: headerSpring,
+                transform: `translateY(${(1 - headerSpring) * -12}px)`,
               }}
             >
               <span
@@ -457,7 +490,8 @@ export function BrollCaption(props: BrollCaptionProps | any) {
                   fontSize: '140px',
                   fontFamily: 'Georgia, serif',
                   color: accentColor,
-                  opacity: 0.22,
+                  opacity: 0.22 * headerSpring,
+                  transform: `scale(${0.9 + headerSpring * 0.1})`,
                   lineHeight: 1,
                   userSelect: 'none',
                   pointerEvents: 'none',
@@ -466,7 +500,7 @@ export function BrollCaption(props: BrollCaptionProps | any) {
                 “
               </div>
 
-              {/* Main Quote Content */}
+              {/* Main Quote Content — Phase 2 */}
               <div
                 style={{
                   fontSize: captionFontSize,
@@ -512,7 +546,7 @@ export function BrollCaption(props: BrollCaptionProps | any) {
               </div>
             </div>
 
-            {/* Author Attribution Card */}
+            {/* Author Attribution Card — Phase 3 (Lands after quote text completes) */}
             {(author || sourceContext) && (
               <div
                 style={{
@@ -583,6 +617,8 @@ export function BrollCaption(props: BrollCaptionProps | any) {
               flexDirection: 'column',
               alignItems: 'center',
               textAlign: 'center',
+              opacity: cardSpring,
+              transform: `scale(${0.96 + cardSpring * 0.04}) translateY(${(1 - cardSpring) * 16}px)`,
             }}
           >
             {/* Viewfinder Corner Accents */}
@@ -591,7 +627,7 @@ export function BrollCaption(props: BrollCaptionProps | any) {
             <div style={{ position: 'absolute', bottom: '16px', left: '16px', width: '12px', height: '12px', borderBottom: '2px solid rgba(255,255,255,0.3)', borderLeft: '2px solid rgba(255,255,255,0.3)' }} />
             <div style={{ position: 'absolute', bottom: '16px', right: '16px', width: '12px', height: '12px', borderBottom: '2px solid rgba(255,255,255,0.3)', borderRight: '2px solid rgba(255,255,255,0.3)' }} />
 
-            {/* Top Category Tag */}
+            {/* Top Category Tag — Phase 1 */}
             <div
               style={{
                 display: 'inline-flex',
@@ -601,6 +637,7 @@ export function BrollCaption(props: BrollCaptionProps | any) {
                 borderRadius: tokens.radius.chip,
                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
                 marginBottom: '24px',
+                opacity: headerSpring,
               }}
             >
               <span
@@ -616,7 +653,7 @@ export function BrollCaption(props: BrollCaptionProps | any) {
               </span>
             </div>
 
-            {/* Caption in Glass Card */}
+            {/* Caption in Glass Card — Phase 2 */}
             <div
               style={{
                 fontSize: captionFontSize,
@@ -647,7 +684,7 @@ export function BrollCaption(props: BrollCaptionProps | any) {
               })}
             </div>
 
-            {/* Emphasis Phrase */}
+            {/* Emphasis Phrase — Phase 3 (Lands after text completes) */}
             {emphasisPhrase && (
               <div
                 style={{

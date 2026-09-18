@@ -115,3 +115,70 @@ export function safeKeyframeWindow(
 
   return result;
 }
+
+/**
+ * 5-Phase Duration-Aware Coordinator for CalculationStory
+ *
+ * Deconstructs the calculation narrative into 5 progressive phases:
+ * Phase 1: ESTABLISH (0.00 -> 0.20 D) - Main input reveals alone
+ * Phase 2: BUILD (0.20 -> 0.38 D) - Secondary input / rate / driver reveals
+ * Phase 3: TRANSFORM (0.38 -> 0.58 D) - Operator badge & connecting vectors draw across
+ * Phase 4: PAYOFF (0.58 -> 0.78 D) - Dominant result card impacts in
+ * Phase 5: RESOLVE (0.78 -> 1.00 D) - Note pill settles in & hold for comprehension
+ */
+export interface CalculationPhases {
+  inputDelay: number;
+  driverDelay: number;
+  operatorDelay: number;
+  vectorStart: number;
+  vectorEnd: number;
+  resultDelay: number;
+  noteDelay: number;
+}
+
+export function getCalculationPhases(durationFrames: number): CalculationPhases {
+  const d = Math.max(1, durationFrames);
+
+  if (d <= 6) {
+    const [vs, ve] = safeAnimationWindow(0, 1, d, 1);
+    return {
+      inputDelay: 0,
+      driverDelay: 0,
+      operatorDelay: 0,
+      vectorStart: vs,
+      vectorEnd: ve,
+      resultDelay: 0,
+      noteDelay: 0,
+    };
+  }
+
+  // Phase 1: ESTABLISH (0.00 -> 0.20 D)
+  const inputDelay = Math.max(0, Math.floor(d * 0.04));
+
+  // Phase 2: BUILD (0.20 -> 0.38 D)
+  const driverDelay = Math.max(inputDelay + 1, Math.floor(d * 0.22));
+
+  // Phase 3: TRANSFORM (0.38 -> 0.58 D)
+  const operatorDelay = Math.max(driverDelay + 1, Math.floor(d * 0.38));
+  const rawVecStart = Math.max(operatorDelay, Math.floor(d * 0.40));
+  const rawVecEnd = Math.max(rawVecStart + 1, Math.floor(d * 0.56));
+  const [vectorStart, vectorEnd] = safeAnimationWindow(rawVecStart, rawVecEnd, d, 1);
+
+  // Phase 4: PAYOFF (0.58 -> 0.78 D)
+  const rawResult = Math.max(vectorEnd, Math.floor(d * 0.60));
+  const resultDelay = Math.min(d - 2, rawResult);
+
+  // Phase 5: RESOLVE (0.78 -> 1.00 D)
+  const noteDelay = Math.min(d - 1, Math.max(resultDelay + 1, Math.floor(d * 0.72)));
+
+  return {
+    inputDelay: Math.min(inputDelay, d - 1),
+    driverDelay: Math.min(driverDelay, d - 1),
+    operatorDelay: Math.min(operatorDelay, d - 1),
+    vectorStart,
+    vectorEnd,
+    resultDelay: Math.max(0, resultDelay),
+    noteDelay: Math.max(0, noteDelay),
+  };
+}
+

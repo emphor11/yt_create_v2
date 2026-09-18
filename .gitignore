@@ -29,6 +29,8 @@ out/
 renders/
 .remotion/
 test-outputs/
+test-renders/
 renderer/remotion/test-outputs/
+renderer/remotion/test-renders/
 renderer/remotion/public/run_*
 backend/.data/

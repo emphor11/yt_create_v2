@@ -35,13 +35,25 @@ export function RenderOutputPage({ artifact }: RenderOutputPageProps) {
   }
 
   if (artifact.artifact_type === "thumbnail") {
+    const isSkipped = payload.status === "skipped" || artifact.status === "skipped";
     return (
       <section className="panel render-output">
         <div>
-          <p className="section-label">Thumbnail Output</p>
-          <h2>{typeof payload.file_name === "string" ? payload.file_name : "thumbnail.png"}</h2>
+          <p className="section-label">Thumbnail Stage</p>
+          <h2>{isSkipped ? "Manual Thumbnail Upload" : (typeof payload.file_name === "string" ? payload.file_name : "thumbnail.png")}</h2>
         </div>
-        {storageKey ? (
+        {isSkipped ? (
+          <div style={{ marginTop: "16px", padding: "16px", background: "var(--bg-secondary)", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+            <p style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: "6px" }}>
+              Automated Thumbnail Generation is Skipped
+            </p>
+            <p style={{ fontSize: "14px", color: "var(--text-muted)" }}>
+              {typeof payload.reason === "string"
+                ? payload.reason
+                : "Automated thumbnail generation is currently disabled. Please add or select the thumbnail manually in YouTube Studio after video upload."}
+            </p>
+          </div>
+        ) : storageKey ? (
           <div style={{ marginTop: "16px" }}>
             <img
               src={`${mediaUrl(storageKey)}?t=${artifact.created_at}`}

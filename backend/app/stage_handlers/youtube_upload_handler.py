@@ -43,9 +43,12 @@ class YoutubeUploadHandler:
 
             thumbnail_artifact = self.store.find_artifact_by_type(project_id, run_id, "thumbnail")
             thumbnail_storage_key = None
-            if thumbnail_artifact:
-                thumbnail = Thumbnail.model_validate(thumbnail_artifact.payload_json)
-                thumbnail_storage_key = thumbnail.storage_key
+            if thumbnail_artifact and thumbnail_artifact.status != "skipped":
+                try:
+                    thumbnail = Thumbnail.model_validate(thumbnail_artifact.payload_json)
+                    thumbnail_storage_key = thumbnail.storage_key
+                except Exception:
+                    thumbnail_storage_key = None
 
             upload = self.upload_engine.run(
                 video_storage_key=video.storage_key,
@@ -60,7 +63,7 @@ class YoutubeUploadHandler:
                 "video": video_artifact.id,
                 "youtube_metadata": metadata_artifact.id,
             }
-            if thumbnail_artifact:
+            if thumbnail_artifact and thumbnail_storage_key is not None:
                 parent_roles["thumbnail"] = thumbnail_artifact.id
 
             artifact = self.store.save_artifact(

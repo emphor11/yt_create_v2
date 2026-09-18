@@ -375,6 +375,6 @@ def test_pipeline_youtube_publishing_flow(tmp_path: Path):
     assert status_res.status_code == 200
     stages = {s["stage"]: s["status"] for s in status_res.json()["stages"]}
     assert stages["youtube_metadata"] == "valid"
-    assert stages["thumbnail"] == "missing"
+    assert stages["thumbnail"] == "skipped"
     assert stages["youtube_upload"] == "missing"
 

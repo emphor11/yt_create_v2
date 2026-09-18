@@ -5,6 +5,7 @@ from domain.generate_video_request import GenerateVideoRequest
 from domain.hook import Hook
 from domain.research_packet import ResearchPacket
 from domain.thumbnail import Thumbnail
+from domain.validation import ValidationResult
 from domain.validators.thumbnail_validator import ThumbnailValidator
 from domain.youtube_metadata import YoutubeMetadata
 from engines.thumbnail_engine import ThumbnailEngine
@@ -18,11 +19,13 @@ class ThumbnailHandler:
         thumbnail_engine: ThumbnailEngine,
         thumbnail_validator: ThumbnailValidator,
         stage_logger: StageLogger,
+        enabled: bool = False,
     ) -> None:
         self.store = store
         self.thumbnail_engine = thumbnail_engine
         self.thumbnail_validator = thumbnail_validator
         self.stage_logger = stage_logger
+        self.enabled = enabled
 
     def run(self, project_id: str, run_id: str) -> ArtifactRecord:
         existing = self.store.find_artifact_by_type(project_id, run_id, "thumbnail")
@@ -31,6 +34,29 @@ class ThumbnailHandler:
 
         start = self.stage_logger.log_start(project_id, run_id, "thumbnail")
         try:
+            if not self.enabled:
+                metadata_artifact = self.store.find_artifact_by_type(
+                    project_id, run_id, "youtube_metadata"
+                )
+                parent_roles = {}
+                if metadata_artifact:
+                    parent_roles["youtube_metadata"] = metadata_artifact.id
+
+                artifact = self.store.save_artifact(
+                    project_id=project_id,
+                    run_id=run_id,
+                    artifact_type="thumbnail",
+                    schema_version="1",
+                    payload_json={
+                        "status": "skipped",
+                        "reason": "Automated thumbnail generation is disabled. Thumbnail will be added manually in YouTube Studio.",
+                    },
+                    parent_artifact_roles_json=parent_roles,
+                    validation_json=ValidationResult(status="skipped", errors=[], warnings=[]),
+                )
+                self.stage_logger.log_finish(project_id, run_id, "thumbnail", start_time=start)
+                return artifact
+
             metadata_artifact = self.store.require_artifact(
                 project_id, run_id, "youtube_metadata", for_stage="thumbnail"
             )

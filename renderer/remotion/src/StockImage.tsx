@@ -7,19 +7,44 @@ import {
 } from "remotion";
 import { type StockImageRenderSpec } from "./types";
 import { tokens } from "./design-tokens";
+import { safeSpringDelay } from "./animation-safety";
 
-export function StockImage(renderSpec: StockImageRenderSpec) {
+export function StockImage(renderSpec: StockImageRenderSpec | any) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const props = renderSpec.props as any;
-  const headerLabel = props.headerLabel || "";
-  const text = props.text || "";
+  const props = renderSpec?.props ? renderSpec.props : renderSpec || {};
+  const duration_frames: number =
+    renderSpec?.duration_frames ||
+    renderSpec?.durationInFrames ||
+    renderSpec?.props?.duration_frames ||
+    240;
 
-  const imgSpring = spring({
-    frame,
+  const headerLabel = props.headerLabel || "";
+  const text = props.text || props.title || props.label || "";
+  const subtitle = props.subtitle || "";
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PHASE 1 — HEADER EYEBROW ENTRANCE (0 → ~10% D)
+  // Establishes scene context while viewer registers the underlying image.
+  // ─────────────────────────────────────────────────────────────────────────
+  const headerDelay = safeSpringDelay(0, duration_frames, 0.08);
+  const headerSpring = spring({
+    frame: Math.max(0, frame - headerDelay),
     fps,
-    config: { damping: 24, stiffness: 60 },
+    config: { damping: 16, stiffness: 110 },
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PHASE 2 — EDITORIAL CAPTION CARD ENTRANCE (10% D → ~35% D)
+  // Brief hold allows visual recognition before text slides up smoothly.
+  // ─────────────────────────────────────────────────────────────────────────
+  const captionNominal = Math.floor(duration_frames * 0.10);
+  const captionDelay = safeSpringDelay(captionNominal, duration_frames, 0.25);
+  const captionSpring = spring({
+    frame: Math.max(0, frame - captionDelay),
+    fps,
+    config: { damping: 18, stiffness: 85 },
   });
 
   return (
@@ -37,7 +62,8 @@ export function StockImage(renderSpec: StockImageRenderSpec) {
           style={{
             position: "absolute",
             inset: 0,
-            background: "linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.05) 45%, rgba(0,0,0,0.75) 100%)",
+            background:
+              "linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.05) 45%, rgba(0,0,0,0.80) 100%)",
             pointerEvents: "none",
           }}
         />
@@ -54,7 +80,12 @@ export function StockImage(renderSpec: StockImageRenderSpec) {
         }}
       >
         {headerLabel ? (
-          <header>
+          <header
+            style={{
+              opacity: headerSpring,
+              transform: `translateY(${(1 - headerSpring) * -12}px)`,
+            }}
+          >
             <div
               style={{
                 display: "inline-block",
@@ -78,8 +109,8 @@ export function StockImage(renderSpec: StockImageRenderSpec) {
         {text ? (
           <footer
             style={{
-              transform: `translateY(${(1 - imgSpring) * 20}px)`,
-              opacity: imgSpring,
+              transform: `translateY(${(1 - captionSpring) * 24}px)`,
+              opacity: captionSpring,
             }}
           >
             <div
@@ -93,9 +124,28 @@ export function StockImage(renderSpec: StockImageRenderSpec) {
                 maxWidth: "92%",
               }}
             >
-              <div style={{ fontSize: 52, fontWeight: 950, color: tokens.text.primary, lineHeight: 1.2 }}>
+              <div
+                style={{
+                  fontSize: 52,
+                  fontWeight: 950,
+                  color: tokens.text.primary,
+                  lineHeight: 1.2,
+                }}
+              >
                 {text}
               </div>
+              {subtitle ? (
+                <div
+                  style={{
+                    fontSize: 24,
+                    color: tokens.text.secondary,
+                    marginTop: 12,
+                    fontWeight: 500,
+                  }}
+                >
+                  {subtitle}
+                </div>
+              ) : null}
             </div>
           </footer>
         ) : null}

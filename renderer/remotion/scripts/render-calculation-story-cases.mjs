@@ -19,7 +19,7 @@ const serveUrl = await bundle({
 const testCases = [
   {
     name: "01_multiplication",
-    frame: 75,
+    frame: 150,
     props: {
       scene_id: "calc_case_a_multiplication",
       composition: "CalculationStory",
@@ -41,7 +41,7 @@ const testCases = [
   },
   {
     name: "02_addition",
-    frame: 75,
+    frame: 150,
     props: {
       scene_id: "calc_case_b_addition",
       composition: "CalculationStory",
@@ -65,7 +65,7 @@ const testCases = [
   },
   {
     name: "03_subtraction",
-    frame: 75,
+    frame: 150,
     props: {
       scene_id: "calc_case_c_subtraction",
       composition: "CalculationStory",
@@ -89,7 +89,7 @@ const testCases = [
   },
   {
     name: "04_allocation",
-    frame: 75,
+    frame: 150,
     props: {
       scene_id: "calc_case_d_allocation",
       composition: "CalculationStory",
@@ -111,7 +111,7 @@ const testCases = [
   },
   {
     name: "05_growth",
-    frame: 75,
+    frame: 150,
     props: {
       scene_id: "calc_case_e_growth",
       composition: "CalculationStory",
@@ -134,7 +134,7 @@ const testCases = [
   },
   {
     name: "06_neutral",
-    frame: 75,
+    frame: 150,
     props: {
       scene_id: "calc_case_f_neutral",
       composition: "CalculationStory",
@@ -176,4 +176,34 @@ for (const tc of testCases) {
   console.log(`✓ Saved ${outputPath}`);
 }
 
-console.log("All CalculationStory visual cases successfully rendered!");
+// Render multi-phase progression stills for 01_multiplication to visually verify the 5-phase story
+console.log("\nRendering 5-phase progression sequence for multiplication...");
+const progressionFrames = [
+  { phase: "phase1_establish", frame: 20 },
+  { phase: "phase2_build", frame: 55 },
+  { phase: "phase3_transform", frame: 85 },
+  { phase: "phase4_payoff", frame: 120 },
+  { phase: "phase5_resolve", frame: 160 },
+];
+
+const multCase = testCases[0];
+const multCompositions = await getCompositions(serveUrl, { inputProps: multCase.props });
+const multComposition = multCompositions.find((c) => c.id === "CalculationStory");
+
+for (const pf of progressionFrames) {
+  const outputPath = path.join(outputDir, `01_multiplication_${pf.phase}_f${pf.frame}.png`);
+  console.log(`Rendering multiplication ${pf.phase} at frame ${pf.frame}...`);
+  await renderStill({
+    composition: multComposition,
+    serveUrl,
+    output: outputPath,
+    inputProps: multCase.props,
+    frame: pf.frame,
+    imageFormat: "png",
+    logLevel: "warn",
+  });
+  console.log(`✓ Saved ${outputPath}`);
+}
+
+console.log("\nAll CalculationStory visual cases and progression stills successfully rendered!");
+

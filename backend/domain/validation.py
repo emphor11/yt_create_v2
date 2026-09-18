@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-ArtifactStatus = Literal["valid", "warning", "blocked", "failed"]
+ArtifactStatus = Literal["valid", "warning", "blocked", "failed", "skipped"]
 
 
 class ValidationResult(BaseModel):

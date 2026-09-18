@@ -11,7 +11,7 @@ VALID_RUN_MODES: set[RunMode] = {"ai"}
 RunState = Literal["pending", "running", "failed", "completed"]
 VALID_RUN_STATES: set[RunState] = {"pending", "running", "failed", "completed"}
 
-ADVANCEABLE_STATUSES: set[ArtifactStatus] = {"valid", "warning"}
+ADVANCEABLE_STATUSES: set[ArtifactStatus] = {"valid", "warning", "skipped"}
 
 
 def is_advanceable_status(status: ArtifactStatus) -> bool:
