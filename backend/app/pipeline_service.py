@@ -300,7 +300,6 @@ def build_pipeline_service(
             strategy_engine=ScriptVisualStrategyEngine(llm_provider) if llm_provider is not None else None,
             strategy_validator=ScriptVisualStrategyValidator(),
             stage_logger=stage_logger,
-            component_registry=component_registry,
             visual_intent_engine=VisualIntentEngine(llm_provider) if llm_provider is not None else None,
             composition_planner_engine=CompositionPlannerEngine(llm_provider) if llm_provider is not None else None,
         ),

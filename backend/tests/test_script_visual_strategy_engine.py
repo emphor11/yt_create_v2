@@ -32,30 +32,7 @@ def valid_strategy_payload() -> dict:
                 "title": "Cost Contrast",
                 "focus_concept": "Opportunity Cost",
                 "core_teaching_point": "Show unrecoverable housing expenses",
-                "narration": "Let's compare the actual unrecoverable costs.",
-                "visual_sequence": [
-                    {
-                        "beat_id": "beat_01",
-                        "preferred_component": "SplitComparison",
-                        "visual_goal": "Compare rent vs buying unrecoverable costs",
-                        "component_data": {
-                            "left_role": "product_price",
-                            "left_label": "Rent cost",
-                            "left_value": 30000,
-                            "left_unit": "INR",
-                            "right_role": "monthly_payment",
-                            "right_label": "Buy cost",
-                            "right_value": 75000,
-                            "right_unit": "INR",
-                        },
-                    },
-                    {
-                        "beat_id": "beat_02",
-                        "preferred_component": "Typography",
-                        "visual_goal": "Show text overlays",
-                        "trigger_word": "actual",
-                    },
-                ],
+                "narration": "Let's compare the actual unrecoverable costs between renting and buying.",
             }
         ],
     }
@@ -101,7 +78,7 @@ def test_strategy_engine_returns_valid_strategy() -> None:
     assert result.strategy.thesis == "Renting beats buying in urban markets"
     assert len(result.strategy.ideas) == 1
     assert result.strategy.ideas[0].idea_id == "idea_01"
-    assert len(result.strategy.ideas[0].visual_sequence) == 2
+    assert result.strategy.ideas[0].narration == "Let's compare the actual unrecoverable costs between renting and buying."
     assert result.provider_metadata.provider == "static-test"
 
 
@@ -142,7 +119,6 @@ def test_strategy_engine_raises_error_for_invalid_shape() -> None:
                 ],
             ),
         )
-
 
     assert exc.value.raw_payload == {"ideas": []}
     assert exc.value.provider_metadata is not None
@@ -198,5 +174,3 @@ def test_strategy_engine_5min_profile_prompts_budget_and_beats() -> None:
     assert "5-MINUTE BUDGET" in user_msg_long
     assert "85 to 95 words" in user_msg_long
     assert "700-800 narration words" in user_msg_long
-    assert "5 to 7 visual beats per idea" in user_msg_long
-    assert "40 to 55 visual beats total" in user_msg_long

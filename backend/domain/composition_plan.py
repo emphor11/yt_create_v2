@@ -19,9 +19,8 @@ class CompositionBeat(BaseModel):
     """
     A single visual beat in the composition pipeline.
 
-    Analogous to VisualStrategyBeat in the legacy system, but operates at the
-    composition level (what storytelling pattern) rather than component level
-    (which React component).
+    Operates at the composition level (what storytelling pattern) rather than
+    raw component level (which React component).
     """
 
     beat_id: str = Field(description="Sequential: beat_01, beat_02, ...")

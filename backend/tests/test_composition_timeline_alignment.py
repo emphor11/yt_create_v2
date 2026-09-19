@@ -11,7 +11,7 @@ Verifies:
 """
 import pytest
 from domain.hook import Hook, VisualDirective as HookVisualDirective
-from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea, VisualStrategyBeat
+from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea
 from domain.composition_plan import FullCompositionPlan, IdeaCompositionPlan, CompositionBeat
 from domain.voice_track import VoiceTrack, WordTimestamp
 from engines.video_assembly.timeline_builder import TimelineBuilder
@@ -68,7 +68,7 @@ def make_test_hook() -> Hook:
 
 
 def make_legacy_strategy() -> ScriptVisualStrategy:
-    """Legacy strategy with strict 2 beats per idea."""
+    """Strategy with ideas without visual_sequence."""
     return ScriptVisualStrategy(
         thesis="Wealth Building",
         ideas=[
@@ -78,10 +78,6 @@ def make_legacy_strategy() -> ScriptVisualStrategy:
                 focus_concept="Ten Lakh",
                 core_teaching_point="Hardest part",
                 narration="Saving ten lakh matters.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="leg_1_1", preferred_component="Typography", visual_goal="Goal 1", trigger_word=None),
-                    VisualStrategyBeat(beat_id="leg_1_2", preferred_component="Typography", visual_goal="Goal 2", trigger_word="matters"),
-                ],
             ),
             VideoIdea(
                 idea_id="idea_02",
@@ -89,10 +85,6 @@ def make_legacy_strategy() -> ScriptVisualStrategy:
                 focus_concept="Auto growth",
                 core_teaching_point="Math flips",
                 narration="When compounding begins growth becomes automatic.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="leg_2_1", preferred_component="Typography", visual_goal="Goal 3", trigger_word=None),
-                    VisualStrategyBeat(beat_id="leg_2_2", preferred_component="Typography", visual_goal="Goal 4", trigger_word="automatic"),
-                ],
             ),
             VideoIdea(
                 idea_id="idea_03",
@@ -100,10 +92,6 @@ def make_legacy_strategy() -> ScriptVisualStrategy:
                 focus_concept="Momentum",
                 core_teaching_point="Decades",
                 narration="First decade is effort second momentum.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="leg_3_1", preferred_component="Typography", visual_goal="Goal 5", trigger_word=None),
-                    VisualStrategyBeat(beat_id="leg_3_2", preferred_component="Typography", visual_goal="Goal 6", trigger_word="momentum"),
-                ],
             ),
         ],
     )
@@ -426,13 +414,13 @@ def test_legacy_timeline_builder_remains_unchanged():
         voice_track=voice_track,
     )
 
-    # 2 hook beats + 3 ideas * 2 beats = 8 intervals
-    assert len(timeline) == 8
+    # 2 hook beats + 3 ideas * 1 beat = 5 intervals
+    assert len(timeline) == 5
     expected_legacy_beat_ids = [
         "hook_b1", "hook_b2",
-        "leg_1_1", "leg_1_2",
-        "leg_2_1", "leg_2_2",
-        "leg_3_1", "leg_3_2",
+        "beat_idea_01",
+        "beat_idea_02",
+        "beat_idea_03",
     ]
     actual_beat_ids = [t.beat_id for t in timeline]
     assert actual_beat_ids == expected_legacy_beat_ids

@@ -37,8 +37,7 @@ from app.dependencies import (
 from domain.generate_video_request import GenerateVideoRequest
 from domain.research_packet import ResearchPacket
 from domain.narrative_plan import NarrativePlan, SceneBeat
-from domain.hook import Hook, VisualDirective as HookVisualDirective
-from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea, VisualStrategyBeat
+from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea
 from domain.visual_intent import VisualIntent
 from domain.composition_plan import FullCompositionPlan, IdeaCompositionPlan, CompositionBeat
 from domain.validation import ValidationResult
@@ -321,14 +320,6 @@ def main():
             focus_concept=item["focus_concept"],
             core_teaching_point=item["core_teaching_point"],
             narration=item["narration"],
-            visual_sequence=[
-                VisualStrategyBeat(
-                    beat_id=f"leg_{idx+1:02d}_01",
-                    preferred_component="Typography",
-                    visual_goal=item["core_teaching_point"],
-                    trigger_word=None,
-                ),
-            ],
         )
         for idx, item in enumerate(ideas_meta)
     ]

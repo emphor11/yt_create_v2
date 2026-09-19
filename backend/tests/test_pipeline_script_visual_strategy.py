@@ -141,30 +141,6 @@ def valid_strategy_response_payload() -> dict:
                 "focus_concept": "Opportunity Cost",
                 "core_teaching_point": "Show unrecoverable costs comparison",
                 "narration": "Let's compare the unrecoverable cost of renting a $3000 apartment with buying a $750000 property.",
-                "visual_sequence": [
-                    {
-                        "beat_id": "beat_01",
-                        "preferred_component": "SplitComparison",
-                        "visual_goal": "Compare rent vs buying unrecoverable costs",
-                        "trigger_word": None,
-                        "component_data": {
-                            "left_role": "product_price",
-                            "left_label": "Rent cost",
-                            "left_value": 30000,
-                            "left_unit": "INR",
-                            "right_role": "monthly_payment",
-                            "right_label": "Buy cost",
-                            "right_value": 75000,
-                            "right_unit": "INR",
-                        },
-                    },
-                    {
-                        "beat_id": "beat_02",
-                        "preferred_component": "Typography",
-                        "visual_goal": "Show text overlays",
-                        "trigger_word": "buying",
-                    },
-                ],
             }
         ],
     }
@@ -328,4 +304,4 @@ def test_strategy_passes_duration_profile_from_generate_video_request(tmp_path) 
     user_content = provider.last_request.messages[1].content
     assert "5-MINUTE BUDGET" in user_content
     assert "85 to 95 words" in user_content
-    assert "5 to 7 visual beats" in user_content
+    assert "700-800 narration words" in user_content

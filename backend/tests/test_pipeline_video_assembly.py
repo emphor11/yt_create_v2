@@ -70,25 +70,6 @@ def setup_project_ready_for_assembly(store: ArtifactStore) -> tuple[str, str]:
                     "focus_concept": "Lifestyle Inflation",
                     "core_teaching_point": "Expenses rise with salary.",
                     "narration": "Fourth word fifth word sixth word.",
-                    "visual_sequence": [
-                        {
-                            "beat_id": "body_beat_1",
-                            "preferred_component": "SplitComparison",
-                            "visual_goal": "Show rent vs buy",
-                            "asset_query": "renting apartment",
-                            "notes": None,
-                            "component_data": {
-                                "left_label": "Rent",
-                                "left_value": 3000,
-                                "left_unit": "USD",
-                                "right_label": "Buy",
-                                "right_value": 5000,
-                                "right_unit": "USD",
-                                "left_role": "rent",
-                                "right_role": "buy"
-                            }
-                        }
-                    ]
                 }
             ]
         },
@@ -203,14 +184,14 @@ def test_video_assembly_pipeline_stage(tmp_path):
     assert scenes[0]["component"]["props"]["text"] == "Illusion of security"
     assert scenes[0]["component"]["props"]["subtitle"] == "First word second word third word."
 
-    assert scenes[1]["component"]["component_id"] == "SplitComparison"
-    assert scenes[1]["component"]["props"]["leftLabel"] == "Rent"
-    assert scenes[1]["component"]["props"]["leftValue"] == 3000
+    assert scenes[1]["component"]["component_id"] == "Typography"
+    assert scenes[1]["component"]["props"]["text"] == "Fourth word fifth word sixth word."
 
 
 def test_timeline_builder_aligns_beats_to_exact_trigger_word_start() -> None:
     from domain.hook import Hook, VisualDirective
-    from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea, VisualStrategyBeat
+    from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea
+    from domain.composition_plan import FullCompositionPlan, IdeaCompositionPlan, CompositionBeat
     from domain.voice_track import VoiceTrack, WordTimestamp
     from engines.video_assembly.timeline_builder import TimelineBuilder
 
@@ -230,16 +211,26 @@ def test_timeline_builder_aligns_beats_to_exact_trigger_word_start() -> None:
                 focus_concept="Concept",
                 core_teaching_point="Point",
                 narration="First sentence ends. Second sentence starts with trigger.",
-                visual_sequence=[
-                    VisualStrategyBeat(
+            )
+        ],
+    )
+    comp_plan = FullCompositionPlan(
+        thesis="Thesis statement",
+        visual_mode="composition",
+        ideas=[
+            IdeaCompositionPlan(
+                idea_id="idea_01",
+                narration="First sentence ends. Second sentence starts with trigger.",
+                beats=[
+                    CompositionBeat(
                         beat_id="body_beat_1",
-                        preferred_component="Typography",
+                        composition_id="typography",
                         visual_goal="First body beat",
                         trigger_word=None,
                     ),
-                    VisualStrategyBeat(
+                    CompositionBeat(
                         beat_id="body_beat_2",
-                        preferred_component="Typography",
+                        composition_id="typography",
                         visual_goal="Second body beat",
                         trigger_word="trigger",
                     ),
@@ -273,7 +264,12 @@ def test_timeline_builder_aligns_beats_to_exact_trigger_word_start() -> None:
     )
 
     builder = TimelineBuilder(fps=30)
-    intervals = builder.build_timeline(hook=hook, strategy=strategy, voice_track=voice_track)
+    intervals = builder.build_timeline(
+        hook=hook,
+        strategy=strategy,
+        voice_track=voice_track,
+        composition_plan=comp_plan,
+    )
 
     assert len(intervals) == 3
     body_beat_1 = intervals[1]

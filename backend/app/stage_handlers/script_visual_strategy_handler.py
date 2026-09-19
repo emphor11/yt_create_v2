@@ -11,8 +11,6 @@ from domain.script_visual_strategy import ScriptVisualStrategy
 from domain.validation import ValidationResult
 from domain.validators.script_visual_strategy_validator import ScriptVisualStrategyValidator
 from engines.script_visual_strategy_engine import ScriptVisualStrategyEngine, ScriptVisualStrategyEngineError
-from registries.component_registry import ComponentRegistry
-
 
 from domain.composition_plan import FullCompositionPlan, HookCompositionPlan, IdeaCompositionPlan
 from engines.visual_intent_engine import VisualIntentEngine
@@ -27,7 +25,6 @@ class ScriptVisualStrategyHandler:
         strategy_engine: ScriptVisualStrategyEngine,
         strategy_validator: ScriptVisualStrategyValidator,
         stage_logger: StageLogger,
-        component_registry: ComponentRegistry,
         visual_intent_engine: VisualIntentEngine | None = None,
         composition_planner_engine: CompositionPlannerEngine | None = None,
     ) -> None:
@@ -35,7 +32,6 @@ class ScriptVisualStrategyHandler:
         self.strategy_engine = strategy_engine
         self.strategy_validator = strategy_validator
         self.stage_logger = stage_logger
-        self.component_registry = component_registry
         self.visual_intent_engine = visual_intent_engine
         self.composition_planner_engine = composition_planner_engine
 

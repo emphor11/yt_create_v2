@@ -15,7 +15,7 @@ from domain.composition_plan import (
 )
 from domain.visual_intent import VisualIntent, VisualIntentSequence
 from domain.voice_track import VoiceTrack, WordTimestamp
-from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea, VisualStrategyBeat
+from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea
 from engines.video_assembly.timeline_builder import TimelineBuilder
 from engines.composition_assembly_engine import CompositionAssemblyEngine
 from engines.visual_intent_engine import VisualIntentEngine
@@ -200,14 +200,6 @@ def test_timeline_builder_with_hook_composition_plan() -> None:
                 focus_concept="Drag",
                 core_teaching_point="Drag point",
                 narration="Keep investing regularly.",
-                visual_sequence=[
-                    VisualStrategyBeat(
-                        beat_id="b1",
-                        preferred_component="Typography",
-                        visual_goal="Goal",
-                        trigger_word=None,
-                    )
-                ],
             )
         ],
     )
@@ -316,14 +308,6 @@ def test_composition_assembly_engine_hook_resolves_via_composition_resolver() ->
                 focus_concept="Drag",
                 core_teaching_point="Drag point",
                 narration="Keep investing regularly.",
-                visual_sequence=[
-                    VisualStrategyBeat(
-                        beat_id="b1",
-                        preferred_component="Typography",
-                        visual_goal="Goal",
-                        trigger_word=None,
-                    )
-                ],
             )
         ],
     )
@@ -426,14 +410,6 @@ def test_composition_assembly_engine_hook_fallback_when_hook_plan_is_none() -> N
                 focus_concept="Drag",
                 core_teaching_point="Drag point",
                 narration="Keep investing regularly.",
-                visual_sequence=[
-                    VisualStrategyBeat(
-                        beat_id="b1",
-                        preferred_component="Typography",
-                        visual_goal="Goal",
-                        trigger_word=None,
-                    )
-                ],
             )
         ],
     )

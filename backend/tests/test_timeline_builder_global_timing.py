@@ -1,6 +1,7 @@
 import pytest
 from domain.hook import Hook, VisualDirective as HookVisualDirective
-from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea, VisualStrategyBeat
+from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea
+from domain.composition_plan import FullCompositionPlan, IdeaCompositionPlan, CompositionBeat
 from domain.voice_track import VoiceTrack, WordTimestamp
 from engines.video_assembly.timeline_builder import (
     TimelineBuilder,
@@ -289,10 +290,6 @@ def test_i_and_j_trigger_words_spanning_polly_chunks_using_global_timestamps():
                 focus_concept="C1",
                 core_teaching_point="P1",
                 narration="Idea one reveals danger.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="b1_1", preferred_component="Typography", visual_goal="G1", trigger_word=None),
-                    VisualStrategyBeat(beat_id="b1_2", preferred_component="Typography", visual_goal="G2", trigger_word="danger"),
-                ],
             ),
             VideoIdea(
                 idea_id="idea_02",
@@ -300,9 +297,26 @@ def test_i_and_j_trigger_words_spanning_polly_chunks_using_global_timestamps():
                 focus_concept="C2",
                 core_teaching_point="P2",
                 narration="Idea two unlocks solution.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="b2_1", preferred_component="Typography", visual_goal="G3", trigger_word=None),
-                    VisualStrategyBeat(beat_id="b2_2", preferred_component="Typography", visual_goal="G4", trigger_word="solution"),
+            ),
+        ],
+    )
+    composition_plan = FullCompositionPlan(
+        thesis="Thesis",
+        ideas=[
+            IdeaCompositionPlan(
+                idea_id="idea_01",
+                narration="Idea one reveals danger.",
+                beats=[
+                    CompositionBeat(beat_id="b1_1", composition_id="metric_hero", trigger_word=None),
+                    CompositionBeat(beat_id="b1_2", composition_id="metric_hero", trigger_word="danger"),
+                ],
+            ),
+            IdeaCompositionPlan(
+                idea_id="idea_02",
+                narration="Idea two unlocks solution.",
+                beats=[
+                    CompositionBeat(beat_id="b2_1", composition_id="metric_hero", trigger_word=None),
+                    CompositionBeat(beat_id="b2_2", composition_id="metric_hero", trigger_word="solution"),
                 ],
             ),
         ],
@@ -336,7 +350,7 @@ def test_i_and_j_trigger_words_spanning_polly_chunks_using_global_timestamps():
         ],
     )
 
-    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt)
+    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt, composition_plan=composition_plan)
     assert len(timeline) == 6
 
     # Hook beats
@@ -384,9 +398,18 @@ def test_k_regression_chunk_local_timestamps_not_accidentally_treated_as_global(
                 focus_concept="C1",
                 core_teaching_point="P1",
                 narration="Second chapter starts.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="b1", preferred_component="Typography", visual_goal="G1", trigger_word=None),
-                    VisualStrategyBeat(beat_id="b2", preferred_component="Typography", visual_goal="G2", trigger_word="starts"),
+            ),
+        ],
+    )
+    composition_plan = FullCompositionPlan(
+        thesis="Thesis",
+        ideas=[
+            IdeaCompositionPlan(
+                idea_id="idea_01",
+                narration="Second chapter starts.",
+                beats=[
+                    CompositionBeat(beat_id="b1", composition_id="metric_hero", trigger_word=None),
+                    CompositionBeat(beat_id="b2", composition_id="metric_hero", trigger_word="starts"),
                 ],
             ),
         ],
@@ -410,7 +433,7 @@ def test_k_regression_chunk_local_timestamps_not_accidentally_treated_as_global(
         ],
     )
 
-    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt)
+    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt, composition_plan=composition_plan)
     b2 = [t for t in timeline if t.beat_id == "b2"][0]
 
     # Verify frame 108 (from global 3600ms) and NOT frame 18 (from local 600ms)
@@ -448,9 +471,18 @@ def test_drift_trap_chunk1_duration_greater_than_last_speech_mark():
                 focus_concept="C1",
                 core_teaching_point="P1",
                 narration="Next chapter opens.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="b1", preferred_component="Typography", visual_goal="G1", trigger_word=None),
-                    VisualStrategyBeat(beat_id="b2", preferred_component="Typography", visual_goal="G2", trigger_word="opens"),
+            ),
+        ],
+    )
+    composition_plan = FullCompositionPlan(
+        thesis="Thesis",
+        ideas=[
+            IdeaCompositionPlan(
+                idea_id="idea_01",
+                narration="Next chapter opens.",
+                beats=[
+                    CompositionBeat(beat_id="b1", composition_id="metric_hero", trigger_word=None),
+                    CompositionBeat(beat_id="b2", composition_id="metric_hero", trigger_word="opens"),
                 ],
             ),
         ],
@@ -473,7 +505,7 @@ def test_drift_trap_chunk1_duration_greater_than_last_speech_mark():
         ],
     )
 
-    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt)
+    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt, composition_plan=composition_plan)
     opens_beat = [t for t in timeline if t.beat_id == "b2"][0]
 
     # At 30 FPS: 3600ms / 1000 * 30 = 108.0 -> frame 108
@@ -503,7 +535,6 @@ def test_l_word_assignment_preserves_all_words_across_sections():
                 focus_concept="C1",
                 core_teaching_point="P1",
                 narration="Second section words.",
-                visual_sequence=[VisualStrategyBeat(beat_id="b1", preferred_component="Typography", visual_goal="G1", trigger_word=None)],
             )
         ],
     )
@@ -632,10 +663,19 @@ def test_p_single_chunk_short_video_behavior_preserved():
                 focus_concept="Opportunity Cost",
                 core_teaching_point="Explain cost",
                 narration="You think paycheck is safety, but it's a trap.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="body_beat_1", preferred_component="Typography", visual_goal="Goal 1", trigger_word=None),
-                    VisualStrategyBeat(beat_id="body_beat_2", preferred_component="Typography", visual_goal="Goal 2", trigger_word="safety"),
-                    VisualStrategyBeat(beat_id="body_beat_3", preferred_component="Typography", visual_goal="Goal 3", trigger_word="trap"),
+            )
+        ],
+    )
+    composition_plan = FullCompositionPlan(
+        thesis="Thesis",
+        ideas=[
+            IdeaCompositionPlan(
+                idea_id="idea_01",
+                narration="You think paycheck is safety, but it's a trap.",
+                beats=[
+                    CompositionBeat(beat_id="body_beat_1", composition_id="metric_hero", trigger_word=None),
+                    CompositionBeat(beat_id="body_beat_2", composition_id="metric_hero", trigger_word="safety"),
+                    CompositionBeat(beat_id="body_beat_3", composition_id="metric_hero", trigger_word="trap"),
                 ],
             )
         ],
@@ -662,7 +702,7 @@ def test_p_single_chunk_short_video_behavior_preserved():
             WordTimestamp(word="trap", start_ms=3200, end_ms=3800),
         ],
     )
-    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=voice_track)
+    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=voice_track, composition_plan=composition_plan)
     assert len(timeline) == 5
     assert timeline[0].beat_id == "hook_beat_1"
     assert timeline[0].start_frame == 0

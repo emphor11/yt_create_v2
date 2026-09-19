@@ -1,6 +1,7 @@
 import pytest
 from domain.hook import Hook, VisualDirective as HookVisualDirective
-from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea, VisualStrategyBeat
+from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea
+from domain.composition_plan import FullCompositionPlan, IdeaCompositionPlan, CompositionBeat
 from domain.voice_track import VoiceTrack, WordTimestamp
 from engines.video_assembly.timeline_builder import (
     TimelineBuilder,
@@ -33,9 +34,6 @@ def test_section_2_words_immediately_after_double_newline_never_assigned_to_sect
                 focus_concept="C1",
                 core_teaching_point="P1",
                 narration="First idea ends.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="b1_1", preferred_component="Typography", visual_goal="G1", trigger_word=None),
-                ],
             ),
             VideoIdea(
                 idea_id="idea_02",
@@ -43,9 +41,25 @@ def test_section_2_words_immediately_after_double_newline_never_assigned_to_sect
                 focus_concept="C2",
                 core_teaching_point="P2",
                 narration="Second idea begins.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="b2_1", preferred_component="Typography", visual_goal="G2", trigger_word=None),
-                    VisualStrategyBeat(beat_id="b2_2", preferred_component="Typography", visual_goal="G3", trigger_word="begins"),
+            ),
+        ],
+    )
+    composition_plan = FullCompositionPlan(
+        thesis="Thesis",
+        ideas=[
+            IdeaCompositionPlan(
+                idea_id="idea_01",
+                narration="First idea ends.",
+                beats=[
+                    CompositionBeat(beat_id="b1_1", composition_id="metric_hero", trigger_word=None),
+                ],
+            ),
+            IdeaCompositionPlan(
+                idea_id="idea_02",
+                narration="Second idea begins.",
+                beats=[
+                    CompositionBeat(beat_id="b2_1", composition_id="metric_hero", trigger_word=None),
+                    CompositionBeat(beat_id="b2_2", composition_id="metric_hero", trigger_word="begins"),
                 ],
             ),
         ],
@@ -102,7 +116,7 @@ def test_section_2_words_immediately_after_double_newline_never_assigned_to_sect
     assert [w.word for w in assigned[2]] == ["Second", "idea", "begins"]
 
     # Verify timeline builds cleanly and trigger word in Section 2 resolves
-    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt)
+    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt, composition_plan=composition_plan)
     assert len(timeline) == 4
     assert timeline[3].beat_id == "b2_2"
 
@@ -130,9 +144,18 @@ def test_chunk_source_fallback_to_byte_range_mapping_when_source_id_generic():
                 focus_concept="C1",
                 core_teaching_point="P1",
                 narration="Investors rejoiced.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="b1_1", preferred_component="Typography", visual_goal="G1", trigger_word=None),
-                    VisualStrategyBeat(beat_id="b1_2", preferred_component="Typography", visual_goal="G2", trigger_word="rejoiced"),
+            )
+        ],
+    )
+    composition_plan = FullCompositionPlan(
+        thesis="Thesis",
+        ideas=[
+            IdeaCompositionPlan(
+                idea_id="idea_01",
+                narration="Investors rejoiced.",
+                beats=[
+                    CompositionBeat(beat_id="b1_1", composition_id="metric_hero", trigger_word=None),
+                    CompositionBeat(beat_id="b1_2", composition_id="metric_hero", trigger_word="rejoiced"),
                 ],
             )
         ],
@@ -188,7 +211,7 @@ def test_chunk_source_fallback_to_byte_range_mapping_when_source_id_generic():
     assert [w.word for w in assigned[1]] == ["Investors", "rejoiced"]
 
     # Verify timeline builds successfully
-    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt)
+    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt, composition_plan=composition_plan)
     assert len(timeline) == 3
 
 
@@ -264,9 +287,18 @@ def test_currency_expansion_does_not_shift_next_section_words():
                 focus_concept="C1",
                 core_teaching_point="P1",
                 narration="Investors panicked yesterday.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="b1_1", preferred_component="Typography", visual_goal="G1", trigger_word=None),
-                    VisualStrategyBeat(beat_id="b1_2", preferred_component="Typography", visual_goal="G2", trigger_word="panicked"),
+            )
+        ],
+    )
+    composition_plan = FullCompositionPlan(
+        thesis="Thesis",
+        ideas=[
+            IdeaCompositionPlan(
+                idea_id="idea_01",
+                narration="Investors panicked yesterday.",
+                beats=[
+                    CompositionBeat(beat_id="b1_1", composition_id="metric_hero", trigger_word=None),
+                    CompositionBeat(beat_id="b1_2", composition_id="metric_hero", trigger_word="panicked"),
                 ],
             )
         ],
@@ -313,7 +345,7 @@ def test_currency_expansion_does_not_shift_next_section_words():
     assert [w.word for w in assigned[1]] == ["Investors", "panicked", "yesterday"]
 
     # Verify timeline builder resolves trigger word "panicked" in Idea 1 accurately
-    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt)
+    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt, composition_plan=composition_plan)
     assert len(timeline) == 3
     # Idea 1 beat 2 trigger "panicked" starts at 2400ms -> frame 72 (Beat 1 has frames 54..72 >= 15 frames)
     assert timeline[2].beat_id == "b1_2"
@@ -342,9 +374,18 @@ def test_numeric_expression_immediately_before_idea_boundary():
                 focus_concept="C1",
                 core_teaching_point="P1",
                 narration="Investors cheered loudly.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="b1_1", preferred_component="Typography", visual_goal="G1", trigger_word=None),
-                    VisualStrategyBeat(beat_id="b1_2", preferred_component="Typography", visual_goal="G2", trigger_word="cheered"),
+            )
+        ],
+    )
+    composition_plan = FullCompositionPlan(
+        thesis="Thesis",
+        ideas=[
+            IdeaCompositionPlan(
+                idea_id="idea_01",
+                narration="Investors cheered loudly.",
+                beats=[
+                    CompositionBeat(beat_id="b1_1", composition_id="metric_hero", trigger_word=None),
+                    CompositionBeat(beat_id="b1_2", composition_id="metric_hero", trigger_word="cheered"),
                 ],
             )
         ],
@@ -388,7 +429,7 @@ def test_numeric_expression_immediately_before_idea_boundary():
     assert len(assigned[1]) == 3
     assert [w.word for w in assigned[1]] == ["Investors", "cheered", "loudly"]
 
-    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt)
+    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt, composition_plan=composition_plan)
     assert len(timeline) == 3
     # Trigger "cheered" at 2400ms -> frame 72 (Beat 1 has frames 54..72 >= 15 frames)
     assert timeline[2].beat_id == "b1_2"
@@ -450,9 +491,18 @@ def test_abbreviations_and_large_numbers_section_isolation():
                 focus_concept="C1",
                 core_teaching_point="P1",
                 narration="Growth continued.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="b1_1", preferred_component="Typography", visual_goal="G1", trigger_word=None),
-                    VisualStrategyBeat(beat_id="b1_2", preferred_component="Typography", visual_goal="G2", trigger_word="continued"),
+            )
+        ],
+    )
+    composition_plan = FullCompositionPlan(
+        thesis="Thesis",
+        ideas=[
+            IdeaCompositionPlan(
+                idea_id="idea_01",
+                narration="Growth continued.",
+                beats=[
+                    CompositionBeat(beat_id="b1_1", composition_id="metric_hero", trigger_word=None),
+                    CompositionBeat(beat_id="b1_2", composition_id="metric_hero", trigger_word="continued"),
                 ],
             )
         ],
@@ -492,7 +542,7 @@ def test_abbreviations_and_large_numbers_section_isolation():
     assert len(assigned[1]) == 2
     assert [w.word for w in assigned[1]] == ["Growth", "continued"]
 
-    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt)
+    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=vt, composition_plan=composition_plan)
     assert len(timeline) == 3
 
 
@@ -516,9 +566,6 @@ def test_repeated_words_across_sections():
                 focus_concept="C1",
                 core_teaching_point="P1",
                 narration="The market fell.",
-                visual_sequence=[
-                    VisualStrategyBeat(beat_id="b1_1", preferred_component="Typography", visual_goal="G1", trigger_word=None),
-                ],
             )
         ],
     )

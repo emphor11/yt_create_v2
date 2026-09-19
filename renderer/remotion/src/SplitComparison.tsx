@@ -54,6 +54,7 @@ export function SplitComparison(props: SplitComparisonProps | any) {
   // Normalize boundary props wrapper
   const resolvedProps: SplitComparisonProps = props.props ? props.props : props;
   const duration_frames = (props as any).duration_frames || (props as any).durationInFrames || 180;
+  const frame_spans = (props as any).frame_spans || [];
 
   const headerLabel = resolvedProps.headerLabel || "";
   const rawCompLabel = (resolvedProps as any).comparison_label || resolvedProps.comparisonLabel || "";

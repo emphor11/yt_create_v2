@@ -132,7 +132,8 @@ def test_render_engine_returns_failed_video_when_provider_fails(tmp_path) -> Non
 def test_timeline_builder_trigger_words() -> None:
     from engines.video_assembly.timeline_builder import TimelineBuilder
     from domain.hook import Hook, VisualDirective as HookVisualDirective
-    from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea, VisualStrategyBeat
+    from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea
+    from domain.composition_plan import FullCompositionPlan, IdeaCompositionPlan, CompositionBeat
     from domain.voice_track import VoiceTrack, WordTimestamp
 
     builder = TimelineBuilder(fps=30)
@@ -153,23 +154,29 @@ def test_timeline_builder_trigger_words() -> None:
                 focus_concept="Opportunity Cost",
                 core_teaching_point="Explain cost",
                 narration="You think paycheck is safety, but it's a trap.",
-                visual_sequence=[
-                    VisualStrategyBeat(
+            )
+        ]
+    )
+    composition_plan = FullCompositionPlan(
+        thesis="Thesis",
+        ideas=[
+            IdeaCompositionPlan(
+                idea_id="idea_01",
+                narration="You think paycheck is safety, but it's a trap.",
+                beats=[
+                    CompositionBeat(
                         beat_id="body_beat_1",
-                        preferred_component="Typography",
-                        visual_goal="Goal 1",
+                        composition_id="metric_hero",
                         trigger_word=None,
                     ),
-                    VisualStrategyBeat(
+                    CompositionBeat(
                         beat_id="body_beat_2",
-                        preferred_component="Typography",
-                        visual_goal="Goal 2",
+                        composition_id="metric_hero",
                         trigger_word="safety",
                     ),
-                    VisualStrategyBeat(
+                    CompositionBeat(
                         beat_id="body_beat_3",
-                        preferred_component="Typography",
-                        visual_goal="Goal 3",
+                        composition_id="metric_hero",
                         trigger_word="trap",
                     )
                 ]
@@ -201,7 +208,7 @@ def test_timeline_builder_trigger_words() -> None:
         ]
     )
 
-    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=voice_track)
+    timeline = builder.build_timeline(hook=hook, strategy=strategy, voice_track=voice_track, composition_plan=composition_plan)
 
     assert len(timeline) == 5
     # Hook beat 1
@@ -225,18 +232,10 @@ def test_timeline_builder_throws_on_missing_trigger() -> None:
     import pytest
     from engines.video_assembly.timeline_builder import TimelineBuilder, TimelineBuilderError
     from domain.hook import Hook, VisualDirective as HookVisualDirective
-    from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea, VisualStrategyBeat
+    from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea
     from domain.voice_track import VoiceTrack, WordTimestamp
 
-    # Test Body beat trigger mismatch
     builder = TimelineBuilder(fps=30)
-    hook = Hook(
-        conceptual_hook="Hook",
-        script_text="Is salary a drug?",
-        visual_directives=[
-            HookVisualDirective(beat_id="hook_beat_1", visual_instruction="Intro visual")
-        ]
-    )
     strategy = ScriptVisualStrategy(
         thesis="Thesis",
         ideas=[
@@ -245,21 +244,7 @@ def test_timeline_builder_throws_on_missing_trigger() -> None:
                 title="Security",
                 focus_concept="Opportunity Cost",
                 core_teaching_point="Explain cost",
-                narration="You think paycheck is safety, but it's a trap.",
-                visual_sequence=[
-                    VisualStrategyBeat(
-                        beat_id="body_beat_1",
-                        preferred_component="Typography",
-                        visual_goal="Goal 1",
-                        trigger_word=None,
-                    ),
-                    VisualStrategyBeat(
-                        beat_id="body_beat_2",
-                        preferred_component="Typography",
-                        visual_goal="Goal 2",
-                        trigger_word="nonexistentword", # not present in narration
-                    )
-                ]
+                narration="You think paycheck is safety.",
             )
         ]
     )
@@ -278,10 +263,6 @@ def test_timeline_builder_throws_on_missing_trigger() -> None:
         ]
     )
 
-    with pytest.raises(TimelineBuilderError) as exc_info:
-        builder.build_timeline(hook=hook, strategy=strategy, voice_track=voice_track)
-    assert "was not found in the voice track words" in str(exc_info.value)
-
     # Test Hook beat trigger mismatch
     hook_bad = Hook(
         conceptual_hook="Hook",
@@ -291,8 +272,8 @@ def test_timeline_builder_throws_on_missing_trigger() -> None:
             HookVisualDirective(beat_id="hook_beat_2", visual_instruction="Intro visual 2", trigger_word="nonexistent")
         ]
     )
-    with pytest.raises(TimelineBuilderError) as exc_info2:
+    with pytest.raises(TimelineBuilderError) as exc_info:
         builder.build_timeline(hook=hook_bad, strategy=strategy, voice_track=voice_track)
-    assert "was not found in the voice track words" in str(exc_info2.value)
+    assert "was not found in the voice track words" in str(exc_info.value)
 
 

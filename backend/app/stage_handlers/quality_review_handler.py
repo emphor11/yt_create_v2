@@ -133,7 +133,7 @@ class QualityReviewHandler:
                 return False
 
             for idea in strategy.ideas:
-                # 1. Check numbers in narration text (stripping thousand separators)
+                # Check numbers in narration text (stripping thousand separators)
                 narration_numbers = re.findall(r"\d+", idea.narration.replace(",", ""))
                 for num in narration_numbers:
                     if len(num) > 1 and num != "100":
@@ -145,23 +145,6 @@ class QualityReviewHandler:
                 if not stat_check_passed:
                     break
 
-                # 2. Check numbers inside SplitComparison component_data
-                for beat in idea.visual_sequence:
-                    if beat.preferred_component == "SplitComparison" and beat.component_data:
-                        data = beat.component_data
-                        for val_key in ["left_value", "right_value"]:
-                            val = data.get(val_key)
-                            if val is not None and isinstance(val, (int, float)):
-                                if val > 9 and val != 100:
-                                    val_str = str(int(val))
-                                    if not is_num_verified(val_str):
-                                        stat_check_passed = False
-                                        stat_msg = f"Value '{val_str}' used in SplitComparison '{val_key}' is not verified in research facts."
-                                        approved = False
-                                        break
-                    if not stat_check_passed:
-                        break
-
             checks.append(
                 ValidationCheck(
                     name="Statistic Verification",
@@ -170,43 +153,22 @@ class QualityReviewHandler:
                 )
             )
 
-
-            # Check C: Visual Component Configuration Check
-            visual_check_passed = True
-            visual_msg = "All visual component configurations are valid."
-            # Confirm SplitComparison component has valid properties if selected
-            for idea in strategy.ideas:
-                for beat in idea.visual_sequence:
-                    if beat.preferred_component == "SplitComparison":
-                        data = beat.component_data
-                        left_id = data.get("left_label") or data.get("left_role")
-                        right_id = data.get("right_label") or data.get("right_role")
-                        if not data or not left_id or not right_id:
-                            visual_check_passed = False
-                            visual_msg = f"Visual beat '{beat.beat_id}' is SplitComparison but lacks left/right labels or roles."
-                            approved = False
-                            break
-
-                        def _safe_num(v: Any) -> float | None:
-                            if isinstance(v, (int, float)):
-                                return float(v)
-                            if isinstance(v, str):
-                                clean = re.sub(r"[^\d.]", "", v)
-                                try:
-                                    return float(clean)
-                                except ValueError:
-                                    return None
-                            return None
-
-                        left_num = _safe_num(data.get("left_value"))
-                        right_num = _safe_num(data.get("right_value"))
-                        if left_num is None or right_num is None or left_num <= 0 or right_num <= 0:
-                            visual_check_passed = False
-                            visual_msg = f"Visual beat '{beat.beat_id}' has invalid numeric split comparison values."
-                            approved = False
-                            break
+            # Check C: Visual Component / Composition Configuration Check
+            raw_comp_plan = (
+                strategy_artifact.payload_json.get("composition_plan")
+                if isinstance(strategy_artifact.payload_json, dict)
+                else None
+            )
+            if raw_comp_plan and isinstance(raw_comp_plan, dict):
+                comp_ideas = raw_comp_plan.get("ideas", [])
+                has_beats = all(len(ci.get("beats", [])) > 0 for ci in comp_ideas if isinstance(ci, dict)) if comp_ideas else True
+                visual_check_passed = has_beats
+                visual_msg = "Composition plan beats are valid." if visual_check_passed else "Composition plan has ideas without visual beats."
                 if not visual_check_passed:
-                    break
+                    approved = False
+            else:
+                visual_check_passed = True
+                visual_msg = "Script visual strategy validated."
 
             checks.append(
                 ValidationCheck(

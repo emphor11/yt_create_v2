@@ -468,49 +468,15 @@ class TimelineBuilder:
                         else:
                             beat_time_bounds.append((0.0, 0.0))
         else:
-            # Legacy mode: derives body beats from strategy.ideas[s_idx].visual_sequence
+            # Fallback mode: derives body intervals directly from strategy.ideas[s_idx]
             for s_idx, idea in enumerate(strategy.ideas):
                 timestamps = section_timestamps[s_idx + 1]
-                beats = idea.visual_sequence
-                M = len(beats)
-                if M == 0:
-                    continue
-
-                beat_start_indices = [0]
-                for b_idx in range(1, M):
-                    trigger = beats[b_idx].trigger_word
-                    if not trigger or not trigger.strip():
-                        raise TimelineBuilderError(
-                            f"Beat '{beats[b_idx].beat_id}' in idea '{idea.idea_id}' requires trigger_word."
-                        )
-                    match_idx = _find_trigger_index(
-                        timestamps=timestamps,
-                        trigger_raw=trigger,
-                        section_text=idea.narration,
-                        prev_start_idx=beat_start_indices[-1] + 1,
-                    )
-                    if match_idx == -1:
-                        raise TimelineBuilderError(
-                            f"Trigger word '{trigger}' for beat '{beats[b_idx].beat_id}' in idea '{idea.idea_id}' "
-                            f"was not found in the voice track words."
-                        )
-                    beat_start_indices.append(match_idx)
-
-                beat_start_indices.append(len(timestamps))
-
-                for b_idx in range(M):
-                    start_idx = beat_start_indices[b_idx]
-                    end_idx = beat_start_indices[b_idx + 1]
-
-                    if start_idx < end_idx and start_idx < len(timestamps):
-                        start_ms = float(timestamps[start_idx].start_ms)
-                        actual_end_idx = min(end_idx - 1, len(timestamps) - 1)
-                        end_ms = float(timestamps[actual_end_idx].end_ms)
-                        beat_time_bounds.append((start_ms, end_ms))
-                    else:
-                        raise TimelineBuilderError(
-                            f"Invalid trigger word order or empty range for beat '{beats[b_idx].beat_id}' in idea '{idea.idea_id}'."
-                        )
+                if len(timestamps) > 0:
+                    start_ms = float(timestamps[0].start_ms)
+                    end_ms = float(timestamps[-1].end_ms)
+                    beat_time_bounds.append((start_ms, end_ms))
+                else:
+                    beat_time_bounds.append((0.0, 0.0))
 
         # 5. Build contiguous and non-overlapping intervals
         total_duration_frames = int(round(voice_track.duration_seconds * self.fps))
@@ -532,10 +498,9 @@ class TimelineBuilder:
                 for b_idx, comp_beat in enumerate(comp_idea.beats):
                     flat_beat_refs.append(("body", s_idx, b_idx, comp_beat.beat_id))
         else:
-            # Body ideas from legacy strategy
+            # Body ideas fallback
             for s_idx, idea in enumerate(strategy.ideas):
-                for b_idx, beat in enumerate(idea.visual_sequence):
-                    flat_beat_refs.append(("body", s_idx, b_idx, beat.beat_id))
+                flat_beat_refs.append(("body", s_idx, 0, f"beat_{idea.idea_id}"))
 
         for idx, (section_type, s_idx, b_idx, beat_id) in enumerate(flat_beat_refs):
             raw_start_ms, raw_end_ms = beat_time_bounds[idx]

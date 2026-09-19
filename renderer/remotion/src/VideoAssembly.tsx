@@ -62,35 +62,20 @@ export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
               key={scene.scene_id}
               durationInFrames={scene.duration_frames}
             >
-              <AbsoluteFill>
-                {/* Render full-screen stock media when this scene is StockVideo or StockImage */}
-                {isStockMedia && scene.asset && scene.asset.asset_type === "video" && scene.asset.local_path && (
-                  <OffthreadVideo
-                    src={staticFile(scene.asset.local_path)}
-                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 1.0 }}
-                    muted
-                  />
-                )}
-                {isStockMedia && scene.asset && scene.asset.asset_type === "image" && scene.asset.local_path && (
-                  <Img
-                    src={staticFile(scene.asset.local_path)}
-                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 1.0 }}
-                  />
-                )}
-
-                {/* Render B-roll background media when this scene is BrollCaption with asset */}
-                {compId === "BrollCaption" && scene.asset && scene.asset.asset_type === "video" && scene.asset.local_path && (
-                  <OffthreadVideo
-                    src={staticFile(scene.asset.local_path)}
-                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.38 }}
-                    muted
-                  />
-                )}
-                {compId === "BrollCaption" && scene.asset && scene.asset.asset_type === "image" && scene.asset.local_path && (
-                  <Img
-                    src={staticFile(scene.asset.local_path)}
-                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.38 }}
-                  />
+                {/* Render full-screen media at 100% opacity when this scene has an asset */}
+                {scene.asset && scene.asset.local_path && (
+                  scene.asset.asset_type === "video" ? (
+                    <OffthreadVideo
+                      src={staticFile(scene.asset.local_path)}
+                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 1.0 }}
+                      muted
+                    />
+                  ) : (
+                    <Img
+                      src={staticFile(scene.asset.local_path)}
+                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 1.0 }}
+                    />
+                  )
                 )}
 
                 <AbsoluteFill style={{ position: "relative" }}>
@@ -118,7 +103,6 @@ export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
                   {compId === "MultiFactorPressure" && <MultiFactorPressure {...childProps} />}
                   {compId === "BrollCaption" && <BrollCaption {...childProps} />}
                 </AbsoluteFill>
-              </AbsoluteFill>
             </Series.Sequence>
           );
         })}

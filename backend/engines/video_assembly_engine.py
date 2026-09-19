@@ -48,12 +48,11 @@ class VideoAssemblyEngine:
                 narration_text = hook.script_text
             else:
                 idea = strategy.ideas[interval.section_index]
-                beat = idea.visual_sequence[interval.beat_index]
-                preferred_component = beat.preferred_component
-                visual_goal = beat.visual_goal
-                asset_query = beat.asset_query
-                notes = beat.notes
-                component_data = beat.component_data
+                preferred_component = "Typography"
+                visual_goal = idea.core_teaching_point
+                asset_query = None
+                notes = idea.core_teaching_point
+                component_data = {"text": idea.narration}
                 narration_text = idea.narration
 
             # Download/Cache background assets if needed
