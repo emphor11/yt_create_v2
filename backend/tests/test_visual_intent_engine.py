@@ -182,3 +182,137 @@ def test_engine_uses_low_temperature() -> None:
     )
     assert provider.last_request is not None
     assert provider.last_request.temperature <= 0.2
+
+
+# --- Pacing Budget & Progressive Storytelling Tests ---
+
+from engines.visual_intent_engine import calculate_pacing_budget
+from app.assets import load_prompt
+
+
+def test_calculate_pacing_budget_all_lengths() -> None:
+    """Tests pacing budget calculation across standard narration lengths."""
+    # 1. Very short: ~15 words
+    n15 = " ".join(["word"] * 15)
+    b15 = calculate_pacing_budget(n15)
+    assert b15["word_count"] == 15
+    assert b15["estimated_seconds"] == 5.6
+    assert b15["target_beats_min"] == 2
+    assert b15["target_beats_max"] == 3
+
+    # 2. Short: ~30 words
+    n30 = " ".join(["word"] * 30)
+    b30 = calculate_pacing_budget(n30)
+    assert b30["word_count"] == 30
+    assert b30["estimated_seconds"] == 11.1
+    assert b30["target_beats_min"] == 2
+    assert b30["target_beats_max"] == 3
+
+    # 3. Medium: ~50 words
+    n50 = " ".join(["word"] * 50)
+    b50 = calculate_pacing_budget(n50)
+    assert b50["word_count"] == 50
+    assert b50["estimated_seconds"] == 18.5
+    assert b50["target_beats_min"] == 3
+    assert b50["target_beats_max"] == 4
+
+    # 4. Long: ~75 words
+    n75 = " ".join(["word"] * 75)
+    b75 = calculate_pacing_budget(n75)
+    assert b75["word_count"] == 75
+    assert b75["estimated_seconds"] == 27.8
+    assert b75["target_beats_min"] == 4
+    assert b75["target_beats_max"] == 6
+
+    # 5. Very long: ~100 words
+    n100 = " ".join(["word"] * 100)
+    b100 = calculate_pacing_budget(n100)
+    assert b100["word_count"] == 100
+    assert b100["estimated_seconds"] == 37.0
+    assert b100["target_beats_min"] == 5
+    assert b100["target_beats_max"] == 8
+
+    # 6. Extra long: ~150 words
+    n150 = " ".join(["word"] * 150)
+    b150 = calculate_pacing_budget(n150)
+    assert b150["word_count"] == 150
+    assert b150["estimated_seconds"] == 55.6
+    assert b150["target_beats_min"] == 7
+    assert b150["target_beats_max"] == 11
+
+
+def test_engine_injects_pacing_budget_for_body_idea() -> None:
+    """Verifies that non-hook ideas receive PACING BUDGET in the user prompt."""
+    provider = StaticLLMProvider(valid_payload())
+    engine = VisualIntentEngine(provider)
+    narration_75 = "Imagine you retire with fifty lakh rupees and you withdraw four percent every year. " + " ".join(["word"] * 60)
+    words = len(narration_75.split())
+
+    result = engine.run(
+        idea_id="idea_03",
+        narration=narration_75,
+        topic="Wealth Building",
+        audience="corporate employees",
+        is_hook=False,
+    )
+
+    assert provider.last_request is not None
+    prompt_text = provider.last_request.messages[1].content
+    assert "PACING BUDGET:" in prompt_text
+    assert f"Narration length: {words} words" in prompt_text
+    assert "Suggested visual intent range:" in prompt_text
+    assert "Use this range as a pacing guide" in prompt_text
+    assert "HOOK-SPECIFIC CONSTRAINTS" not in prompt_text
+    assert result.pacing_diagnostic is not None
+    assert result.pacing_diagnostic["word_count"] == words
+
+
+def test_engine_preserves_hook_specific_constraints() -> None:
+    """Verifies that hook mode receives HOOK-SPECIFIC CONSTRAINTS and NOT body pacing budget."""
+    provider = StaticLLMProvider(valid_payload("hook"))
+    engine = VisualIntentEngine(provider)
+    hook_narration = "Imagine you retire with fifty lakh rupees and you withdraw four percent every year."
+
+    result = engine.run(
+        idea_id="hook",
+        narration=hook_narration,
+        topic="Rent vs Buy",
+        audience="corporate employees",
+        is_hook=True,
+    )
+
+    assert provider.last_request is not None
+    prompt_text = provider.last_request.messages[1].content
+    assert "HOOK-SPECIFIC CONSTRAINTS:" in prompt_text
+    assert "Generate exactly 2 to 3 punchy, high-retention visual intents" in prompt_text
+    assert "PACING BUDGET:" not in prompt_text
+    assert result.pacing_diagnostic is None
+
+
+def test_engine_pacing_diagnostic_detects_underproduction() -> None:
+    """Verifies pacing_diagnostic flags below_min when generated beats are below target_beats_min."""
+    # 75 words expects min 4 beats, but payload only has 2
+    provider = StaticLLMProvider(valid_payload())
+    engine = VisualIntentEngine(provider)
+    narration_75 = "Imagine you retire with fifty lakh and you withdraw four percent. " + " ".join(["word"] * 64)
+
+    result = engine.run(
+        idea_id="idea_01",
+        narration=narration_75,
+    )
+
+    assert result.pacing_diagnostic is not None
+    assert result.pacing_diagnostic["target_beats_min"] == 4
+    assert result.pacing_diagnostic["generated_beats"] == 2
+    assert result.pacing_diagnostic["below_min"] is True
+
+
+def test_system_prompt_contains_progressive_visual_storytelling() -> None:
+    """Verifies system prompt asset contains Progressive Visual Storytelling rule."""
+    content = load_prompt("visual_intent_system.txt")
+    assert "RULE 1 — PROGRESSIVE VISUAL STORYTELLING" in content
+    assert "Instead, create one intent for each meaningful visual state change." in content
+    assert "Examples of meaningful transitions:" in content
+    assert "context → evidence" in content
+    assert "RULE 1 — GROUP RELATED SENTENCES" not in content
+

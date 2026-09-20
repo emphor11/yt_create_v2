@@ -7,9 +7,26 @@ VISUAL INTENTS — each representing a distinct visual understanding moment that
 CORE RULES
 ===========================================================================
 
-RULE 1 — GROUP RELATED SENTENCES
-Multiple sentences that together express one visual idea must become ONE intent.
-Do not create one intent per sentence.
+RULE 1 — PROGRESSIVE VISUAL STORYTELLING
+When a narration section contains multiple meaningful stages of an argument, identify those stages as separate visual intents.
+Do NOT create one intent per sentence.
+Instead, create one intent for each meaningful visual state change.
+
+Examples of meaningful transitions:
+- context → evidence
+- baseline → calculation
+- calculation → result
+- cause → consequence
+- problem → impact
+- comparison → winner/delta
+- trend → turning point
+- process step → outcome
+- fact → implication
+
+Related sentences may remain in the same intent when they express the same visual state.
+However, do not collapse an entire multi-stage argument into one intent merely because the sentences are related.
+For long narration sections, aim for approximately one meaningful visual beat every 4–7 seconds of speech.
+Use the provided PACING BUDGET as a guide.
 
 RULE 2 — SKIP FILLER SENTENCES
 Transitional phrases like "Let's explore this", "So what does this mean?",
@@ -385,6 +402,96 @@ INTENTS:
     "visual_priority": "high"
   }
 }
+
+---
+
+EXAMPLE 6 — PROGRESSIVE MULTI-BEAT DECOMPOSITION (Long Idea ~70 words)
+NARRATION:
+"Buying a home is only the beginning of your financial commitment. Annual maintenance and taxes take 1% of the property value per year, adding ₹50,000 annually on a ₹50 Lakh home. Over a 20-year loan, high interest rates force you to repay more than double your loan balance, wiping out your emergency savings."
+
+INTENTS:
+[
+  {
+    "intent_id": "intent_01",
+    "narration_excerpt": "Buying a home is only the beginning of your financial commitment.",
+    "what_viewer_must_understand": "Home purchase upfront cost is just the beginning of ongoing commitments.",
+    "key_values": ["financial commitment"],
+    "relationship_type": "statement",
+    "emphasis": "headline",
+    "trigger_word": null,
+    "entities": [
+      { "name": "Homeownership Commitment", "role": "subject", "category": "concept" }
+    ],
+    "measurements": [],
+    "temporal": null,
+    "causal": null,
+    "comparison": null,
+    "visual_dynamics": {
+      "focal_point": "Home purchase is only the initial cost",
+      "desired_visual_outcome": "Viewer realizes ongoing costs loom ahead",
+      "motion_intent": "reveal_header",
+      "visual_priority": "context"
+    }
+  },
+  {
+    "intent_id": "intent_02",
+    "narration_excerpt": "Annual maintenance and taxes take 1% of the property value per year, adding ₹50,000 annually on a ₹50 Lakh home.",
+    "what_viewer_must_understand": "1% annual maintenance on ₹50 Lakh equals ₹50,000 every year.",
+    "key_values": ["1%", "₹50 Lakh", "₹50,000"],
+    "relationship_type": "calculation",
+    "emphasis": "show_result",
+    "trigger_word": "Annual",
+    "entities": [
+      { "name": "Property", "role": "baseline", "category": "asset" },
+      { "name": "Maintenance", "role": "subject", "category": "metric" }
+    ],
+    "measurements": [
+      { "raw_value": "₹50 Lakh", "entity_name": "Property", "metric_name": "Property Value", "unit": "₹ Lakh", "numeric_value": 50.0, "direction": "neutral", "polarity": "neutral", "role": "input" },
+      { "raw_value": "1%", "entity_name": "Maintenance", "metric_name": "Annual Rate", "unit": "%", "numeric_value": 1.0, "direction": "neutral", "polarity": "neutral", "role": "rate" },
+      { "raw_value": "₹50,000", "entity_name": "Maintenance", "metric_name": "Yearly Cost", "unit": "₹", "numeric_value": 50000.0, "direction": "up", "polarity": "negative", "role": "result" }
+    ],
+    "temporal": { "horizon": "1 year", "frequency": "yearly", "is_decay_over_time": false },
+    "causal": null,
+    "comparison": null,
+    "visual_dynamics": {
+      "focal_point": "₹50,000 yearly ongoing charge",
+      "desired_visual_outcome": "Clear arithmetic breakdown of hidden recurring cost",
+      "motion_intent": "equation_reveal",
+      "visual_priority": "high"
+    }
+  },
+  {
+    "intent_id": "intent_03",
+    "narration_excerpt": "Over a 20-year loan, high interest rates force you to repay more than double your loan balance, wiping out your emergency savings.",
+    "what_viewer_must_understand": "Cumulative interest over 20 years more than doubles loan repayment, draining emergency reserves.",
+    "key_values": ["20-year loan", "double"],
+    "relationship_type": "cause_effect",
+    "emphasis": "threat",
+    "trigger_word": "loan",
+    "entities": [
+      { "name": "Interest Rates", "role": "risk_factor", "category": "concept" },
+      { "name": "Emergency Savings", "role": "subject", "category": "asset" }
+    ],
+    "measurements": [
+      { "raw_value": "20-year", "entity_name": "Loan", "metric_name": "Tenure", "unit": "years", "numeric_value": 20.0, "direction": "neutral", "polarity": "neutral", "role": "context" },
+      { "raw_value": "2x", "entity_name": "Loan", "metric_name": "Repayment Multiple", "unit": "x", "numeric_value": 2.0, "direction": "up", "polarity": "negative", "role": "result" }
+    ],
+    "temporal": { "horizon": "20 years", "frequency": "annual", "is_decay_over_time": false },
+    "causal": {
+      "causes": ["High loan interest rates over 20 years"],
+      "mechanism": "Compounding interest accumulation",
+      "outcome": "Severe emergency savings depletion",
+      "outcome_severity": "critical"
+    },
+    "comparison": null,
+    "visual_dynamics": {
+      "focal_point": "Double repayment burden wiping out safety buffer",
+      "desired_visual_outcome": "Viewer experiences the severe long-term impact of loan compounding",
+      "motion_intent": "impact_reveal",
+      "visual_priority": "high"
+    }
+  }
+]
 
 ===========================================================================
 OUTPUT FORMAT

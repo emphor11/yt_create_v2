@@ -10,6 +10,9 @@ This is Stage 1 of the composition visual pipeline:
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
+import math
+import re
 from typing import Any
 
 from pydantic import ValidationError
@@ -22,8 +25,9 @@ from providers.llm_provider import (
     LLMProviderError,
     LLMProviderMetadata,
 )
-import re
 from app.assets import load_prompt
+
+logger = logging.getLogger(__name__)
 
 
 # Common English grammatical stopwords disallowed as trigger words.
@@ -32,6 +36,29 @@ TRIGGER_WORD_STOPWORDS: frozenset[str] = frozenset({
     "of", "in", "on", "at", "and", "or", "but", "to", "for", "with", "by",
     "it", "this", "that", "these", "those", "so", "as", "if",
 })
+
+
+def calculate_pacing_budget(narration: str) -> dict[str, Any]:
+    """
+    Computes a pacing budget guideline for a narration segment.
+
+    Formula:
+        word_count = number of spoken words
+        estimated_seconds = word_count / 2.7
+        target_beats_min = max(2, ceil(word_count / 22))
+        target_beats_max = max(3, ceil(word_count / 14))
+    """
+    words = [w for w in re.split(r"\s+", narration.strip()) if w]
+    word_count = len(words)
+    estimated_seconds = word_count / 2.7
+    target_beats_min = max(2, math.ceil(word_count / 22))
+    target_beats_max = max(3, math.ceil(word_count / 14))
+    return {
+        "word_count": word_count,
+        "estimated_seconds": round(estimated_seconds, 1),
+        "target_beats_min": target_beats_min,
+        "target_beats_max": target_beats_max,
+    }
 
 
 # JSON Schema for LLM structured output.
@@ -168,6 +195,7 @@ class VisualIntentResult:
     sequence: VisualIntentSequence
     provider_metadata: LLMProviderMetadata
     raw_payload: dict[str, Any]
+    pacing_diagnostic: dict[str, Any] | None = None
 
 
 class VisualIntentEngineError(Exception):
@@ -219,6 +247,9 @@ class VisualIntentEngine:
         system_content = load_prompt("visual_intent_system.txt")
 
         hook_instructions = ""
+        pacing_instructions = ""
+        pacing_budget = None
+
         if is_hook:
             hook_instructions = (
                 "\nHOOK-SPECIFIC CONSTRAINTS:\n"
@@ -227,12 +258,23 @@ class VisualIntentEngine:
                 "- The first intent MUST have immediate first-frame engagement (starts immediately at frame 0).\n"
                 "- Focus on high visual contrast: bold metric, startling comparison, multi-factor convergence, or key claim.\n"
             )
+        else:
+            pacing_budget = calculate_pacing_budget(narration)
+            pacing_instructions = (
+                f"\nPACING BUDGET:\n"
+                f"- Narration length: {pacing_budget['word_count']} words\n"
+                f"- Estimated spoken duration: {pacing_budget['estimated_seconds']:.1f} seconds\n"
+                f"- Suggested visual intent range: {pacing_budget['target_beats_min']}–{pacing_budget['target_beats_max']}\n"
+                f"- Instruction: Use this range as a pacing guide, not a mechanical segmentation rule. "
+                f"Prioritize meaningful semantic transitions. Do not create filler intents just to reach the target count.\n"
+            )
 
         user_content = (
             f"Topic: {topic}\n"
             f"Audience: {audience}\n"
             f"Idea ID: {idea_id}\n"
-            f"{hook_instructions}\n"
+            f"{hook_instructions}"
+            f"{pacing_instructions}\n"
             f"NARRATION:\n{narration}\n\n"
             "Analyze this narration and produce the list of VisualIntents."
         )
@@ -359,8 +401,31 @@ class VisualIntentEngine:
                 provider_metadata=response.metadata,
             ) from error
 
+        pacing_diagnostic = None
+        if pacing_budget is not None:
+            generated_beats = len(sequence.intents)
+            pacing_diagnostic = {
+                "word_count": pacing_budget["word_count"],
+                "estimated_seconds": pacing_budget["estimated_seconds"],
+                "target_beats_min": pacing_budget["target_beats_min"],
+                "target_beats_max": pacing_budget["target_beats_max"],
+                "generated_beats": generated_beats,
+                "below_min": generated_beats < pacing_budget["target_beats_min"],
+            }
+            if pacing_diagnostic["below_min"]:
+                logger.warning(
+                    "VisualIntentEngine: idea '%s' (%d words, ~%.1fs) produced %d intents, "
+                    "below suggested minimum of %d",
+                    idea_id,
+                    pacing_budget["word_count"],
+                    pacing_budget["estimated_seconds"],
+                    generated_beats,
+                    pacing_budget["target_beats_min"],
+                )
+
         return VisualIntentResult(
             sequence=sequence,
             provider_metadata=response.metadata,
             raw_payload=raw,
+            pacing_diagnostic=pacing_diagnostic,
         )
