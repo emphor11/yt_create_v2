@@ -1,4 +1,4 @@
-import { AbsoluteFill, Series, Audio, OffthreadVideo, Img, staticFile, useCurrentFrame, useVideoConfig, interpolate } from "remotion";
+import { AbsoluteFill, Series, Audio, OffthreadVideo, Img, staticFile } from "remotion";
 import { SplitComparison } from "./SplitComparison";
 import { Timeline } from "./Timeline";
 import { ProcessFlow } from "./ProcessFlow";
@@ -20,20 +20,11 @@ import { CauseEffect } from "./compositions/CauseEffect";
 import { TimeDecay } from "./compositions/TimeDecay";
 import { MultiFactorPressure } from "./compositions/MultiFactorPressure";
 import { BrollCaption } from "./compositions/BrollCaption";
-import { tokens } from "./design-tokens";
 import { type VideoAssemblyRenderSpec } from "./types";
 
 export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
-  const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
   const { props, frame_spans = [] } = renderSpec;
   const { scenes, audio } = props;
-
-  // Video progress bar percentage across total duration
-  const progressPct = interpolate(frame, [0, durationInFrames || 1], [0, 100], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
@@ -107,20 +98,6 @@ export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
           );
         })}
       </Series>
-
-      {/* Top-of-screen 4px Glowing Video Progress Bar */}
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          height: "4px",
-          width: `${progressPct}%`,
-          background: "linear-gradient(90deg, #06b6d4 0%, #3b82f6 50%, #a855f7 100%)",
-          boxShadow: "0 0 12px rgba(6, 182, 212, 0.8)",
-          zIndex: 1000,
-        }}
-      />
     </AbsoluteFill>
   );
 }
