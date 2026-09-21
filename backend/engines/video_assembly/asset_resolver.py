@@ -30,7 +30,14 @@ class AssetResolver:
             return None
 
         asset_type: Literal["image", "video"] = "image" if preferred_component in ("Stock Image", "StockImage") else "video"
-        query = asset_query.strip() 
+        query = asset_query.strip() if asset_query else "car finance paperwork"
+        q_lower = query.lower()
+        if (
+            any(pat in q_lower for pat in ("viewer ", "viewer's", "viewers", "understand", "realize", "grasp"))
+            or any(punct in query for punct in (".", ";", "?", "!"))
+            or len(query.split()) > 8
+        ):
+            query = "car finance paperwork"
         
         # 1. Check Cache first
         sanitized_query = re.sub(r"[^\w\-]", "_", query.lower())

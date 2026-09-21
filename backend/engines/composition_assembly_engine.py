@@ -31,24 +31,66 @@ class CompositionAssemblyEngine:
         self.composition_resolver = CompositionResolver()
         self.render_spec_builder = RenderSpecBuilder(fps=fps)
 
+    def _resolve_safe_stock_query(
+        self,
+        asset_query: str | None,
+        narration_text: str | None,
+    ) -> str:
+        """
+        Ensures that stock media queries sent to AssetResolver are concrete 2-6 word visual phrases.
+        NEVER sends 'Viewer understands...', explanatory sentences, or truncated narration fragments.
+        """
+        if asset_query and isinstance(asset_query, str):
+            q = asset_query.strip()
+            q_lower = q.lower()
+            if (
+                not any(pat in q_lower for pat in ("viewer ", "viewer's", "viewers", "understand", "realize", "grasp"))
+                and not any(punct in q for punct in (".", ";", "?", "!"))
+                and len(q.split()) <= 8
+            ):
+                return q
+
+        # Extract concrete physical phrase from narration if available
+        if narration_text:
+            nt = narration_text.lower()
+            if any(k in nt for k in ("tire", "tires", "mechanic", "servicing", "maintenance", "detailing")):
+                return "mechanic changing car tire"
+            if any(k in nt for k in ("dealership", "showroom", "salesperson", "sales pitch")):
+                return "car dealership showroom"
+            if any(k in nt for k in ("insurance", "totaled", "accident", "stolen")):
+                return "car insurance paperwork"
+            if any(k in nt for k in ("fuel", "gas station", "petrol")):
+                return "driver filling car fuel"
+            if any(k in nt for k in ("luxury", "valet", "lifestyle creep", "premium vehicle")):
+                return "luxury car interior"
+            if any(k in nt for k in ("pre-owned", "used car")):
+                return "used car showroom"
+            if any(k in nt for k in ("loan", "emi", "bank", "interest", "financing", "underwater")):
+                return "car loan paperwork"
+            if any(k in nt for k in ("invest", "portfolio", "index fund", "compound")):
+                return "person reviewing investments"
+            if any(k in nt for k in ("budget", "expenses", "cash flow", "cannibalize", "savings")):
+                return "person calculating expenses"
+            if any(k in nt for k in ("car", "vehicle", "drive", "driving", "road")):
+                return "car driving on road"
+
+        return "car finance paperwork"
+
     def run(
         self,
         *,
         scene_id: str,
         hook: Hook,
         strategy: ScriptVisualStrategy,
-        composition_plan: FullCompositionPlan | None = None,
+        composition_plan: FullCompositionPlan,
         voice_track: VoiceTrack,
     ) -> RenderSpec:
-        if composition_plan is None:
-            raise ValueError("composition_plan is required for CompositionAssemblyEngine")
-
-        # 1. Timeline Builder: construct frame intervals based on trigger words and composition_plan
+        # Build timeline using Composition Plan for accurate interval alignment
         timed_intervals = self.timeline_builder.build_timeline(
             hook=hook,
             strategy=strategy,
-            voice_track=voice_track,
             composition_plan=composition_plan,
+            voice_track=voice_track,
         )
 
         timed_segments: list[TimedBeatSegment] = []
@@ -72,10 +114,11 @@ class CompositionAssemblyEngine:
                     # Resolve asset if required
                     unique_asset_id = f"asset_comp_hook_{interval.beat_index}_{interval.beat_id}"
                     asset_component = "StockVideo" if comp_beat.asset_requirement != "none" else "Typography"
+                    safe_query = self._resolve_safe_stock_query(asset_query, narration_text)
                     asset_ref = self.asset_resolver.resolve_asset(
                         asset_id=unique_asset_id,
                         preferred_component=asset_component,
-                        asset_query=asset_query or visual_goal or "background",
+                        asset_query=safe_query,
                     )
                     resolved_assets.append(asset_ref)
 
@@ -98,10 +141,11 @@ class CompositionAssemblyEngine:
                     narration_text = hook.script_text
 
                     unique_asset_id = f"asset_hook_0_{interval.beat_index}_{interval.beat_id}"
+                    safe_query = self._resolve_safe_stock_query(asset_query, narration_text)
                     asset_ref = self.asset_resolver.resolve_asset(
                         asset_id=unique_asset_id,
                         preferred_component=preferred_component,
-                        asset_query=asset_query or visual_goal or "background",
+                        asset_query=safe_query,
                     )
                     resolved_assets.append(asset_ref)
 
@@ -127,10 +171,11 @@ class CompositionAssemblyEngine:
                 # Resolve asset if required
                 unique_asset_id = f"asset_comp_{interval.section_index}_{interval.beat_index}_{interval.beat_id}"
                 asset_component = "StockVideo" if comp_beat.asset_requirement != "none" else "Typography"
+                safe_query = self._resolve_safe_stock_query(asset_query, narration_text)
                 asset_ref = self.asset_resolver.resolve_asset(
                     asset_id=unique_asset_id,
                     preferred_component=asset_component,
-                    asset_query=asset_query or visual_goal or "background",
+                    asset_query=safe_query,
                 )
                 resolved_assets.append(asset_ref)
 
@@ -150,7 +195,7 @@ class CompositionAssemblyEngine:
                 duration_frames=interval.duration_frames,
                 preferred_component=preferred_component,
                 visual_goal=visual_goal,
-                asset_query=asset_query,
+                asset_query=safe_query,
                 notes=notes,
                 component_data=component_data,
                 narration_text=narration_text,

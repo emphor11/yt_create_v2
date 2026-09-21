@@ -597,6 +597,32 @@ class CompositionRegistry:
                 if defn.allowed_variants
                 else {"type": "string", "nullable": True}
             )
+            if defn.composition_id == "broll_caption":
+                asset_query_prop: dict[str, Any] = {
+                    "type": "string",
+                    "description": (
+                        "Concrete 2-6 word stock media visual search query containing physical nouns or visible actions "
+                        "(e.g. 'car dealership showroom', 'person reviewing loan documents', 'mechanic replacing tire'). "
+                        "Used ONLY to search stock footage providers (Pexels/Pixabay). "
+                        "Must NOT be null, must NOT be a full sentence, must NOT contain 'viewer', and must NOT explain concepts."
+                    ),
+                }
+                required_props = [
+                    "status",
+                    "composition_id",
+                    "composition_data",
+                    "visual_goal",
+                    "asset_query",
+                ]
+            else:
+                asset_query_prop = {"type": "string", "nullable": True}
+                required_props = [
+                    "status",
+                    "composition_id",
+                    "composition_data",
+                    "visual_goal",
+                ]
+
             branches.append({
                 "type": "object",
                 "properties": {
@@ -611,11 +637,11 @@ class CompositionRegistry:
                         "type": "string",
                         "enum": [e.value for e in AssetRequirement],
                     },
-                    "asset_query": {"type": "string", "nullable": True},
+                    "asset_query": asset_query_prop,
                     "trigger_word": {"type": "string", "nullable": True},
                     "visual_goal": {"type": "string"},
                 },
-                "required": ["status", "composition_id", "composition_data", "visual_goal"],
+                "required": required_props,
             })
 
         branches.append({

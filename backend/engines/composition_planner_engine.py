@@ -15,6 +15,7 @@ dynamically from CompositionRegistry.all_ids().
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -74,10 +75,128 @@ def _is_declining_intent(intent: VisualIntent) -> bool:
     return any(ind in combined_text for ind in decline_indicators)
 
 
+def is_valid_asset_query(query: str | None) -> bool:
+    """
+    Validates whether an asset query is a concrete, usable stock-search query.
+    Rejects:
+    - None or whitespace-only
+    - Sentences / clauses containing 'viewer', 'understands', 'realizes', 'grasps', 'feels', etc.
+    - Queries longer than 8 words
+    - Narration sentence fragments or punctuation typical of full sentences
+    """
+    if not query or not isinstance(query, str):
+        return False
+
+    q = query.strip()
+    if len(q) < 3:
+        return False
+
+    words = q.split()
+    if len(words) > 8:
+        # Full sentence or paragraph, not a search query
+        return False
+
+    q_lower = q.lower()
+    # Check for conceptual/educational framing phrases
+    invalid_patterns = (
+        "viewer ", "viewer's", "viewers",
+        "understand", "realize", "grasp", "recognize",
+        "concept of", "principle of", "theory of",
+        "the monthly installment", "while you are paying",
+    )
+    if any(pat in q_lower for pat in invalid_patterns):
+        return False
+
+    # Reject strings with punctuation typical of sentences (periods, semicolons, questions)
+    if re.search(r"[.;?!]", q):
+        return False
+
+    return True
+
+
+def build_fallback_asset_query(intent: VisualIntent, topic: str = "") -> str:
+    """
+    Deterministically builds a concrete, search-friendly stock media query (2-5 words).
+    Priority:
+    1. Concrete physical entities from intent.entities
+    2. Contextual physical action/object matching from narration and visual intent
+    3. Domain-specific grounded physical fallback
+
+    NEVER returns narration excerpts, truncated strings, or 'viewer understands...' phrases.
+    """
+    # 1. Check intent.entities for concrete physical objects / roles
+    concrete_entity_map: list[tuple[str, str]] = [
+        ("mechanic", "mechanic repairing car"),
+        ("tire", "mechanic replacing tire"),
+        ("dealership", "car dealership showroom"),
+        ("showroom", "car dealership showroom"),
+        ("insurance", "car insurance paperwork"),
+        ("loan", "car loan paperwork"),
+        ("bank", "bank loan paperwork"),
+        ("fuel", "driver filling fuel"),
+        ("gas", "driver filling fuel"),
+        ("calculator", "person calculating expenses"),
+        ("budget", "person calculating expenses"),
+        ("bills", "person reviewing bills"),
+        ("investment", "person reviewing investments"),
+        ("portfolio", "person reviewing investments"),
+        ("index fund", "person reviewing investments"),
+        ("driver", "driver in car"),
+        ("car", "car driving on road"),
+        ("vehicle", "car driving on road"),
+    ]
+
+    entity_names = [e.name.lower() for e in (intent.entities or []) if e.name]
+    for ent_text in entity_names:
+        for keyword, mapped_query in concrete_entity_map:
+            if keyword in ent_text:
+                return mapped_query
+
+    # 2. Text keyword scanning across narration_excerpt + what_viewer_must_understand
+    combined_text = f"{intent.narration_excerpt or ''} {intent.what_viewer_must_understand or ''}".lower()
+
+    text_match_rules: list[tuple[tuple[str, ...], str]] = [
+        # Repairs / Maintenance
+        (("tire", "tires", "mechanic", "servicing", "service", "maintenance", "detailing", "repairs"), "mechanic changing car tire"),
+        # Dealership / Showroom
+        (("dealership", "showroom", "salesperson", "sales pitch", "salesman"), "car dealership showroom"),
+        # Used / Pre-owned
+        (("pre-owned", "used car", "second hand"), "used car showroom"),
+        # Insurance / Totaled / Accidents
+        (("insurance", "totaled", "accident", "stolen", "write-off"), "car insurance paperwork"),
+        # Fuel / Gas / Commute
+        (("fuel", "gas station", "petrol", "filling"), "driver filling car fuel"),
+        # Luxury / Lifestyle creep
+        (("luxury", "valet", "lifestyle creep", "premium vehicle", "sports car"), "luxury car interior"),
+        # Loans / Financing / EMI / Banking
+        (("loan", "emi", "bank", "interest rate", "finance manager", "financing", "installment", "down payment", "negative equity", "underwater"), "car loan paperwork"),
+        # Investments / Opportunity Cost / Compounding
+        (("index fund", "invest", "investment", "portfolio", "compound", "mutual fund", "stock market"), "person reviewing investments"),
+        # Budget / Savings / Expenses / Cash flow
+        (("budget", "expenses", "cash flow", "cannibalize", "savings", "spending", "bills"), "person calculating expenses"),
+        # Commute / Driving / Highway
+        (("drive to work", "drive", "driving", "traffic", "highway", "commute", "road"), "car driving on road"),
+    ]
+
+    for keywords, mapped_query in text_match_rules:
+        if any(kw in combined_text for kw in keywords):
+            return mapped_query
+
+    # 3. Domain Fallback
+    topic_lower = (topic or "").lower()
+    if any(k in topic_lower for k in ("car", "auto", "vehicle")):
+        return "car finance paperwork"
+    elif any(k in topic_lower for k in ("invest", "retire", "wealth", "money", "salary", "loan")):
+        return "person reviewing loan documents"
+
+    return "person reviewing financial documents"
+
+
 def _make_fallback_beat(
     intent: VisualIntent,
     beat_id: str,
     fallback_reason: str = "no_suitable_composition",
+    topic: str = "",
 ) -> CompositionBeat:
     """Creates a safe broll_caption fallback beat for a given intent."""
     return CompositionBeat(
@@ -89,7 +208,7 @@ def _make_fallback_beat(
             "emphasis_phrase": intent.key_values[0] if intent.key_values else None,
         },
         asset_requirement="optional_broll",
-        asset_query=intent.narration_excerpt[:60],
+        asset_query=build_fallback_asset_query(intent, topic=topic),
         trigger_word=intent.trigger_word,
         visual_goal=intent.what_viewer_must_understand,
         relationship_type=intent.relationship_type,
@@ -671,7 +790,7 @@ class CompositionPlannerEngine:
         except LLMProviderError as error:
             # LLM hard failure → use fallback, don't crash the pipeline
             fallback_reason = f"provider_error: {error}"
-            fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason)
+            fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason, topic=topic)
             return CompositionPlannerResult(
                 beat=fallback,
                 provider_metadata=LLMProviderMetadata(provider="fallback", model="fallback"),
@@ -687,7 +806,7 @@ class CompositionPlannerEngine:
         if status == "no_suitable_composition":
             reason = raw.get("reason", "No suitable composition declared by LLM")
             fallback_reason = f"no_suitable_composition: {reason}"
-            fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason)
+            fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason, topic=topic)
             return CompositionPlannerResult(
                 beat=fallback,
                 provider_metadata=response.metadata,
@@ -701,7 +820,7 @@ class CompositionPlannerEngine:
         if not CompositionRegistry.is_registered(composition_id):
             # Unknown composition → fallback (LLM ignored the enum constraint)
             fallback_reason = f"unknown_composition_id: '{composition_id}' is not registered"
-            fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason)
+            fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason, topic=topic)
             return CompositionPlannerResult(
                 beat=fallback,
                 provider_metadata=response.metadata,
@@ -718,7 +837,7 @@ class CompositionPlannerEngine:
             fallback_reason = (
                 f"unsupported_relationship_type: '{composition_id}' does not support '{intent.relationship_type}'"
             )
-            fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason)
+            fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason, topic=topic)
             return CompositionPlannerResult(
                 beat=fallback,
                 provider_metadata=response.metadata,
@@ -730,7 +849,7 @@ class CompositionPlannerEngine:
         # --- Semantic guardrail: time_decay must strictly represent decline/erosion ---
         if composition_id == "time_decay" and intent.relationship_type == "trend" and not _is_declining_intent(intent):
             fallback_reason = "time_decay rejected: trend does not indicate decline or erosion"
-            fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason)
+            fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason, topic=topic)
             return CompositionPlannerResult(
                 beat=fallback,
                 provider_metadata=response.metadata,
@@ -761,7 +880,7 @@ class CompositionPlannerEngine:
         if not is_valid:
             # Invalid data → fallback
             fallback_reason = f"validation_error: {'; '.join(errors)}"
-            fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason)
+            fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason, topic=topic)
             return CompositionPlannerResult(
                 beat=fallback,
                 provider_metadata=response.metadata,
@@ -771,13 +890,24 @@ class CompositionPlannerEngine:
             )
 
         # --- Build CompositionBeat ---
+        raw_asset_query = raw.get("asset_query")
+        if composition_id == "broll_caption":
+            if is_valid_asset_query(raw_asset_query):
+                asset_query = raw_asset_query.strip()
+            else:
+                asset_query = build_fallback_asset_query(intent, topic=topic)
+            asset_requirement = "optional_broll"
+        else:
+            asset_query = None
+            asset_requirement = "none"
+
         beat = CompositionBeat(
             beat_id=beat_id,
             composition_id=composition_id,
             variant=variant,
             composition_data=normalized_data,
-            asset_requirement=raw.get("asset_requirement", "none"),
-            asset_query=raw.get("asset_query"),
+            asset_requirement=asset_requirement,
+            asset_query=asset_query,
             trigger_word=raw.get("trigger_word"),
             visual_goal=raw.get("visual_goal", intent.what_viewer_must_understand),
             relationship_type=intent.relationship_type,
