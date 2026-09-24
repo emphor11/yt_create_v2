@@ -304,7 +304,7 @@ export interface CauseEffectProps {
 
 export interface TimeDecayProps {
   headerLabel?: string;
-  fixedAmount: string;
+  fixedAmount?: string;
   amountLabel: string;
   timePeriod: string;
   emphasis?: string;
@@ -314,8 +314,9 @@ export interface TimeDecayProps {
   endLabel?: string | null;
   dropRate?: string | null;
   severity?: "mild" | "moderate" | "severe" | "catastrophic" | string | null;
-  variant?: "mild_decay" | "severe_decay" | "inflation_erosion" | "standard" | string | null;
+  variant?: "mild_decay" | "severe_decay" | "inflation_erosion" | "single_period_drop" | "standard" | string | null;
   rateLabel?: string | null;
+  decayType?: "single_period" | "recurring_annual" | "purchasing_power" | "standard" | string | null;
 }
 
 export interface FactorItemProp {

@@ -22,10 +22,15 @@ class YoutubeUploadHandler:
         self.upload_validator = upload_validator
         self.stage_logger = stage_logger
 
-    def run(self, project_id: str, run_id: str) -> ArtifactRecord:
+    def run(self, project_id: str, run_id: str, target_account: str = "test") -> ArtifactRecord:
+        norm_account = "production" if str(target_account).lower() in ("prod", "production", "real") else "test"
         existing = self.store.find_artifact_by_type(project_id, run_id, "youtube_upload")
-        if existing is not None:
-            return existing
+        if existing is not None and existing.status == "valid":
+            payload = existing.payload_json if isinstance(existing.payload_json, dict) else {}
+            if payload.get("target_account") == norm_account:
+                return existing
+            # If changing target account (e.g. from test to production), replace the previous record
+            self.store.delete_artifacts([existing.id])
 
         start = self.stage_logger.log_start(project_id, run_id, "youtube_upload")
         try:
@@ -55,6 +60,7 @@ class YoutubeUploadHandler:
                 metadata=metadata,
                 thumbnail_storage_key=thumbnail_storage_key,
                 privacy_status="private",
+                target_account=norm_account,
             )
 
             validation = self.upload_validator.validate(upload)

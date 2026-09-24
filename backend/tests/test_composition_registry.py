@@ -251,14 +251,61 @@ def test_calculation_story_schema_properties() -> None:
     assert schema is not None
     required = schema["required"]
     expected_required = [
-        "input_label", "input_value", "operation_label",
-        "rate_label", "result_label", "result_value",
+        "input_label", "input_value", "result_label", "result_value",
     ]
     for field in expected_required:
         assert field in required, f"{field} must be required in calculation_story"
         assert field in schema["properties"], f"{field} must be in calculation_story properties"
-    assert "note" in schema["properties"]
-    assert "note" not in required
+
+    # Optional fields should be in properties but NOT in required
+    optional_fields = [
+        "operation_label", "rate_label", "note", "operation_type",
+        "variant", "polarity", "timeframe", "secondary_label", "secondary_value",
+    ]
+    for field in optional_fields:
+        assert field in schema["properties"], f"{field} must be in calculation_story properties"
+        assert field not in required, f"{field} must NOT be required in calculation_story"
+
+
+def test_validate_calculation_story_valid_without_rate_or_operation() -> None:
+    ok, errors, normalized = CompositionRegistry.validate_composition_data(
+        "calculation_story",
+        {
+            "input_label": "Starting Salary",
+            "input_value": "₹50,000",
+            "result_label": "Final Salary",
+            "result_value": "₹2,00,000",
+        },
+    )
+    assert ok is True
+    assert errors == []
+    assert normalized["input_label"] == "Starting Salary"
+    assert normalized["result_value"] == "₹2,00,000"
+    assert normalized.get("operation_label") is None
+    assert normalized.get("rate_label") is None
+
+
+def test_validate_calculation_story_with_secondary_metrics() -> None:
+    ok, errors, normalized = CompositionRegistry.validate_composition_data(
+        "calculation_story",
+        {
+            "input_label": "Monthly SIP",
+            "input_value": "₹10,000",
+            "operation_label": "→",
+            "rate_label": "12% return over 15 years",
+            "result_label": "Total Corpus",
+            "result_value": "₹50 Lakh",
+            "secondary_label": "Total Invested",
+            "secondary_value": "₹18 Lakh",
+            "timeframe": "15 Years",
+            "operation_type": "growth",
+        },
+    )
+    assert ok is True
+    assert errors == []
+    assert normalized["secondary_label"] == "Total Invested"
+    assert normalized["secondary_value"] == "₹18 Lakh"
+    assert normalized["operation_type"] == "growth"
 
 
 def test_metric_hero_schema_properties() -> None:
@@ -288,8 +335,31 @@ def test_time_decay_schema_properties() -> None:
     schema = CompositionRegistry.get_data_schema("time_decay")
     assert schema is not None
     required = schema["required"]
-    for field in ["fixed_amount", "amount_label", "time_period", "emphasis"]:
+    for field in ["amount_label", "time_period"]:
         assert field in required
+    assert "fixed_amount" in schema["properties"]
+    assert "fixed_amount" not in required
+    assert "decay_type" in schema["properties"]
+    assert "emphasis" in schema["properties"]
+
+
+def test_validate_time_decay_valid_without_fixed_amount() -> None:
+    ok, errors, normalized = CompositionRegistry.validate_composition_data(
+        "time_decay",
+        {
+            "amount_label": "New Car Value",
+            "time_period": "first year",
+            "drop_rate": "15%",
+            "emphasis": "single_period_drop",
+            "variant": "single_period_drop",
+            "decay_type": "single_period",
+        },
+    )
+    assert ok is True
+    assert errors == []
+    assert normalized["amount_label"] == "New Car Value"
+    assert normalized["drop_rate"] == "15%"
+    assert normalized["fixed_amount"] is None
 
 
 def test_multi_factor_pressure_schema_properties() -> None:

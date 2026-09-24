@@ -173,3 +173,98 @@ def test_composition_resolver_maps_time_decay_semantic_props() -> None:
     assert props["severity"] == "mild"
     assert props["variant"] == "mild_decay"
     assert props["rateLabel"] == "3.5% Annual Inflation"
+    assert props["decayType"] == "standard"
+
+
+def test_time_decay_single_period_candidate_extraction() -> None:
+    from domain.visual_intent import SemanticEntity
+
+    intent = VisualIntent(
+        intent_id="intent_car_depreciation",
+        chunk_index=2,
+        narration_excerpt="A new car loses 15% of its value in the first year alone.",
+        what_viewer_must_understand="New cars face immediate first-year depreciation.",
+        relationship_type="decline",
+        measurements=[
+            QuantitativeMeasurement(
+                raw_value="15%",
+                metric_name="First-year depreciation",
+                role="rate",
+            ),
+        ],
+        entities=[
+            SemanticEntity(name="New Car", role="subject"),
+        ],
+        temporal=TemporalContext(
+            horizon="first year",
+        ),
+    )
+
+    candidate = build_candidate_composition_data("time_decay", intent)
+    assert candidate["fixed_amount"] == "Original Value"
+    assert candidate["amount_label"] == "New Car"
+    assert candidate["time_period"] == "first year"
+    assert candidate["drop_rate"] == "15%"
+    assert candidate["decay_type"] == "single_period"
+    assert candidate["variant"] == "single_period_drop"
+    assert candidate["severity"] == "mild"
+
+
+def test_time_decay_single_period_resolver_mapping() -> None:
+    resolver = CompositionResolver()
+    spec = resolver.resolve_composition(
+        composition_id="time_decay",
+        composition_data={
+            "fixed_amount": None,
+            "amount_label": "New Vehicle Value",
+            "time_period": "First Year",
+            "emphasis": "single_period_drop",
+            "drop_rate": "15%",
+            "variant": "single_period_drop",
+            "decay_type": "single_period",
+        },
+    )
+
+    assert spec.component_id == "TimeDecay"
+    props = spec.props
+    assert props["fixedAmount"] == "Original Value"
+    assert props["amountLabel"] == "New Vehicle Value"
+    assert props["timePeriod"] == "First Year"
+    assert props["dropRate"] == "15%"
+    assert props["decayType"] == "single_period"
+    assert props["variant"] == "single_period_drop"
+
+
+def test_merge_preserves_decay_type() -> None:
+    candidate_facts = {
+        "fixed_amount": "Original Value",
+        "amount_label": "Car Value",
+        "time_period": "Year 1",
+        "decay_type": "single_period",
+        "variant": "single_period_drop",
+        "drop_rate": "15%",
+    }
+    llm_data: dict[str, Any] = {
+        "amount_label": "Brand New Vehicle",
+        "annotation": "Depreciation hit",
+    }
+    intent = VisualIntent(
+        intent_id="intent_decay_03",
+        chunk_index=1,
+        narration_excerpt="Car loses 15% in year 1.",
+        what_viewer_must_understand="Depreciation",
+        relationship_type="decline",
+    )
+
+    merged = merge_factual_and_presentation_data(
+        composition_id="time_decay",
+        candidate_facts=candidate_facts,
+        llm_data=llm_data,
+        intent=intent,
+    )
+    assert merged["amount_label"] == "Brand New Vehicle"
+    assert merged["decay_type"] == "single_period"
+    assert merged["variant"] == "single_period_drop"
+    assert merged["drop_rate"] == "15%"
+    assert merged["fixed_amount"] == "Original Value"
+    assert merged["annotation"] == "Depreciation hit"

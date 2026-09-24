@@ -316,14 +316,14 @@ export function ProjectListPage() {
     }
   }
 
-  async function handleRunYoutubeUpload() {
+  async function handleRunYoutubeUpload(targetAccount: "test" | "production" = "test") {
     if (!selectedProject || !selectedRun) {
       return;
     }
     setIsRunningStage(true);
     setError(null);
     try {
-      const response = await runYoutubeUpload(selectedProject.id, selectedRun.id);
+      const response = await runYoutubeUpload(selectedProject.id, selectedRun.id, targetAccount);
       await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {

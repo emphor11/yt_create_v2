@@ -82,20 +82,44 @@ export function RenderOutputPage({ artifact }: RenderOutputPageProps) {
   if (artifact.artifact_type === "youtube_upload") {
     const youtubeUrl = typeof payload.youtube_url === "string" ? payload.youtube_url : null;
     const isSucceeded = payload.upload_status === "succeeded";
+    const targetAccount = typeof payload.target_account === "string" ? payload.target_account : "test";
+    const isProd = targetAccount === "production";
+    const channelTitle = typeof payload.channel_title === "string" ? payload.channel_title : null;
+
     return (
       <section className="panel render-output">
-        <div>
-          <p className="section-label">YouTube Upload</p>
-          <h2>{typeof payload.title === "string" ? payload.title : "Published Video"}</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "10px" }}>
+          <div>
+            <p className="section-label">YouTube Upload</p>
+            <h2>{typeof payload.title === "string" ? payload.title : "Published Video"}</h2>
+          </div>
+          <span
+            className="status-pill"
+            style={{
+              background: isProd ? "rgba(245, 158, 11, 0.15)" : "rgba(16, 185, 129, 0.15)",
+              color: isProd ? "var(--color-warning, #f59e0b)" : "var(--color-valid, #10b981)",
+              borderColor: isProd ? "rgba(245, 158, 11, 0.4)" : "rgba(16, 185, 129, 0.4)",
+              fontWeight: 600,
+              fontSize: "0.82rem",
+              padding: "4px 10px",
+            }}
+          >
+            {isProd ? "🚀 Production Channel" : "🧪 Test Channel"}
+          </span>
         </div>
         {isSucceeded && youtubeUrl ? (
-          <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
               <span className="status-pill status-pill--valid">Uploaded</span>
+              {channelTitle ? (
+                <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>
+                  Channel: <strong style={{ color: "var(--text-primary)" }}>{channelTitle}</strong>
+                </span>
+              ) : null}
               <code>Video ID: {String(payload.youtube_video_id ?? "")}</code>
             </div>
-            <p style={{ margin: 0, fontSize: "16px" }}>
-              Your video is ready on YouTube!
+            <p style={{ margin: 0, fontSize: "15px", color: "var(--text-secondary)" }}>
+              Your video is live as a private draft on YouTube ({isProd ? "Production Account" : "Test Account"}).
             </p>
             <a
               href={youtubeUrl}

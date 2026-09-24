@@ -39,7 +39,7 @@ def test_calculation_story_backwards_compatibility_with_old_payload():
     data = CalculationStoryData(**old_payload)
     assert data.input_value == "₹50 lakh"
     assert data.operation_label == "×"
-    assert data.operation_type is None
+    assert data.operation_type == "multiplication"
 
 
 def test_build_candidate_composition_data_extracts_calculation_story_semantics():
@@ -77,6 +77,80 @@ def test_build_candidate_composition_data_extracts_calculation_story_semantics()
     assert facts["result_label"] == "Accumulated Wealth"
     assert facts["polarity"] == "positive"
     assert facts["timeframe"] == "over 20 years"
+
+
+def test_build_candidate_without_explicit_rate_label():
+    """Verify calculation_story succeeds when only input and result exist (transformation)."""
+    intent = VisualIntent(
+        intent_id="calc_intent_transform",
+        narration_excerpt="Starting salary of ₹50,000 grows to ₹2,00,000.",
+        what_viewer_must_understand="Income quadrupled over career.",
+        relationship_type="calculation",
+        measurements=[
+            QuantitativeMeasurement(
+                raw_value="₹50,000",
+                metric_name="Starting Salary",
+                role="input",
+            ),
+            QuantitativeMeasurement(
+                raw_value="₹2,00,000",
+                metric_name="Final Salary",
+                role="result",
+            ),
+        ],
+    )
+    facts = build_candidate_composition_data("calculation_story", intent)
+    assert facts["input_value"] == "₹50,000"
+    assert facts["input_label"] == "Starting Salary"
+    assert facts["result_value"] == "₹2,00,000"
+    assert facts["result_label"] == "Final Salary"
+    assert facts["operation_type"] == "growth"
+    assert "operation_label" not in facts
+    assert facts.get("rate_label") is None
+    spec = CompositionResolver().resolve_composition(
+        composition_id="calculation_story",
+        composition_data=facts,
+    )
+    assert spec.props["operationLabel"] == "→"
+
+
+def test_build_candidate_subtraction_operation():
+    """Verify subtraction keyword detection maps operation to subtraction."""
+    intent = VisualIntent(
+        intent_id="calc_intent_sub",
+        narration_excerpt="Gross revenue minus ₹15 lakh operating expenses leaves ₹35 lakh EBITDA.",
+        what_viewer_must_understand="Operating expenses reduce profit.",
+        relationship_type="calculation",
+        measurements=[
+            QuantitativeMeasurement(
+                raw_value="₹50 lakh",
+                metric_name="Gross Revenue",
+                role="input",
+            ),
+            QuantitativeMeasurement(
+                raw_value="₹15 lakh",
+                metric_name="Operating Expenses",
+                role="delta",
+            ),
+            QuantitativeMeasurement(
+                raw_value="₹35 lakh",
+                metric_name="EBITDA",
+                role="result",
+            ),
+        ],
+    )
+    facts = build_candidate_composition_data("calculation_story", intent)
+    assert facts["input_value"] == "₹50 lakh"
+    assert facts["result_value"] == "₹35 lakh"
+    assert facts["operation_type"] == "subtraction"
+    assert "operation_label" not in facts
+    assert facts["rate_label"] == "₹15 lakh"
+    assert facts["secondary_label"] == "Operating Expenses"
+    spec = CompositionResolver().resolve_composition(
+        composition_id="calculation_story",
+        composition_data=facts,
+    )
+    assert spec.props["operationLabel"] == "−"
 
 
 def test_merge_preserves_calculation_story_semantics_and_facts():
@@ -136,6 +210,46 @@ def test_composition_resolver_does_not_invent_multiplication():
     assert props["timeframe"] == "15 Years"
 
 
+def test_composition_resolver_defaults_operation_symbols():
+    resolver = CompositionResolver()
+    # When operation_label is omitted, resolver derives from operation_type
+    spec_growth = resolver.resolve_composition(
+        composition_id="calculation_story",
+        composition_data={
+            "input_label": "Capital",
+            "input_value": "₹10L",
+            "result_label": "Corpus",
+            "result_value": "₹1Cr",
+            "operation_type": "growth",
+        },
+    )
+    assert spec_growth.props["operationLabel"] == "→"
+
+    spec_sub = resolver.resolve_composition(
+        composition_id="calculation_story",
+        composition_data={
+            "input_label": "Gross",
+            "input_value": "₹1,00,000",
+            "result_label": "Net",
+            "result_value": "₹80,000",
+            "operation_type": "subtraction",
+        },
+    )
+    assert spec_sub.props["operationLabel"] == "−"
+
+    spec_add = resolver.resolve_composition(
+        composition_id="calculation_story",
+        composition_data={
+            "input_label": "Salary",
+            "input_value": "₹1,00,000",
+            "result_label": "Total",
+            "result_value": "₹1,20,000",
+            "operation_type": "addition",
+        },
+    )
+    assert spec_add.props["operationLabel"] == "+"
+
+
 def test_composition_resolver_maps_calculation_story_props():
     resolver = CompositionResolver()
     spec = resolver.resolve_composition(
@@ -150,6 +264,8 @@ def test_composition_resolver_maps_calculation_story_props():
             "operation_type": "addition",
             "variant": "addition",
             "polarity": "positive",
+            "secondary_label": "Fixed Component",
+            "secondary_value": "₹90,000",
         },
         variant="addition",
     )
@@ -162,3 +278,6 @@ def test_composition_resolver_maps_calculation_story_props():
     assert props["operationType"] == "addition"
     assert props["variant"] == "addition"
     assert props["polarity"] == "positive"
+    assert props["secondaryLabel"] == "Fixed Component"
+    assert props["secondaryValue"] == "₹90,000"
+

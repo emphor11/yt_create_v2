@@ -29,7 +29,7 @@ type ProjectPipelinePageProps = {
   onRunRender: () => void;
   onRunYoutubeMetadata: () => void;
   onRunThumbnail: () => void;
-  onRunYoutubeUpload: () => void;
+  onRunYoutubeUpload: (targetAccount?: "test" | "production") => void;
   onRegenerateDescendants: () => void;
   isRunningStage: boolean;
 };
@@ -219,10 +219,28 @@ export function ProjectPipelinePage({
           <button
             className="primary-button secondary"
             disabled={!selectedRun || isRunningStage}
-            onClick={onRunYoutubeUpload}
+            onClick={() => onRunYoutubeUpload("test")}
             type="button"
+            title="Uploads private draft video to your Testing YouTube Channel"
           >
-            Run Upload
+            🧪 Upload (Test)
+          </button>
+          <button
+            className="primary-button"
+            style={{ background: "#dc2626", borderColor: "#dc2626", color: "#ffffff" }}
+            disabled={!selectedRun || isRunningStage}
+            onClick={() => {
+              const confirmed = window.confirm(
+                `Are you sure you want to upload this video to your REAL PRODUCTION YouTube Channel?\n\nProject: ${project?.title || "Selected Video"}`
+              );
+              if (confirmed) {
+                onRunYoutubeUpload("production");
+              }
+            }}
+            type="button"
+            title="Uploads video to your Real / Production YouTube Channel"
+          >
+            🚀 Upload (Real)
           </button>
           <button
             className="primary-button secondary"

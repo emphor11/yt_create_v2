@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import subprocess
@@ -7,6 +8,8 @@ import json
 from pathlib import Path
 from typing import Literal, Any
 from domain.video_assembly_props import AssetReference
+
+logger = logging.getLogger(__name__)
 
 
 class AssetResolverError(Exception):
@@ -84,40 +87,42 @@ class AssetResolver:
                 f"Missing API keys. To resolve asset for query '{query}', PEXELS_API_KEY or PIXABAY_API_KEY must be set."
             )
 
-        url_to_download = None
-        source: Literal["pexels", "pixabay"] = "pexels"
+        candidate_urls: list[tuple[str, Literal["pexels", "pixabay"]]] = []
 
         # Try Pexels search
         if pexels_key:
             try:
-                url_to_download = self._search_pexels(query, asset_type, pexels_key)
-                if url_to_download:
-                    source = "pexels"
-            except Exception:
-                pass
+                for link in self._search_pexels(query, asset_type, pexels_key):
+                    candidate_urls.append((link, "pexels"))
+            except Exception as e:
+                logger.warning(f"Pexels search failed for query '{query}': {e}")
 
-        # Try Pixabay search
-        if not url_to_download and pixabay_key:
+        # Try Pixabay search (add as fallback or if Pexels returned no links)
+        if pixabay_key:
             try:
-                url_to_download = self._search_pixabay(query, asset_type, pixabay_key)
-                if url_to_download:
-                    source = "pixabay"
-            except Exception:
-                pass
+                for link in self._search_pixabay(query, asset_type, pixabay_key):
+                    candidate_urls.append((link, "pixabay"))
+            except Exception as e:
+                logger.warning(f"Pixabay search failed for query '{query}': {e}")
 
         # Fail loudly if no links were returned by the stock APIs for the query
-        if not url_to_download:
+        if not candidate_urls:
             raise AssetResolverError(
                 f"No stock assets found matching query '{query}' (type: '{asset_type}') on Pexels or Pixabay."
             )
 
-        # 3. Download the asset and save in cache (Fail loudly if network or format check fails)
-        try:
-            headers = {"User-Agent": "Mozilla/5.0"}
-            req = urllib.request.Request(url_to_download, headers=headers)
-            with urllib.request.urlopen(req, timeout=20) as response:
-                content_bytes = response.read()
-                
+        # 3. Download the asset and save in cache (Iterate through candidates until one succeeds)
+        last_error: Exception | None = None
+        for url_to_download, source in candidate_urls:
+            try:
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Referer": "https://www.pexels.com/" if source == "pexels" else "https://pixabay.com/",
+                }
+                req = urllib.request.Request(url_to_download, headers=headers)
+                with urllib.request.urlopen(req, timeout=20) as response:
+                    content_bytes = response.read()
+
                 # Validate MP4 header and save native video directly
                 if asset_type == "video":
                     if b"ftyp" not in content_bytes[:24]:
@@ -126,26 +131,39 @@ class AssetResolver:
                     fps = self._get_video_fps(cache_path)
                     if fps and not (abs(fps - 29.97) < 0.5 or abs(fps - 30.0) < 0.5 or abs(fps - 60.0) < 0.5):
                         self._smooth_interpolate_fps(cache_path)
+                    if not self._is_video_compliant(cache_path):
+                        raise ValueError("Downloaded video is not compliant or has invalid resolution.")
 
                 # Validate image header
                 elif asset_type == "image":
                     if not (content_bytes.startswith(b"\xff\xd8") or content_bytes.startswith(b"\x89PNG") or content_bytes.startswith(b"GIF")):
                         raise ValueError("Downloaded file is not a valid image format.")
                     cache_path.write_bytes(content_bytes)
-            
-            return AssetReference(
-                asset_id=asset_id,
-                asset_type=asset_type,
-                source=source,
-                query=query,
-                local_path=str(cache_path),
-                url=url_to_download,
-                asset_status="cached"
-            )
-        except Exception as e:
-            raise AssetResolverError(
-                f"Failed to download or validate asset from URL '{url_to_download}' for query '{query}': {e}"
-            ) from e
+
+                return AssetReference(
+                    asset_id=asset_id,
+                    asset_type=asset_type,
+                    source=source,
+                    query=query,
+                    local_path=str(cache_path),
+                    url=url_to_download,
+                    asset_status="cached"
+                )
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    f"Candidate asset from {source} failed for query '{query}' ({url_to_download}): {e}. Trying next candidate..."
+                )
+                if cache_path.exists():
+                    try:
+                        cache_path.unlink()
+                    except Exception:
+                        pass
+                continue
+
+        raise AssetResolverError(
+            f"Failed to download or validate any stock asset for query '{query}' ({len(candidate_urls)} candidates tried): {last_error}"
+        ) from last_error
 
     def _get_video_fps(self, path: Path) -> float | None:
         """Extracts the video framerate using ffprobe."""
@@ -222,16 +240,18 @@ class AssetResolver:
         except Exception:
             return False
 
-    def _search_pexels(self, query: str, asset_type: Literal["image", "video"], api_key: str) -> str | None:
+    def _search_pexels(self, query: str, asset_type: Literal["image", "video"], api_key: str) -> list[str]:
         encoded_query = urllib.parse.quote(query)
         if asset_type == "video":
             url = f"https://api.pexels.com/videos/search?query={encoded_query}&per_page=10"
         else:
-            url = f"https://api.pexels.com/v1/search?query={encoded_query}&per_page=1"
+            url = f"https://api.pexels.com/v1/search?query={encoded_query}&per_page=5"
 
-        req = urllib.request.Request(url)
-        req.add_header("Authorization", api_key)
-        req.add_header("User-Agent", "Mozilla/5.0")
+        headers = {
+            "Authorization": api_key,
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }
+        req = urllib.request.Request(url, headers=headers)
         
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode("utf-8"))
@@ -263,30 +283,53 @@ class AssetResolver:
                     return (is_landscape, is_30fps, quality_score, width * height)
 
                 if candidates:
-                    best = max(candidates, key=_file_sort_key)
-                    return best["link"]
+                    candidates.sort(key=_file_sort_key, reverse=True)
+                    links: list[str] = []
+                    seen: set[str] = set()
+                    for c in candidates:
+                        link = c.get("link")
+                        if link and link not in seen:
+                            seen.add(link)
+                            links.append(link)
+                    return links
             elif asset_type == "image" and data.get("photos"):
-                src = data["photos"][0].get("src", {})
-                return src.get("large2x") or src.get("large") or src.get("original")
-        return None
+                links: list[str] = []
+                for p in data["photos"]:
+                    src = p.get("src", {})
+                    for key in ("large2x", "large", "original"):
+                        if src.get(key) and src[key] not in links:
+                            links.append(src[key])
+                            break
+                return links
+        return []
 
-    def _search_pixabay(self, query: str, asset_type: Literal["image", "video"], api_key: str) -> str | None:
+    def _search_pixabay(self, query: str, asset_type: Literal["image", "video"], api_key: str) -> list[str]:
         encoded_query = urllib.parse.quote(query)
         if asset_type == "video":
-            url = f"https://pixabay.com/api/videos/?key={api_key}&q={encoded_query}&per_page=3"
+            url = f"https://pixabay.com/api/videos/?key={api_key}&q={encoded_query}&per_page=5"
         else:
-            url = f"https://pixabay.com/api/?key={api_key}&q={encoded_query}&per_page=3"
+            url = f"https://pixabay.com/api/?key={api_key}&q={encoded_query}&per_page=5"
 
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }
+        req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode("utf-8"))
             hits = data.get("hits", [])
+            links: list[str] = []
             if hits:
                 if asset_type == "video":
-                    video_streams = hits[0].get("videos", {})
-                    for size in ["large", "medium", "small"]:
-                        if video_streams.get(size) and video_streams[size].get("url"):
-                            return video_streams[size]["url"]
+                    for hit in hits:
+                        video_streams = hit.get("videos", {})
+                        for size in ["large", "medium", "small"]:
+                            if video_streams.get(size) and video_streams[size].get("url"):
+                                links.append(video_streams[size]["url"])
+                                break
                 else:
-                    return hits[0].get("largeImageURL") or hits[0].get("fullHDURL") or hits[0].get("imageURL")
-        return None
+                    for hit in hits:
+                        img_url = hit.get("largeImageURL") or hit.get("fullHDURL") or hit.get("imageURL")
+                        if img_url and img_url not in links:
+                            links.append(img_url)
+            return links
+        return []

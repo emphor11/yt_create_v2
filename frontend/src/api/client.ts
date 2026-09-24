@@ -237,11 +237,28 @@ export function runThumbnail(
   });
 }
 
+export type YouTubeAccountInfo = {
+  configured: boolean;
+  channel_title: string | null;
+  account_type: "test" | "production";
+};
+
+export type YouTubeStatusResponse = {
+  test: YouTubeAccountInfo;
+  production: YouTubeAccountInfo;
+};
+
+export function getYouTubeStatus(): Promise<YouTubeStatusResponse> {
+  return request<YouTubeStatusResponse>("/youtube/status");
+}
+
 export function runYoutubeUpload(
   projectId: string,
-  runId: string
+  runId: string,
+  targetAccount: "test" | "production" = "test"
 ): Promise<RunStageResponse> {
-  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/youtube_upload`, {
+  const query = targetAccount === "production" ? "?target_account=production" : "?target_account=test";
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/youtube_upload${query}`, {
     method: "POST",
   });
 }

@@ -46,12 +46,29 @@ function resolveDeclineProfile(
   dropRate?: string | null,
   annotation?: string | null,
   severity?: string | null,
-  variant?: string | null
+  variant?: string | null,
+  decayType?: string | null
 ): DeclineProfile {
+  const isSinglePeriod = decayType === "single_period" || variant === "single_period_drop";
   const startNum = extractNumericAmount(fixedAmount);
   const endNum = endValue ? extractNumericAmount(endValue) : null;
 
-  // 1. Exact numeric comparison if both fixedAmount and endValue are present
+  // 1. Single-period drop handling (e.g. 15% first-year depreciation - not compounded)
+  if (isSinglePeriod) {
+    const rateSource = dropRate || annotation || endValue || "";
+    const pctMatch = rateSource.match(/(\d+(?:\.\d+)?)\s*%/);
+    const parsedPct = pctMatch ? parseFloat(pctMatch[1]) : (dropRate && !isNaN(parseFloat(dropRate)) ? parseFloat(dropRate) : 15);
+    const validPct = !isNaN(parsedPct) && parsedPct > 0 ? parsedPct : 15;
+    const ratio = Math.min(0.82, Math.max(0.10, validPct / 100));
+    const level: "mild" | "moderate" | "severe" =
+      severity === "mild" ? "mild" : severity === "severe" ? "severe" : validPct <= 20 ? "mild" : validPct >= 45 ? "severe" : "moderate";
+    const endVal =
+      endValue ||
+      (startNum ? `₹${Math.round(startNum * (1 - ratio)).toLocaleString('en-IN')}` : `${Math.round(100 - validPct)}% Value`);
+    return { ratio, dropPercentStr: `-${Math.round(validPct)}%`, severityLevel: level, endDisplayValue: endVal };
+  }
+
+  // 2. Exact numeric comparison if both fixedAmount and endValue are present
   if (startNum && endNum && startNum > 0 && endNum < startNum) {
     const rawRatio = (startNum - endNum) / startNum;
     const ratio = Math.min(0.82, Math.max(0.15, rawRatio));
@@ -61,7 +78,7 @@ function resolveDeclineProfile(
     return { ratio, dropPercentStr: `-${pct}%`, severityLevel: level, endDisplayValue: endValue! };
   }
 
-  // 2. Explicit dropRate or percentage in annotation
+  // 3. Explicit dropRate or percentage in annotation
   const rateSource = dropRate || annotation || "";
   const pctMatch = rateSource.match(/(\d+(?:\.\d+)?)\s*%/);
   if (pctMatch) {
@@ -77,7 +94,7 @@ function resolveDeclineProfile(
     }
   }
 
-  // 3. Explicit variant / severity presets
+  // 4. Explicit variant / severity presets
   if (variant === "mild_decay" || severity === "mild") {
     const endVal =
       endValue ||
@@ -91,7 +108,7 @@ function resolveDeclineProfile(
     return { ratio: 0.74, dropPercentStr: "-74%", severityLevel: "severe", endDisplayValue: endVal };
   }
 
-  // 4. Default standard erosion (~48% purchasing power decay)
+  // 5. Default standard erosion (~48% purchasing power decay)
   const fallbackEnd =
     endValue ||
     (startNum ? `₹${Math.round(startNum * 0.52).toLocaleString('en-IN')}` : "52% Value");
@@ -105,9 +122,10 @@ export function TimeDecay(props: TimeDecayProps | any) {
   const resolvedProps: TimeDecayProps = (props as any).props || props;
   const duration_frames = (props as any).duration_frames || 180;
 
-  const fixedAmount = resolvedProps.fixedAmount || "₹50,000";
+  const fixedAmount = resolvedProps.fixedAmount || "Original Value";
   const amountLabel = resolvedProps.amountLabel || "Fixed Income";
   const timePeriod = resolvedProps.timePeriod || "15 Years";
+  const emphasis = resolvedProps.emphasis || "value_erosion";
   const annotation = resolvedProps.annotation || null;
   const showChart = resolvedProps.showChart !== false;
   const endValue = resolvedProps.endValue || null;
@@ -116,6 +134,7 @@ export function TimeDecay(props: TimeDecayProps | any) {
   const severity = resolvedProps.severity || null;
   const variant = resolvedProps.variant || null;
   const rateLabel = resolvedProps.rateLabel || null;
+  const decayType = resolvedProps.decayType || (variant === "single_period_drop" || emphasis === "single_period_drop" ? "single_period" : "standard");
 
   // Resolve decline dynamics
   const decline = resolveDeclineProfile(
@@ -124,7 +143,8 @@ export function TimeDecay(props: TimeDecayProps | any) {
     dropRate,
     annotation,
     severity,
-    variant
+    variant,
+    decayType
   );
 
   // Scene entrance fade
@@ -193,14 +213,16 @@ export function TimeDecay(props: TimeDecayProps | any) {
   const yMin = 50;
   const yMax = 250; // Max decline level (approx 85% drop)
 
+  const isSinglePeriod = decayType === "single_period" || variant === "single_period_drop";
+
   // Dynamic end point based on decline ratio
   const yEnd = Math.round(yMin + (yMax - yMin) * (decline.ratio / 0.82));
 
-  // Cubic bezier control points (gentle start, compounding descent, asymptotic horizon)
-  const cp1x = Math.round(xStart + (xEnd - xStart) * 0.32);
-  const cp1y = Math.round(yStart + (yEnd - yStart) * 0.12);
-  const cp2x = Math.round(xStart + (xEnd - xStart) * 0.68);
-  const cp2y = Math.round(yEnd - (yEnd - yStart) * 0.04);
+  // Bezier curve: front-loaded descent for single-period depreciation, or compounding descent for inflation
+  const cp1x = isSinglePeriod ? Math.round(xStart + (xEnd - xStart) * 0.25) : Math.round(xStart + (xEnd - xStart) * 0.32);
+  const cp1y = isSinglePeriod ? Math.round(yStart + (yEnd - yStart) * 0.65) : Math.round(yStart + (yEnd - yStart) * 0.12);
+  const cp2x = isSinglePeriod ? Math.round(xStart + (xEnd - xStart) * 0.70) : Math.round(xStart + (xEnd - xStart) * 0.68);
+  const cp2y = isSinglePeriod ? Math.round(yEnd) : Math.round(yEnd - (yEnd - yStart) * 0.04);
 
   const pathData = `M ${xStart} ${yStart} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${xEnd} ${yEnd}`;
   const areaFillData = `${pathData} L ${xEnd} 280 L ${xStart} 280 Z`;
@@ -292,7 +314,7 @@ export function TimeDecay(props: TimeDecayProps | any) {
             </div>
             <div
               style={{
-                fontSize: "68px",
+                fontSize: fixedAmount.length > 9 ? "46px" : "68px",
                 fontWeight: 800,
                 color: tokens.text.primary,
                 lineHeight: 1.08,
@@ -309,7 +331,7 @@ export function TimeDecay(props: TimeDecayProps | any) {
                 marginBottom: "28px",
               }}
             >
-              Nominal Baseline (Day 1 Constant)
+              {isSinglePeriod ? "Initial Baseline (Before Drop)" : "Nominal Baseline (Day 1 Constant)"}
             </div>
           </div>
 
@@ -394,7 +416,7 @@ export function TimeDecay(props: TimeDecayProps | any) {
               <span>Starting Baseline (100% Value)</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span>Time Horizon: {timePeriod}</span>
+              <span>{isSinglePeriod ? `Period: ${timePeriod}` : `Time Horizon: ${timePeriod}`}</span>
               <div
                 style={{
                   width: "10px",
@@ -570,7 +592,7 @@ export function TimeDecay(props: TimeDecayProps | any) {
                     marginBottom: "4px",
                   }}
                 >
-                  {endLabel || (decline.severityLevel === "mild" ? "RESIDUAL VALUE" : "REAL PURCHASING POWER")}
+                  {endLabel || (isSinglePeriod || decline.severityLevel === "mild" ? "RESIDUAL VALUE" : "REAL PURCHASING POWER")}
                 </div>
                 <div
                   style={{
@@ -601,7 +623,7 @@ export function TimeDecay(props: TimeDecayProps | any) {
                   }}
                 >
                   <span>📉</span>
-                  <span>{decline.dropPercentStr} EROSION</span>
+                  <span>{decline.dropPercentStr} {isSinglePeriod ? "DROP" : "EROSION"}</span>
                 </div>
               </div>
             </div>
@@ -617,10 +639,10 @@ export function TimeDecay(props: TimeDecayProps | any) {
               }}
             >
               <div style={{ fontSize: "36px", fontWeight: 800, color: endColor }}>
-                {decline.dropPercentStr} Purchasing Power Loss
+                {decline.dropPercentStr} {isSinglePeriod ? "Value Decline" : "Purchasing Power Loss"}
               </div>
               <div style={{ fontSize: "20px", color: tokens.text.secondary }}>
-                Terminal Real Value: {decline.endDisplayValue}
+                Terminal {isSinglePeriod ? "Value" : "Real Value"}: {decline.endDisplayValue}
               </div>
             </div>
           )}

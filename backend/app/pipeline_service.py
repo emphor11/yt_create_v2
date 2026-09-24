@@ -114,7 +114,7 @@ class PipelineService:
         self.router = router
         self.stage_logger = stage_logger
 
-    def run_stage(self, stage: str, project_id: str, run_id: str) -> ArtifactRecord:
+    def run_stage(self, stage: str, project_id: str, run_id: str, **kwargs) -> ArtifactRecord:
         try:
             stage_enum = PipelineStage(stage)
         except ValueError as exc:
@@ -144,7 +144,7 @@ class PipelineService:
         )
 
         try:
-            artifact = self.router.execute(stage_enum, project_id, run_id)
+            artifact = self.router.execute(stage_enum, project_id, run_id, **kwargs)
         except Exception as exc:
             # Transition to 'failed' state on exception
             self.store.update_run_state(

@@ -42,6 +42,43 @@ class RegenerateDescendantsResponse(BaseModel):
     next_stage: str | None
 
 
+class YouTubeAccountInfo(BaseModel):
+    configured: bool
+    channel_title: str | None = None
+    account_type: str
+
+
+class YouTubeStatusResponse(BaseModel):
+    test: YouTubeAccountInfo
+    production: YouTubeAccountInfo
+
+
+@router.get("/youtube/status", response_model=YouTubeStatusResponse)
+def get_youtube_status() -> YouTubeStatusResponse:
+    from providers.youtube_provider import YouTubeProvider
+
+    test_provider = YouTubeProvider(account_type="test")
+    test_configured = test_provider.token_path.exists()
+    test_title = test_provider.get_channel_title() if test_configured else None
+
+    prod_provider = YouTubeProvider(account_type="production")
+    prod_configured = prod_provider.token_path.exists()
+    prod_title = prod_provider.get_channel_title() if prod_configured else None
+
+    return YouTubeStatusResponse(
+        test=YouTubeAccountInfo(
+            configured=test_configured,
+            channel_title=test_title,
+            account_type="test",
+        ),
+        production=YouTubeAccountInfo(
+            configured=prod_configured,
+            channel_title=prod_title,
+            account_type="production",
+        ),
+    )
+
+
 @router.post(
     "/projects/{project_id}/runs/{run_id}/run/{stage}",
     response_model=RunStageResponse,
@@ -50,6 +87,7 @@ def run_stage(
     project_id: str,
     run_id: str,
     stage: str,
+    target_account: str | None = None,
     pipeline_service: PipelineService = Depends(get_pipeline_service),
 ) -> RunStageResponse:
     """Dispatch a stage name to its pipeline handler.
@@ -59,7 +97,10 @@ def run_stage(
     editing this file.
     """
     try:
-        artifact = pipeline_service.run_stage(stage, project_id, run_id)
+        kwargs = {}
+        if target_account:
+            kwargs["target_account"] = target_account
+        artifact = pipeline_service.run_stage(stage, project_id, run_id, **kwargs)
     except RecordNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except PipelineServiceError as error:

@@ -64,16 +64,23 @@ class CompositionResolver:
             }
 
         elif cid == "calculation_story":
+            op_type = data.get("operation_type") or data.get("variant") or variant or "multiplication"
+            default_op_symbol = (
+                "+" if op_type == "addition"
+                else "−" if op_type == "subtraction"
+                else "→" if op_type in ("growth", "neutral")
+                else "×"
+            )
             props = {
                 "inputLabel": data.get("input_label", ""),
                 "inputValue": data.get("input_value", ""),
-                "operationLabel": data.get("operation_label"),
+                "operationLabel": data.get("operation_label") or default_op_symbol,
                 "rateLabel": data.get("rate_label"),
                 "resultLabel": data.get("result_label", ""),
                 "resultValue": data.get("result_value", ""),
                 "note": data.get("note"),
-                "operationType": data.get("operation_type") or data.get("variant") or variant or None,
-                "variant": data.get("variant") or variant or None,
+                "operationType": op_type,
+                "variant": data.get("variant") or variant or op_type,
                 "polarity": data.get("polarity"),
                 "timeframe": data.get("timeframe"),
                 "secondaryLabel": data.get("secondary_label"),
@@ -104,10 +111,10 @@ class CompositionResolver:
 
         elif cid == "time_decay":
             props = {
-                "fixedAmount": data.get("fixed_amount", ""),
+                "fixedAmount": data.get("fixed_amount") or "Original Value",
                 "amountLabel": data.get("amount_label", ""),
                 "timePeriod": data.get("time_period", ""),
-                "emphasis": data.get("emphasis", "purchasing_power_decline"),
+                "emphasis": data.get("emphasis", "value_erosion"),
                 "annotation": data.get("annotation"),
                 "showChart": data.get("show_chart", True),
                 "endValue": data.get("end_value"),
@@ -116,6 +123,7 @@ class CompositionResolver:
                 "severity": data.get("severity"),
                 "variant": data.get("variant") or variant,
                 "rateLabel": data.get("rate_label"),
+                "decayType": data.get("decay_type", "standard"),
             }
 
         elif cid == "multi_factor_pressure":

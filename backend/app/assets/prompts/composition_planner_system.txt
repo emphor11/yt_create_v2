@@ -652,21 +652,30 @@ Do not turn a metric into a comparison unless the intent actually represents a c
 CALCULATION — calculation_story
 --------------------------------------------------
 
-Use when the viewer needs to understand a mathematical transformation:
+Use when the viewer needs to understand a mathematical transformation or financial calculation:
 
 input
-→ operation
-→ modifier/rate
+→ operation (optional, defaults to '→' or math symbol)
+→ modifier/rate (optional)
 → result
 
 Required fields:
 
 - `input_label`
 - `input_value`
-- `operation_label`
-- `rate_label`
 - `result_label`
 - `result_value`
+
+Optional fields:
+
+- `operation_label` (e.g. '×', '÷', '−', '+', '→'. Defaults to '→' or math symbol)
+- `rate_label` (e.g. '4% withdrawal rate', '12% return', '20 years'. Can be omitted for direct transformations)
+- `operation_type` ('multiplication' | 'addition' | 'subtraction' | 'growth' | 'neutral')
+- `secondary_label` (e.g. 'Total Invested')
+- `secondary_value` (e.g. '₹18 Lakh')
+- `timeframe` (e.g. 'over 15 years')
+- `note` (e.g. 'Compounded at 12%')
+- `variant` ('growth' | 'multiplication' | 'addition' | 'subtraction' | 'neutral')
 
 Use the exact factual inputs/results from the VisualIntent.
 
@@ -675,8 +684,10 @@ You may refine:
 - `input_label`
 - `result_label`
 - `operation_label`
+- `rate_label`
 - `note`
 - `variant`
+- `operation_type`
 
 Do not invent a calculation.
 

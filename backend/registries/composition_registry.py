@@ -83,27 +83,29 @@ class MetricHeroData(BaseModel):
 
 class CalculationStoryData(BaseModel):
     """
-    Shows an input × rate → result math story.
+    Shows an input × rate → result math argument, or input → result financial transformation.
 
-    Use for: percentage calculations, rate applications, fee extractions.
+    Use for: percentage calculations, rate applications, compounding growth, addition/subtraction.
     relationship_types: calculation
     """
-    input_label: str = Field(description="Label for the input, e.g. 'Portfolio'")
-    input_value: str = Field(description="Value of the input, e.g. '₹50 lakh'")
-    operation_label: str = Field(
-        description="The operation symbol or word, e.g. '×', '÷', 'minus', '+', '→'. Use '→' for neutral transformation.",
+    input_label: str = Field(description="Label for the input, e.g. 'Portfolio', 'Initial Investment', 'Gross Income'")
+    input_value: str = Field(description="Value of the input, e.g. '₹50 lakh', '₹10,000/month'")
+    operation_label: str | None = Field(
+        default=None,
+        description="Optional operation symbol or word, e.g. '×', '÷', 'minus', '+', '→'. Defaults to '→' or operation type symbol.",
     )
-    rate_label: str = Field(
-        description="Label for the rate/modifier, e.g. '4% withdrawal rate', '₹10,000 bonus', '20 years'",
+    rate_label: str | None = Field(
+        default=None,
+        description="Optional label for the rate/modifier or second operand, e.g. '4% withdrawal rate', '₹10,000 bonus', '20 years'",
     )
-    result_label: str = Field(description="Label for the result, e.g. 'Annual Income'")
-    result_value: str = Field(description="Value of the result, e.g. '₹2 lakh'")
+    result_label: str = Field(description="Label for the result, e.g. 'Annual Income', 'Total Corpus', 'Net Savings'")
+    result_value: str = Field(description="Value of the result, e.g. '₹2 lakh', '₹1.2 Crore'")
     note: str | None = Field(
         default=None,
-        description="Optional supporting note below the result, e.g. 'Safe Withdrawal Rate'",
+        description="Optional supporting note below the result, e.g. 'Safe Withdrawal Rate', 'Compounded at 12%'",
     )
     operation_type: str | None = Field(
-        default=None,
+        default="multiplication",
         description="'multiplication' | 'addition' | 'subtraction' | 'allocation' | 'growth' | 'neutral'",
     )
     variant: str | None = Field(
@@ -116,7 +118,15 @@ class CalculationStoryData(BaseModel):
     )
     timeframe: str | None = Field(
         default=None,
-        description="Optional timeframe context, e.g. 'over 20 years', 'per year'",
+        description="Optional timeframe context, e.g. 'over 20 years', 'per year', '15 Years'",
+    )
+    secondary_label: str | None = Field(
+        default=None,
+        description="Optional secondary metric label (e.g. 'Total Invested')",
+    )
+    secondary_value: str | None = Field(
+        default=None,
+        description="Optional secondary metric value (e.g. '₹18 Lakh')",
     )
 
 
@@ -169,20 +179,24 @@ class CauseEffectData(BaseModel):
 
 class TimeDecayData(BaseModel):
     """
-    Shows how a fixed amount loses purchasing power or value over time.
+    Shows how a fixed amount or asset loses purchasing power or value over time.
 
-    Use for: inflation impact, currency erosion, purchasing power decay, real vs nominal value.
+    Use for: inflation impact, currency erosion, purchasing power decay, real vs nominal value, single-period depreciation.
     relationship_types: decline, trend (strictly decline/erosion over time)
     """
-    fixed_amount: str = Field(description="The fixed nominal amount, e.g. '₹2 lakh'")
-    amount_label: str = Field(description="Label for the amount, e.g. 'Annual Withdrawal'")
-    time_period: str = Field(description="Time horizon, e.g. '15 years', 'over a decade'")
+    fixed_amount: str | None = Field(
+        default=None,
+        description="The fixed nominal amount or baseline label, e.g. '₹2 lakh' or 'Original Value'. Optional if percentage drop is stated without nominal currency.",
+    )
+    amount_label: str = Field(description="Label for the amount or asset, e.g. 'Annual Withdrawal', 'New Car Value', 'Purchasing Power'")
+    time_period: str = Field(description="Time horizon, e.g. '15 years', 'first year', 'over a decade'")
     emphasis: str = Field(
-        description="'purchasing_power_decline' | 'value_erosion' | 'real_vs_nominal'",
+        default="value_erosion",
+        description="'purchasing_power_decline' | 'value_erosion' | 'real_vs_nominal' | 'single_period_drop'",
     )
     annotation: str | None = Field(
         default=None,
-        description="Callout text at end of the decay curve, e.g. 'Buys 40% less than today'",
+        description="Callout text at end of the decay curve, e.g. 'Buys 40% less than today' or 'Immediate 15% depreciation'",
     )
     show_chart: bool = Field(
         default=True,
@@ -190,15 +204,15 @@ class TimeDecayData(BaseModel):
     )
     end_value: str | None = Field(
         default=None,
-        description="Optional terminal/ending value after decay, e.g. '₹26,000' or '₹13,000'",
+        description="Optional terminal/ending value after decay, e.g. '₹26,000' or '85% Value'",
     )
     end_label: str | None = Field(
         default=None,
-        description="Optional label for ending value, e.g. 'Real Purchasing Power'",
+        description="Optional label for ending value, e.g. 'Real Purchasing Power', 'Residual Value'",
     )
     drop_rate: str | None = Field(
         default=None,
-        description="Optional percentage drop, e.g. '60%', '74%', '18%'",
+        description="Optional percentage drop, e.g. '60%', '74%', '15%'",
     )
     severity: str | None = Field(
         default=None,
@@ -206,11 +220,15 @@ class TimeDecayData(BaseModel):
     )
     variant: str | None = Field(
         default=None,
-        description="'mild_decay' | 'severe_decay' | 'inflation_erosion' | 'standard'",
+        description="'mild_decay' | 'severe_decay' | 'inflation_erosion' | 'single_period_drop' | 'standard'",
     )
     rate_label: str | None = Field(
         default=None,
-        description="Optional inflation rate or annual decay rate, e.g. '6.8% Inflation'",
+        description="Optional inflation rate or annual decay rate, e.g. '6.8% Inflation' or '15% First-Year Depreciation'",
+    )
+    decay_type: str | None = Field(
+        default="standard",
+        description="'single_period' | 'recurring_annual' | 'purchasing_power' | 'standard'",
     )
 
 
@@ -685,7 +703,7 @@ CompositionRegistry.register(
     CompositionDefinition(
         composition_id="calculation_story",
         display_name="Calculation Story",
-        description="Shows an input × rate → result math argument as a visual equation.",
+        description="Shows an input × rate → result math argument, or an input → result financial transformation.",
         supported_relationship_types=["calculation"],
         data_model=CalculationStoryData,
         allowed_variants=[
@@ -765,7 +783,13 @@ CompositionRegistry.register(
         description="Shows a fixed value losing purchasing power or real value over time (strictly decline/erosion).",
         supported_relationship_types=["decline", "trend"],
         data_model=TimeDecayData,
-        allowed_variants=["mild_decay", "severe_decay", "inflation_erosion", "standard"],
+        allowed_variants=[
+            "mild_decay",
+            "severe_decay",
+            "inflation_erosion",
+            "single_period_drop",
+            "standard",
+        ],
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="TimeDecay",
         fallback_component_id="Charts",

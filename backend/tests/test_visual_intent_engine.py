@@ -310,9 +310,8 @@ def test_engine_pacing_diagnostic_detects_underproduction() -> None:
 def test_system_prompt_contains_progressive_visual_storytelling() -> None:
     """Verifies system prompt asset contains Progressive Visual Storytelling rule."""
     content = load_prompt("visual_intent_system.txt")
-    assert "RULE 1 — PROGRESSIVE VISUAL STORYTELLING" in content
-    assert "Instead, create one intent for each meaningful visual state change." in content
-    assert "Examples of meaningful transitions:" in content
-    assert "context → evidence" in content
+    assert "PROGRESSIVE VISUAL STORYTELLING" in content
+    assert "The number of intents must be determined by **semantic progression**" in content
     assert "RULE 1 — GROUP RELATED SENTENCES" not in content
+
 

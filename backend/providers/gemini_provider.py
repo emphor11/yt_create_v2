@@ -280,10 +280,12 @@ class GeminiProvider:
                 time.sleep(2.0 * attempt)
             except error.HTTPError as http_error:
                 response_body = http_error.read().decode("utf-8", errors="replace")
-                if http_error.code == 429 and attempt < self.max_retries:
+                if http_error.code in (429, 500, 502, 503, 504) and attempt < self.max_retries:
                     retry_seconds = self._extract_retry_delay(response_body, attempt)
+                    if http_error.code != 429:
+                        retry_seconds = max(retry_seconds, 3.0 * attempt)
                     logger.warning(
-                        f"Gemini API rate limit 429 hit. Waiting {retry_seconds:.1f}s before retry (attempt {attempt}/{self.max_retries})..."
+                        f"Gemini API transient error {http_error.code} hit. Waiting {retry_seconds:.1f}s before retry (attempt {attempt}/{self.max_retries})..."
                     )
                     time.sleep(retry_seconds)
                     continue

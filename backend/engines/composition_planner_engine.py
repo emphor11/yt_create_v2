@@ -61,7 +61,7 @@ def _is_declining_intent(intent: VisualIntent) -> bool:
 
     if intent.emphasis and any(
         w in intent.emphasis.lower()
-        for w in ("decline", "erosion", "loss", "decay", "drop", "fall", "purchasing_power_decline", "value_erosion")
+        for w in ("decline", "erosion", "loss", "decay", "drop", "fall", "purchasing_power_decline", "value_erosion", "single_period_drop")
     ):
         return True
 
@@ -69,7 +69,7 @@ def _is_declining_intent(intent: VisualIntent) -> bool:
         "decline", "declining", "decrease", "decreasing", "erode", "erodes", "erosion",
         "decay", "loss", "loses", "losing", "drop", "drops", "deplete", "depletion",
         "fall", "falling", "shrink", "shrinking", "diminish", "halved", "downward",
-        "purchasing power",
+        "purchasing power", "depreciation", "depreciate", "depreciates",
     )
     combined_text = f"{intent.what_viewer_must_understand} {intent.narration_excerpt}".lower()
     return any(ind in combined_text for ind in decline_indicators)
@@ -259,10 +259,18 @@ def build_candidate_composition_data(
             candidate["emphasis"] = intent.emphasis
 
     elif composition_id == "calculation_story":
-        # Extract by semantic role (never by list order)
+        # Extract by semantic role (with safe fallback across measurements)
         input_m = next((m for m in intent.measurements if m.role in ("input", "baseline")), None)
-        rate_m = next((m for m in intent.measurements if m.role == "rate"), None)
         result_m = next((m for m in intent.measurements if m.role == "result"), None)
+        rate_m = next((m for m in intent.measurements if m.role in ("rate", "delta") and m != result_m), None)
+
+        if not result_m:
+            result_m = next((m for m in intent.measurements if m.role in ("impact", "delta") and m != input_m and m != rate_m), None)
+
+        if not input_m and intent.measurements:
+            input_m = intent.measurements[0]
+        if not result_m and len(intent.measurements) >= 2:
+            result_m = intent.measurements[-1]
 
         if input_m:
             candidate["input_value"] = input_m.raw_value
@@ -270,11 +278,27 @@ def build_candidate_composition_data(
                 candidate["input_label"] = input_m.metric_name
             elif input_m.entity_name:
                 candidate["input_label"] = input_m.entity_name
+        elif intent.entities:
+            candidate["input_label"] = intent.entities[0].name
+            candidate["input_value"] = "Starting Value"
 
-        if rate_m:
+        if not candidate.get("input_label"):
+            candidate["input_label"] = "Initial Value"
+
+        if rate_m and rate_m != input_m and rate_m != result_m:
             candidate["rate_label"] = rate_m.raw_value
+            if "%" not in rate_m.raw_value:
+                candidate["secondary_value"] = rate_m.raw_value
+                candidate["secondary_label"] = rate_m.metric_name or rate_m.entity_name
+        elif len(intent.measurements) >= 3:
+            mid_m = intent.measurements[1]
+            if mid_m not in (input_m, result_m):
+                candidate["rate_label"] = mid_m.raw_value
+                if "%" not in mid_m.raw_value:
+                    candidate["secondary_value"] = mid_m.raw_value
+                    candidate["secondary_label"] = mid_m.metric_name or mid_m.entity_name
 
-        if result_m:
+        if result_m and result_m != input_m:
             candidate["result_value"] = result_m.raw_value
             if result_m.metric_name:
                 candidate["result_label"] = result_m.metric_name
@@ -282,11 +306,34 @@ def build_candidate_composition_data(
                 candidate["result_label"] = result_m.entity_name
             if result_m.polarity:
                 candidate["polarity"] = result_m.polarity
+        elif len(intent.measurements) == 1 and intent.key_values and len(intent.key_values) >= 2:
+            candidate["result_value"] = intent.key_values[-1]
+            candidate["result_label"] = "Result"
+
+        if not candidate.get("result_label"):
+            candidate["result_label"] = "Result"
 
         if intent.temporal and intent.temporal.horizon:
             candidate["timeframe"] = intent.temporal.horizon
 
-        # Note: operation_label is NOT invented here. LLM provides it during refinement.
+        # Contextual operation type derivation
+        combined_text = f"{intent.narration_excerpt or ''} {intent.what_viewer_must_understand or ''}".lower()
+        if candidate.get("timeframe") or any(kw in combined_text for kw in ("grows to", "becomes", "growth", "compounding", "accumulated", "over time")):
+            candidate["operation_type"] = "growth"
+            candidate["variant"] = "growth"
+        elif any(kw in combined_text for kw in ("minus", "subtract", "less", "deduction", "tax", "fee", "drag", "cut")):
+            candidate["operation_type"] = "subtraction"
+            candidate["variant"] = "subtraction"
+        elif any(kw in combined_text for kw in ("plus", "add", "addition", "bonus", "extra", "combined")):
+            candidate["operation_type"] = "addition"
+            candidate["variant"] = "addition"
+        elif candidate.get("rate_label") and "%" in candidate["rate_label"]:
+            candidate["operation_type"] = "multiplication"
+            candidate["variant"] = "multiplication"
+        else:
+            candidate["operation_type"] = "neutral"
+            candidate["variant"] = "neutral"
+
         if intent.visual_dynamics and intent.visual_dynamics.focal_point:
             candidate["note"] = intent.visual_dynamics.focal_point
 
@@ -432,6 +479,7 @@ def build_candidate_composition_data(
         # Meaning-based: baseline role vs result role
         baseline_m = next((m for m in intent.measurements if m.role in ("baseline", "input")), None)
         result_m = next((m for m in intent.measurements if m.role in ("result", "delta")), None)
+        rate_m = next((m for m in intent.measurements if m.role == "rate"), None)
 
         if baseline_m:
             candidate["fixed_amount"] = baseline_m.raw_value
@@ -442,12 +490,38 @@ def build_candidate_composition_data(
         elif intent.entities:
             subj_entity = next((e for e in intent.entities if e.role == "subject"), intent.entities[0])
             candidate["amount_label"] = subj_entity.name
+            candidate["fixed_amount"] = "Original Value"
+        else:
+            candidate["amount_label"] = "Asset Value"
+            candidate["fixed_amount"] = "Original Value"
+
+        if not candidate.get("amount_label") and intent.entities:
+            candidate["amount_label"] = intent.entities[0].name
+
+        # Temporal horizon and single-period vs recurring detection
+        combined_text = f"{intent.narration_excerpt or ''} {intent.temporal.horizon if intent.temporal and intent.temporal.horizon else ''} {intent.what_viewer_must_understand or ''}".lower()
+        is_single_period = any(
+            kw in combined_text
+            for kw in ("first year", "year 1", "year one", "initial year", "immediate", "day 1", "single year", "first-year")
+        )
 
         if intent.temporal and intent.temporal.horizon:
             candidate["time_period"] = intent.temporal.horizon
+        elif is_single_period:
+            candidate["time_period"] = "First Year"
+        else:
+            candidate["time_period"] = "Over Time"
 
-        if intent.temporal and intent.temporal.is_decay_over_time:
+        if is_single_period:
+            candidate["decay_type"] = "single_period"
+            candidate["variant"] = "single_period_drop"
+            candidate["emphasis"] = "single_period_drop"
+        elif intent.temporal and intent.temporal.is_decay_over_time:
+            candidate["decay_type"] = "purchasing_power"
             candidate["emphasis"] = "purchasing_power_decline"
+        else:
+            candidate["decay_type"] = "standard"
+            candidate["emphasis"] = "value_erosion"
 
         if result_m:
             candidate["annotation"] = f"Erodes to {result_m.raw_value}"
@@ -459,11 +533,18 @@ def build_candidate_composition_data(
         elif intent.visual_dynamics and intent.visual_dynamics.focal_point:
             candidate["annotation"] = intent.visual_dynamics.focal_point
 
-        rate_m = next((m for m in intent.measurements if m.role == "rate"), None)
         if rate_m:
             candidate["rate_label"] = rate_m.raw_value
             candidate["drop_rate"] = rate_m.raw_value
+        elif result_m and ("%" in result_m.raw_value):
+            candidate["drop_rate"] = result_m.raw_value
+            candidate["rate_label"] = result_m.raw_value
+        elif any("%" in m.raw_value for m in intent.measurements):
+            pct_m = next(m for m in intent.measurements if "%" in m.raw_value)
+            candidate["drop_rate"] = pct_m.raw_value
+            candidate["rate_label"] = pct_m.raw_value
 
+        # Severity resolution
         if intent.visual_dynamics:
             if intent.visual_dynamics.visual_priority in ("high", "primary"):
                 candidate["severity"] = "severe"
@@ -474,6 +555,18 @@ def build_candidate_composition_data(
                 for w in ("rapid", "severe", "dramatic", "cliff", "catastrophic", "heavy")
             ):
                 candidate["severity"] = "severe"
+
+        if not candidate.get("severity") and candidate.get("drop_rate"):
+            import re
+            m = re.search(r"(\d+(?:\.\d+)?)\s*%", candidate["drop_rate"])
+            if m:
+                pct = float(m.group(1))
+                if pct <= 20:
+                    candidate["severity"] = "mild"
+                elif pct >= 50:
+                    candidate["severity"] = "severe"
+                else:
+                    candidate["severity"] = "moderate"
 
     elif composition_id == "ranked_list":
         if intent.entities:
@@ -580,10 +673,10 @@ def merge_factual_and_presentation_data(
         if "result_value" in candidate_facts:
             result["result_value"] = candidate_facts["result_value"]
 
-        if "rate_label" in candidate_facts:
+        if "rate_label" in candidate_facts and candidate_facts["rate_label"]:
             cand_rate = candidate_facts["rate_label"]
             llm_rate = result.get("rate_label", "")
-            if cand_rate not in llm_rate:
+            if not llm_rate or cand_rate not in llm_rate:
                 result["rate_label"] = cand_rate
 
         if "input_label" in candidate_facts and not result.get("input_label"):
@@ -592,8 +685,14 @@ def merge_factual_and_presentation_data(
             result["result_label"] = candidate_facts["result_label"]
         if "note" in candidate_facts and not result.get("note"):
             result["note"] = candidate_facts["note"]
-        for k in ("polarity", "timeframe"):
-            if k in candidate_facts and candidate_facts[k] is not None:
+        if "operation_label" in candidate_facts and not result.get("operation_label"):
+            result["operation_label"] = candidate_facts["operation_label"]
+        if "operation_type" in candidate_facts and not result.get("operation_type"):
+            result["operation_type"] = candidate_facts["operation_type"]
+        if "variant" in candidate_facts and not result.get("variant"):
+            result["variant"] = candidate_facts["variant"]
+        for k in ("polarity", "timeframe", "secondary_label", "secondary_value"):
+            if k in candidate_facts and candidate_facts[k] is not None and not result.get(k):
                 result[k] = candidate_facts[k]
 
     elif composition_id == "comparison_split":
@@ -688,7 +787,7 @@ def merge_factual_and_presentation_data(
             result["emphasis"] = candidate_facts["emphasis"]
         if "annotation" in candidate_facts and not result.get("annotation"):
             result["annotation"] = candidate_facts["annotation"]
-        for key in ("end_value", "end_label", "drop_rate", "severity", "rate_label", "variant"):
+        for key in ("end_value", "end_label", "drop_rate", "severity", "rate_label", "variant", "decay_type"):
             if key in candidate_facts and not result.get(key):
                 result[key] = candidate_facts[key]
 

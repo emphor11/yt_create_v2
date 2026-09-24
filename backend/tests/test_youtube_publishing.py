@@ -378,3 +378,53 @@ def test_pipeline_youtube_publishing_flow(tmp_path: Path):
     assert stages["thumbnail"] == "skipped"
     assert stages["youtube_upload"] == "missing"
 
+
+def test_youtube_status_endpoint():
+    from fastapi.testclient import TestClient
+    from app.main import create_app
+
+    app = create_app()
+    client = TestClient(app)
+    res = client.get("/youtube/status")
+    assert res.status_code == 200
+    data = res.json()
+    assert "test" in data
+    assert "production" in data
+    assert data["test"]["account_type"] == "test"
+    assert data["production"]["account_type"] == "production"
+
+
+def test_youtube_upload_engine_target_accounts(tmp_path: Path):
+    mock_storage = LocalMediaStorage(tmp_path)
+    video_path = tmp_path / "projects/p1/runs/r1/scene.mp4"
+    video_path.parent.mkdir(parents=True, exist_ok=True)
+    video_path.write_bytes(b"fake video data")
+
+    mock_yt_provider = MagicMock()
+    mock_yt_provider.upload_video.return_value = {
+        "video_id": "prod_id_456",
+        "video_url": "https://youtu.be/prod_id_456",
+        "channel_title": "Real Channel",
+        "target_account": "production",
+    }
+    mock_yt_provider.set_thumbnail.return_value = True
+
+    engine = YoutubeUploadEngine(youtube_provider=mock_yt_provider, media_storage=mock_storage)
+    metadata = YoutubeMetadata(
+        title="Production Video",
+        description="00:00 Intro",
+        tags=["prod", "finance"],
+        category_id="27",
+        thumbnail_concept="PROD THUMB",
+    )
+
+    upload = engine.run(
+        video_storage_key="projects/p1/runs/r1/scene.mp4",
+        metadata=metadata,
+        target_account="production",
+    )
+
+    assert upload.youtube_video_id == "prod_id_456"
+    assert upload.target_account == "production"
+    assert upload.channel_title == "Real Channel"
+

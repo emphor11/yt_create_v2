@@ -306,7 +306,7 @@ IMPORTANT:
 `broll` describes a contextual visual need, not a specific stock-footage instruction.
 
 ==================================================
-RELATIONSHIP SELECTION RULES
+ RELATIONSHIP SELECTION RULES
 ==================================================
 
 When multiple relationship types appear, choose the one that best represents the **dominant visual understanding of that intent**.

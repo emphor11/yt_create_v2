@@ -11,6 +11,8 @@ class YoutubeUpload(BaseModel):
     schema_version: str = "1"
     youtube_video_id: str
     youtube_url: str
+    target_account: Literal["test", "production"] = "test"
+    channel_title: str | None = None
     upload_status: UploadStatus = "succeeded"
     thumbnail_attached: bool = False
     title: str
