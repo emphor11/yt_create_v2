@@ -126,6 +126,73 @@ class CompositionResolver:
                 "decayType": data.get("decay_type", "standard"),
             }
 
+        elif cid == "growth_trajectory":
+            props = {
+                "headerLabel": data.get("header_label") or "GROWTH TRAJECTORY",
+                "startValue": data.get("start_value"),
+                "startLabel": data.get("start_label") or "Starting Point",
+                "endValue": data.get("end_value"),
+                "endLabel": data.get("end_label") or "Target Corpus",
+                "timeHorizon": data.get("time_horizon"),
+                "growthRate": data.get("growth_rate"),
+                "growthType": data.get("growth_type") or "unspecified",
+                "milestoneValue": data.get("milestone_value"),
+                "milestoneLabel": data.get("milestone_label"),
+                "annotation": data.get("annotation"),
+                "variant": data.get("variant") or variant or "standard",
+            }
+
+        elif cid == "trajectory_divergence":
+            path_a_raw = data.get("path_a") or {}
+            path_b_raw = data.get("path_b") or {}
+            path_a_props = {
+                "label": path_a_raw.get("label", "") if isinstance(path_a_raw, dict) else getattr(path_a_raw, "label", ""),
+                "startValue": path_a_raw.get("start_value") if isinstance(path_a_raw, dict) else getattr(path_a_raw, "start_value", None),
+                "endValue": path_a_raw.get("end_value") if isinstance(path_a_raw, dict) else getattr(path_a_raw, "end_value", None),
+                "rate": path_a_raw.get("rate") if isinstance(path_a_raw, dict) else getattr(path_a_raw, "rate", None),
+                "direction": path_a_raw.get("direction") if isinstance(path_a_raw, dict) else getattr(path_a_raw, "direction", None),
+                "tone": path_a_raw.get("tone") if isinstance(path_a_raw, dict) else getattr(path_a_raw, "tone", None),
+            }
+            path_b_props = {
+                "label": path_b_raw.get("label", "") if isinstance(path_b_raw, dict) else getattr(path_b_raw, "label", ""),
+                "startValue": path_b_raw.get("start_value") if isinstance(path_b_raw, dict) else getattr(path_b_raw, "start_value", None),
+                "endValue": path_b_raw.get("end_value") if isinstance(path_b_raw, dict) else getattr(path_b_raw, "end_value", None),
+                "rate": path_b_raw.get("rate") if isinstance(path_b_raw, dict) else getattr(path_b_raw, "rate", None),
+                "direction": path_b_raw.get("direction") if isinstance(path_b_raw, dict) else getattr(path_b_raw, "direction", None),
+                "tone": path_b_raw.get("tone") if isinstance(path_b_raw, dict) else getattr(path_b_raw, "tone", None),
+            }
+            props = {
+                "headerLabel": data.get("header_label") or "COMPOUNDING DIVERGENCE",
+                "timeHorizon": data.get("time_horizon"),
+                "baselineLabel": data.get("baseline_label") or "Common Starting Point",
+                "pathA": path_a_props,
+                "pathB": path_b_props,
+                "divergenceGap": data.get("divergence_gap"),
+                "variant": data.get("variant") or variant or "standard",
+            }
+
+        elif cid == "cash_flow_waterfall":
+            steps_raw = data.get("steps") or []
+            steps_props = [
+                {
+                    "label": s.get("label", "") if isinstance(s, dict) else getattr(s, "label", ""),
+                    "value": s.get("value", "") if isinstance(s, dict) else getattr(s, "value", ""),
+                    "direction": s.get("direction", "subtract") if isinstance(s, dict) else getattr(s, "direction", "subtract"),
+                    "subtext": s.get("subtext") if isinstance(s, dict) else getattr(s, "subtext", None),
+                    "numericAmount": s.get("numeric_amount") if isinstance(s, dict) else getattr(s, "numeric_amount", None),
+                }
+                for s in steps_raw
+            ]
+            props = {
+                "headerLabel": data.get("header_label") or "CASH FLOW BREAKDOWN",
+                "startingLabel": data.get("starting_label", ""),
+                "startingValue": data.get("starting_value", ""),
+                "steps": steps_props,
+                "finalLabel": data.get("final_label") or "Remaining Balance",
+                "finalValue": data.get("final_value"),
+                "variant": data.get("variant") or variant or "standard",
+            }
+
         elif cid == "multi_factor_pressure":
             factors_raw = data.get("factors", [])
             factors_props = [

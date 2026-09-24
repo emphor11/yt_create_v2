@@ -319,6 +319,21 @@ export interface TimeDecayProps {
   decayType?: "single_period" | "recurring_annual" | "purchasing_power" | "standard" | string | null;
 }
 
+export interface GrowthTrajectoryProps {
+  headerLabel?: string | null;
+  startValue?: string | null;
+  startLabel?: string;
+  endValue?: string | null;
+  endLabel?: string;
+  timeHorizon?: string | null;
+  growthRate?: string | null;
+  growthType?: "linear" | "accelerating" | "compound" | "unspecified" | string | null;
+  milestoneValue?: string | null;
+  milestoneLabel?: string | null;
+  annotation?: string | null;
+  variant?: "linear_accumulation" | "accelerating_growth" | "compounding_snowball" | "milestone_progression" | "standard" | string | null;
+}
+
 export interface FactorItemProp {
   label: string;
   value?: string | null;
@@ -417,4 +432,46 @@ export type SplitComparisonRenderSpec = BaseRenderSpec<SplitComparisonProps>;
 export type StockImageRenderSpec = BaseRenderSpec<MediaComponentProps>;
 export type StockVideoRenderSpec = BaseRenderSpec<MediaComponentProps>;
 export type IconAnimationRenderSpec = BaseRenderSpec<MediaComponentProps>;
+export type GrowthTrajectoryRenderSpec = BaseRenderSpec<GrowthTrajectoryProps>;
+export interface TrajectoryPathProp {
+  label: string;
+  startValue?: string | null;
+  endValue?: string | null;
+  rate?: string | null;
+  direction?: 'up' | 'down' | 'neutral' | null;
+  tone?: 'positive' | 'negative' | 'neutral' | null;
+}
+
+export interface TrajectoryDivergenceProps {
+  headerLabel?: string | null;
+  timeHorizon?: string | null;
+  baselineLabel?: string | null;
+  pathA: TrajectoryPathProp;
+  pathB: TrajectoryPathProp;
+  divergenceGap?: string | null;
+  variant?: string | null;
+}
+
+export type TrajectoryDivergenceRenderSpec = BaseRenderSpec<TrajectoryDivergenceProps>;
+
+export interface WaterfallStepProp {
+  label: string;
+  value: string;
+  direction?: 'subtract' | 'add';
+  subtext?: string | null;
+  numericAmount?: number | null;
+}
+
+export interface CashFlowWaterfallProps {
+  headerLabel?: string | null;
+  startingLabel: string;
+  startingValue: string;
+  steps: WaterfallStepProp[];
+  finalLabel?: string | null;
+  finalValue?: string | null;
+  variant?: string | null;
+}
+
+export type CashFlowWaterfallRenderSpec = BaseRenderSpec<CashFlowWaterfallProps>;
+
 export type VideoAssemblyRenderSpec = BaseRenderSpec<VideoAssemblyProps>;

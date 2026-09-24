@@ -18,8 +18,11 @@ import { MetricHero } from "./compositions/MetricHero";
 import { CalculationStory } from "./compositions/CalculationStory";
 import { CauseEffect } from "./compositions/CauseEffect";
 import { TimeDecay } from "./compositions/TimeDecay";
+import { GrowthTrajectory } from "./compositions/GrowthTrajectory";
 import { MultiFactorPressure } from "./compositions/MultiFactorPressure";
 import { BrollCaption } from "./compositions/BrollCaption";
+import { TrajectoryDivergence } from "./compositions/TrajectoryDivergence";
+import { CashFlowWaterfall } from "./compositions/CashFlowWaterfall";
 import { type VideoAssemblyRenderSpec } from "./types";
 
 export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
@@ -91,8 +94,11 @@ export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
                   {compId === "CalculationStory" && <CalculationStory {...childProps} />}
                   {compId === "CauseEffect" && <CauseEffect {...childProps} />}
                   {compId === "TimeDecay" && <TimeDecay {...childProps} />}
+                  {compId === "GrowthTrajectory" && <GrowthTrajectory {...childProps} />}
                   {compId === "MultiFactorPressure" && <MultiFactorPressure {...childProps} />}
                   {compId === "BrollCaption" && <BrollCaption {...childProps} />}
+                  {compId === "TrajectoryDivergence" && <TrajectoryDivergence {...childProps} />}
+                  {compId === "CashFlowWaterfall" && <CashFlowWaterfall {...childProps} />}
                 </AbsoluteFill>
             </Series.Sequence>
           );

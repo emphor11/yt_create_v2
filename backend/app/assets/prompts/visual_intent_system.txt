@@ -233,6 +233,7 @@ Every intent MUST use exactly one relationship_type from this closed vocabulary:
 - `multi_factor`
 - `comparison`
 - `trend`
+- `growth`
 - `decline`
 - `ranking`
 - `process`
@@ -271,7 +272,109 @@ Two subjects, states, options, or values are contrasted.
 
 ### trend
 
-A value or state changes over time without the narration necessarily framing it as specific erosion.
+A value or state changes over time without the narration necessarily framing it as specific erosion or single upward growth trajectory.
+
+### growth
+
+A single quantity, asset, corpus, or financial state evolves upward over time, where the changing magnitude of growth, trajectory, or transition between regimes is itself central to viewer understanding.
+
+Use it for:
+- linear savings accumulation
+- investment growth
+- compounding
+- accelerating wealth
+- portfolio growth
+- corpus growth
+- SIP accumulation
+- wealth snowball
+- milestone progression
+- linear → accelerating growth transitions
+
+Do NOT use it for:
+- two paths diverging → `comparison`
+- one quantity declining → `decline`
+- static A vs B without time evolution → `comparison`
+- operational steps → `process`
+- generic claims without a meaningful upward trajectory → `statement`
+
+Contrast:
+- "Saving ₹50,000 every month gradually builds the first ₹10 lakh." → `growth`
+- "Subsequent capital blocks build faster over time as annual investment returns add substantial yearly gains." → `growth`
+- "The wealth snowball transitions financial freedom into a predictable mathematical progression." → `growth`
+- "₹30,000 invested monthly grows to ₹38 lakh over 7 years." → `growth`
+- "₹30,000 invested vs ₹30,000 spent over 7 years with both paths shown" → `comparison`
+- "Car value falls 15% in the first year" → `decline`
+
+### divergence
+
+Two financial quantities, strategies, or paths evolve in opposite directions from a common starting point over time — one improves while the other deteriorates.
+
+Use when:
+- Two outcomes of the same starting resource are being compared over time
+- One path creates wealth while the other destroys or erodes it
+- The central viewer understanding is the growing gap, not just a static comparison
+
+Examples:
+- "₹30,000 as an equity SIP becomes ₹38 lakh; as a car EMI, the car is worth just ₹6 lakh." → `divergence`
+- "The investor's equity corpus grows to ₹1 crore while the borrower's debt balance remains ₹35 lakh." → `divergence`
+- "Choosing debt over equity means your financial destiny follows two completely different trajectories." → `divergence`
+
+Distinguish from:
+- `comparison`: Static side-by-side at one moment in time. `divergence` requires time evolution and a growing gap.
+- `growth`: A single path improving over time. `divergence` requires exactly two paths evolving in opposite directions.
+
+### waterfall
+
+A starting total resource is sequentially reduced by a series of labeled deductions, exposing what remains after each stage.
+
+Use when:
+- A total amount is allocated across multiple named buckets or expenses
+- The narration explains what consumes a salary, corpus, or revenue step by step
+- The residual after deductions is the key viewer insight
+
+Examples:
+- "From ₹5 lakh gross salary: ₹1.5 lakh goes to taxes, ₹1.2 lakh to EMIs, ₹1.5 lakh to expenses, leaving ₹80,000 surplus." → `waterfall`
+- "The starting corpus of ₹50 lakh is reduced by management fees, taxes, and inflation." → `waterfall`
+- "Revenue first covers cost of goods, then salaries, then rent, leaving operating margin." → `waterfall`
+
+Distinguish from:
+- `calculation`: A single arithmetic operation. `waterfall` is a sequential multi-step depletion.
+- `process`: Sequential procedures with actions. `waterfall` is sequential financial deductions to a running balance.
+
+### amortization
+
+A debt or loan balance declines over time as periodic payments reduce principal. Each period shows the decomposition into interest and principal components.
+
+Use when:
+- A loan repayment schedule is being explained
+- The narration shows how early EMIs are mostly interest and later EMIs are mostly principal
+- The declining principal balance over time is the central insight
+
+Examples:
+- "In your first EMI of ₹30,000, ₹21,000 is interest and only ₹9,000 reduces principal." → `amortization`
+- "By year 10, the balance that was ₹50 lakh is now ₹28 lakh." → `amortization`
+- "The bank takes most of your money upfront; principal repayment accelerates only in the later years." → `amortization`
+
+Distinguish from:
+- `waterfall`: Static deductions from a corpus. `amortization` involves a time-evolving schedule with interest/principal decomposition.
+- `decline`: Simple value erosion. `amortization` specifically involves a loan repayment structure.
+
+### accumulation
+
+A total financial position builds over time from multiple distinct labeled contribution streams or sources.
+
+Use when:
+- Multiple sources are contributing to a growing whole
+- The narration shows how contributions + returns combine to build a corpus
+- The viewer must understand what each stream contributes to the total
+
+Examples:
+- "Your corpus grows from ₹10,000/month contributions plus 12% returns — after 10 years the contributions total ₹12 lakh but the returns add ₹18 lakh more." → `accumulation`
+- "The retirement corpus is built from employer PF, your own PF contribution, and equity SIP, each adding a distinct layer." → `accumulation`
+
+Distinguish from:
+- `growth`: A single undivided quantity growing. `accumulation` shows the contribution breakdown by source.
+- `waterfall`: Deductions from a total. `accumulation` adds to a total from multiple sources.
 
 ### decline
 

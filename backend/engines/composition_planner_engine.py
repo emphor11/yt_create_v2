@@ -568,6 +568,215 @@ def build_candidate_composition_data(
                 else:
                     candidate["severity"] = "moderate"
 
+    elif composition_id == "growth_trajectory":
+        start_m = next((m for m in intent.measurements if m.role in ("input", "baseline", "initial")), None)
+        end_m = next((m for m in intent.measurements if m.role in ("result", "final", "outcome", "target")), None)
+        rate_m = next((m for m in intent.measurements if m.role == "rate"), None)
+        milestone_m = next((m for m in intent.measurements if m.role in ("milestone", "intermediate", "benchmark")), None)
+
+        # Fallback between measurements if explicit roles are not annotated
+        if not start_m and not end_m and not milestone_m:
+            if len(intent.measurements) >= 2:
+                start_m = intent.measurements[0]
+                end_m = intent.measurements[-1]
+            elif intent.measurements:
+                m0 = intent.measurements[0]
+                if m0.role == "rate":
+                    rate_m = m0
+                elif any(kw in (intent.narration_excerpt or "").lower() for kw in ("grows to", "reaches", "hits", "builds to", "snowball into")):
+                    end_m = m0
+                else:
+                    start_m = m0
+
+        if start_m:
+            candidate["start_value"] = start_m.raw_value
+            if start_m.metric_name:
+                candidate["start_label"] = start_m.metric_name
+            elif start_m.entity_name:
+                candidate["start_label"] = start_m.entity_name
+        elif intent.entities:
+            candidate["start_label"] = intent.entities[0].name
+        if "start_label" not in candidate:
+            candidate["start_label"] = "Starting Point"
+
+        if end_m and end_m != start_m:
+            candidate["end_value"] = end_m.raw_value
+            if end_m.metric_name:
+                candidate["end_label"] = end_m.metric_name
+            elif end_m.entity_name:
+                candidate["end_label"] = end_m.entity_name
+
+        if "end_label" not in candidate:
+            candidate["end_label"] = "Target Corpus"
+
+        if rate_m:
+            candidate["growth_rate"] = rate_m.raw_value
+
+        if milestone_m and milestone_m != start_m:
+            candidate["milestone_value"] = milestone_m.raw_value
+            if milestone_m.metric_name or milestone_m.entity_name:
+                candidate["milestone_label"] = milestone_m.metric_name or milestone_m.entity_name
+
+        if intent.temporal and intent.temporal.horizon:
+            candidate["time_horizon"] = intent.temporal.horizon
+
+        # Growth type & regime detection from narration / understanding
+        combined_text = f"{intent.narration_excerpt or ''} {intent.what_viewer_must_understand or ''}".lower()
+        if milestone_m or any(kw in combined_text for kw in ("milestone", "first ₹10 lakh", "first 10 lakh", "tipping point", "stepping stone")):
+            candidate["growth_type"] = "accelerating" if any(kw in combined_text for kw in ("accelerat", "compound", "snowball")) else "linear"
+            candidate["variant"] = "milestone_progression"
+        elif any(kw in combined_text for kw in ("snowball", "exponential", "compounding", "compound", "returns generate", "reinvest")):
+            candidate["growth_type"] = "compound"
+            candidate["variant"] = "compounding_snowball"
+        elif any(kw in combined_text for kw in ("accelerat", "speed up", "faster", "builds faster", "pace pick")):
+            candidate["growth_type"] = "accelerating"
+            candidate["variant"] = "accelerating_growth"
+        elif any(kw in combined_text for kw in ("linear", "steady", "incremental", "monthly savings", "predictable amount")):
+            candidate["growth_type"] = "linear"
+            candidate["variant"] = "linear_accumulation"
+        else:
+            candidate["growth_type"] = "unspecified"
+            candidate["variant"] = "standard"
+
+        if intent.visual_dynamics and intent.visual_dynamics.focal_point:
+            candidate["annotation"] = intent.visual_dynamics.focal_point
+        elif any(kw in combined_text for kw in ("inflection", "snowball", "accelerat", "transition")):
+            candidate["annotation"] = intent.what_viewer_must_understand
+
+    elif composition_id == "trajectory_divergence":
+        # Extract time horizon from temporal context
+        if intent.temporal and intent.temporal.horizon:
+            candidate["time_horizon"] = intent.temporal.horizon
+        elif intent.temporal and intent.temporal.start_point and intent.temporal.end_point:
+            candidate["time_horizon"] = f"{intent.temporal.start_point} → {intent.temporal.end_point}"
+        else:
+            candidate["time_horizon"] = "Over Time"
+
+        # Baseline: use comparison dimension if available, else narration-derived
+        if intent.comparison and intent.comparison.comparison_dimension:
+            candidate["baseline_label"] = intent.comparison.comparison_dimension
+        elif intent.entities:
+            candidate["baseline_label"] = intent.entities[0].name
+        else:
+            candidate["baseline_label"] = "Common Starting Point"
+
+        # Path A: from comparison.subject_a + value_a
+        path_a: dict[str, Any] = {}
+        if intent.comparison and intent.comparison.subject_a:
+            path_a["label"] = intent.comparison.subject_a
+        elif intent.entities and len(intent.entities) >= 1:
+            path_a["label"] = intent.entities[0].name
+        else:
+            path_a["label"] = "Path A"
+
+        if intent.comparison and intent.comparison.value_a:
+            path_a["end_value"] = intent.comparison.value_a
+
+        # Direction/tone inference
+        path_a_text = (path_a.get("label") or "").lower()
+        if any(kw in path_a_text for kw in ("invest", "sip", "equity", "mutual", "fund", "portfolio", "wealth")):
+            path_a["direction"] = "up"
+            path_a["tone"] = "positive"
+
+        # Rate from measurements (first rate measurement assigned to path_a if not declining)
+        rate_ms = [m for m in intent.measurements if m.role == "rate"]
+        if rate_ms:
+            path_a["rate"] = rate_ms[0].raw_value
+
+        candidate["path_a"] = path_a
+
+        # Path B: from comparison.subject_b + value_b
+        path_b: dict[str, Any] = {}
+        if intent.comparison and intent.comparison.subject_b:
+            path_b["label"] = intent.comparison.subject_b
+        elif intent.entities and len(intent.entities) >= 2:
+            path_b["label"] = intent.entities[1].name
+        else:
+            path_b["label"] = "Path B"
+
+        if intent.comparison and intent.comparison.value_b:
+            path_b["end_value"] = intent.comparison.value_b
+
+        path_b_text = (path_b.get("label") or "").lower()
+        if any(kw in path_b_text for kw in ("emi", "debt", "loan", "depreciat", "spend", "car", "expense")):
+            path_b["direction"] = "down"
+            path_b["tone"] = "negative"
+
+        candidate["path_b"] = path_b
+
+        # Divergence gap: from comparison.delta or delta measurement
+        if intent.comparison and intent.comparison.delta:
+            candidate["divergence_gap"] = intent.comparison.delta
+        else:
+            delta_m = next((m for m in intent.measurements if m.role == "delta"), None)
+            if delta_m:
+                candidate["divergence_gap"] = delta_m.raw_value
+
+        # Header from visual_dynamics focal_point
+        if intent.visual_dynamics and intent.visual_dynamics.focal_point:
+            candidate["header_label"] = intent.visual_dynamics.focal_point
+
+        # Variant selection
+        narration_lower = (intent.narration_excerpt or "").lower() + " " + (intent.what_viewer_must_understand or "").lower()
+        if any(kw in narration_lower for kw in ("wealth gap", "wealth accumulation gap", "₹ gap")):
+            candidate["variant"] = "wealth_gap"
+        elif any(kw in narration_lower for kw in ("opportunity cost", "cost of", "foregone")):
+            candidate["variant"] = "cost_opportunity"
+        else:
+            candidate["variant"] = "divergence"
+
+    elif composition_id == "cash_flow_waterfall":
+        # Starting value: baseline measurement
+        baseline_m = next((m for m in intent.measurements if m.role == "baseline"), None)
+        if baseline_m:
+            candidate["starting_value"] = baseline_m.raw_value
+            if baseline_m.metric_name:
+                candidate["starting_label"] = baseline_m.metric_name
+            elif baseline_m.entity_name:
+                candidate["starting_label"] = baseline_m.entity_name
+            else:
+                candidate["starting_label"] = "Starting Total"
+        elif intent.measurements:
+            candidate["starting_value"] = intent.measurements[0].raw_value
+            candidate["starting_label"] = intent.measurements[0].metric_name or "Starting Total"
+
+        # Steps: from delta measurements (deductions)
+        delta_ms = [m for m in intent.measurements if m.role == "delta"]
+        steps: list[dict[str, Any]] = []
+        for dm in delta_ms:
+            step: dict[str, Any] = {
+                "label": dm.metric_name or dm.entity_name or "Deduction",
+                "value": f"-{dm.raw_value}" if not dm.raw_value.startswith("-") else dm.raw_value,
+                "direction": "subtract",
+            }
+            if dm.numeric_value is not None:
+                step["numeric_amount"] = dm.numeric_value
+            steps.append(step)
+        if steps:
+            candidate["steps"] = steps
+
+        # Deterministic final value: only if all numeric amounts are present
+        baseline_numeric = baseline_m.numeric_value if baseline_m and baseline_m.numeric_value is not None else None
+        all_numeric = (
+            baseline_numeric is not None
+            and all(s.get("numeric_amount") is not None for s in steps)
+        )
+        if all_numeric and steps:
+            total_deductions = sum(s["numeric_amount"] for s in steps)
+            final_numeric = baseline_numeric - total_deductions
+            # Format with commas (Indian numbering style approximation)
+            if final_numeric >= 0:
+                candidate["final_value"] = f"₹{int(final_numeric):,}"
+            # Don't set final_value for negative result (would be meaningless)
+
+        # Always set default final_label
+        candidate["final_label"] = "Remaining Balance"
+
+        # Header from visual_dynamics
+        if intent.visual_dynamics and intent.visual_dynamics.focal_point:
+            candidate["header_label"] = intent.visual_dynamics.focal_point
+
+
     elif composition_id == "ranked_list":
         if intent.entities:
             items: list[dict[str, Any]] = []
@@ -789,6 +998,83 @@ def merge_factual_and_presentation_data(
             result["annotation"] = candidate_facts["annotation"]
         for key in ("end_value", "end_label", "drop_rate", "severity", "rate_label", "variant", "decay_type"):
             if key in candidate_facts and not result.get(key):
+                result[key] = candidate_facts[key]
+
+    elif composition_id == "growth_trajectory":
+        for key in ("start_value", "end_value", "growth_rate", "milestone_value"):
+            if key in candidate_facts and candidate_facts[key] is not None:
+                result[key] = candidate_facts[key]
+        for key in ("start_label", "end_label", "time_horizon", "growth_type", "milestone_label", "annotation", "header_label", "variant"):
+            if key in candidate_facts and candidate_facts[key] is not None and not result.get(key):
+                result[key] = candidate_facts[key]
+
+    elif composition_id == "trajectory_divergence":
+        # Lock factual horizon and gap — these are numerical/factual
+        for key in ("time_horizon", "divergence_gap", "baseline_label"):
+            if key in candidate_facts and candidate_facts[key] is not None:
+                result[key] = candidate_facts[key]
+
+        # Path A: lock numeric end_value/start_value/rate; allow label/direction/tone to be refined
+        if "path_a" in candidate_facts and candidate_facts["path_a"]:
+            merged_path_a = dict(result.get("path_a") or {})
+            fact_path_a = candidate_facts["path_a"]
+            llm_path_a = (llm_data.get("path_a") or {})
+            for locked in ("end_value", "start_value", "rate"):
+                if fact_path_a.get(locked) is not None:
+                    merged_path_a[locked] = fact_path_a[locked]
+            for presentation in ("label", "direction", "tone"):
+                if not merged_path_a.get(presentation):
+                    merged_path_a[presentation] = llm_path_a.get(presentation) or fact_path_a.get(presentation)
+                elif llm_path_a.get(presentation):
+                    merged_path_a[presentation] = llm_path_a[presentation]
+            result["path_a"] = merged_path_a
+
+        # Path B: same merge logic
+        if "path_b" in candidate_facts and candidate_facts["path_b"]:
+            merged_path_b = dict(result.get("path_b") or {})
+            fact_path_b = candidate_facts["path_b"]
+            llm_path_b = (llm_data.get("path_b") or {})
+            for locked in ("end_value", "start_value", "rate"):
+                if fact_path_b.get(locked) is not None:
+                    merged_path_b[locked] = fact_path_b[locked]
+            for presentation in ("label", "direction", "tone"):
+                if not merged_path_b.get(presentation):
+                    merged_path_b[presentation] = llm_path_b.get(presentation) or fact_path_b.get(presentation)
+                elif llm_path_b.get(presentation):
+                    merged_path_b[presentation] = llm_path_b[presentation]
+            result["path_b"] = merged_path_b
+
+        # Presentation-only fields
+        for key in ("header_label", "variant"):
+            if key in candidate_facts and candidate_facts[key] is not None and not result.get(key):
+                result[key] = candidate_facts[key]
+
+    elif composition_id == "cash_flow_waterfall":
+        # Lock factual numeric values — LLM must not overwrite these
+        for key in ("starting_value", "final_value"):
+            if key in candidate_facts and candidate_facts[key] is not None:
+                result[key] = candidate_facts[key]
+
+        # Starting label: use candidate but allow LLM refinement
+        if "starting_label" in candidate_facts and candidate_facts["starting_label"]:
+            result.setdefault("starting_label", candidate_facts["starting_label"])
+
+        # Steps: lock value/direction from candidate; allow LLM to add subtext only
+        if "steps" in candidate_facts and candidate_facts["steps"]:
+            llm_steps = llm_data.get("steps") or []
+            merged_steps = []
+            for i, fact_step in enumerate(candidate_facts["steps"]):
+                merged_step = dict(fact_step)  # start with factual data
+                if i < len(llm_steps):
+                    llm_step = llm_steps[i] if isinstance(llm_steps[i], dict) else {}
+                    if llm_step.get("subtext"):
+                        merged_step["subtext"] = llm_step["subtext"]
+                merged_steps.append(merged_step)
+            result["steps"] = merged_steps
+
+        # Presentation-only: final_label can be refined by LLM; header/variant are supplementary
+        for key in ("final_label", "header_label", "variant"):
+            if key in candidate_facts and candidate_facts[key] is not None and not result.get(key):
                 result[key] = candidate_facts[key]
 
     elif composition_id == "ranked_list":

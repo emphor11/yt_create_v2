@@ -31,6 +31,11 @@ VALID_RELATIONSHIP_TYPES: list[str] = [
     "multi_factor",   # multiple independent causes → combined outcome/pressure
     "comparison",     # A vs B side-by-side
     "trend",          # a value changes over time (direction unspecified)
+    "growth",         # a single quantity or financial state evolves upward over time (accumulation, compounding, accelerating wealth)
+    "divergence",      # two quantities/paths evolving in opposite directions over time (investing vs spending, equity vs debt)
+    "waterfall",       # a starting total sequentially reduced by labeled deductions to a final balance
+    "amortization",    # a debt/loan principal declining over time with interest/principal decomposition per period
+    "accumulation",    # total builds from multiple labeled contribution streams over time
     "decline",        # a value specifically decreases over time
     "ranking",        # ordered list by magnitude or priority
     "process",        # sequential steps in a procedure
@@ -360,3 +365,5 @@ class VisualIntentSequence(BaseModel):
             "contains only filler/transitions."
         )
     )
+
+ComparisonContext = ComparisonStructure

@@ -22,7 +22,7 @@ Adding a new composition requires:
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -229,6 +229,191 @@ class TimeDecayData(BaseModel):
     decay_type: str | None = Field(
         default="standard",
         description="'single_period' | 'recurring_annual' | 'purchasing_power' | 'standard'",
+    )
+
+
+class GrowthTrajectoryData(BaseModel):
+    """
+    Shows a single quantity, asset, corpus, or financial state evolving upward over time.
+    Especially for illustrating the trajectory from early linear savings accumulation to
+    accelerating / compounding growth or milestone progression.
+
+    Use for: linear savings accumulation, investment growth, compounding, accelerating wealth,
+    corpus growth, SIP accumulation, wealth snowball, linear -> compounding transitions.
+    relationship_types: growth
+    """
+    header_label: str = Field(
+        default="GROWTH TRAJECTORY",
+        description="Header label, e.g. 'WEALTH ACCUMULATION', 'CORPUS GROWTH', 'COMPOUNDING TRAJECTORY'",
+    )
+    start_value: str | None = Field(
+        default=None,
+        description="Starting value or quantity, e.g. '₹0', '₹50,000/mo', '₹10 Lakh'",
+    )
+    start_label: str = Field(
+        description="Label for starting point, e.g. 'Initial Savings', 'Base Corpus', 'Monthly Contribution'",
+    )
+    end_value: str | None = Field(
+        default=None,
+        description="Ending or target value, e.g. '₹10 Lakh', '₹1 Crore', '₹38 Lakh'",
+    )
+    end_label: str = Field(
+        description="Label for ending value, e.g. 'Target Corpus', 'Accumulated Wealth', 'Eventual Corpus'",
+    )
+    time_horizon: str | None = Field(
+        default=None,
+        description="Time horizon, e.g. '7 years', '10 years', '20 years', 'over time'",
+    )
+    growth_rate: str | None = Field(
+        default=None,
+        description="Optional explicit growth rate if stated in narration, e.g. '12% Annual Return', '10% CAGR'. Never fabricate.",
+    )
+    growth_type: Literal["linear", "accelerating", "compound", "unspecified"] = Field(
+        default="unspecified",
+        description="Growth regime: 'linear' (steady accumulation/savings), 'accelerating' (snowballing returns), 'compound' (exponential growth), 'unspecified'",
+    )
+    milestone_value: str | None = Field(
+        default=None,
+        description="Optional intermediate milestone value, e.g. '₹10 Lakh', 'First ₹10 Lakh'",
+    )
+    milestone_label: str | None = Field(
+        default=None,
+        description="Optional milestone label, e.g. 'Inflection Point', 'Tipping Point', 'Snowball Begins'",
+    )
+    annotation: str | None = Field(
+        default=None,
+        description="Callout note or key insight, e.g. 'Returns begin outpacing monthly savings', 'Linear savings → compounding snowball'",
+    )
+    variant: str | None = Field(
+        default="standard",
+        description="'linear_accumulation' | 'accelerating_growth' | 'compounding_snowball' | 'milestone_progression' | 'standard'",
+    )
+
+
+
+class TrajectoryPath(BaseModel):
+    """
+    One of two diverging paths in a TrajectoryDivergence composition.
+    """
+    label: str = Field(
+        description="Name for this path, e.g. 'Investor (Equity SIP)', 'Spender (Car EMI)'",
+    )
+    start_value: str | None = Field(
+        default=None,
+        description="Starting value if stated, e.g. '₹0', '₹15 Lakh Car'",
+    )
+    end_value: str | None = Field(
+        default=None,
+        description="Terminal value of this path, e.g. '₹38 Lakh', '₹6 Lakh Resale'",
+    )
+    rate: str | None = Field(
+        default=None,
+        description="Growth or decay rate, e.g. '12% CAGR', '15% Depreciation'. Never fabricate.",
+    )
+    direction: Literal["up", "down", "neutral"] | None = Field(
+        default=None,
+        description="'up' for growing value, 'down' for declining value, 'neutral' for flat",
+    )
+    tone: Literal["positive", "negative", "neutral"] | None = Field(
+        default=None,
+        description="Editorial tone: 'positive' (desirable outcome), 'negative' (undesirable), 'neutral'",
+    )
+
+
+class TrajectoryDivergenceData(BaseModel):
+    """
+    Shows two financial paths or strategies evolving in opposite directions over time.
+    One path improves (investing, equity, SIP) and one deteriorates (spending, debt, depreciation).
+    The visual grammar shows the growing gap between them.
+
+    Use for: invest vs spend, equity vs debt, saving vs spending, opportunity cost,
+    real vs nominal, inflation-adjusted vs nominal, two competing strategies.
+    relationship_types: divergence
+    """
+    time_horizon: str = Field(
+        description="Duration over which the divergence unfolds, e.g. '10 Years', '7 Years', '20 Years'",
+    )
+    baseline_label: str = Field(
+        default="Common Starting Point",
+        description="What both paths start from, e.g. '₹30,000 Monthly Commitment', 'Monthly Salary ₹50,000'",
+    )
+    path_a: TrajectoryPath = Field(
+        description="First diverging path (typically the favorable/positive direction)",
+    )
+    path_b: TrajectoryPath = Field(
+        description="Second diverging path (typically the unfavorable/negative direction)",
+    )
+    divergence_gap: str | None = Field(
+        default=None,
+        description="The explicit gap between path_a and path_b at the horizon, e.g. '₹32 Lakh Wealth Gap'. Only populate if stated in narration.",
+    )
+    header_label: str = Field(
+        default="COMPOUNDING DIVERGENCE",
+        description="Category eyebrow label, e.g. 'WEALTH ACCUMULATION DIVERGENCE', 'COMPOUNDING DIVERGENCE'",
+    )
+    variant: str | None = Field(
+        default="standard",
+        description="'divergence' | 'wealth_gap' | 'cost_opportunity' | 'standard'",
+    )
+
+
+class WaterfallStep(BaseModel):
+    """
+    A single deduction or adjustment step in a cash flow waterfall.
+    """
+    label: str = Field(
+        description="Name of this deduction, e.g. 'Taxes', 'EMI Obligations', 'Living Expenses'",
+    )
+    value: str = Field(
+        description="Signed value string, e.g. '-₹1,50,000', '-₹80,000'. Negative = subtract, positive = add.",
+    )
+    direction: Literal["subtract", "add"] = Field(
+        default="subtract",
+        description="'subtract' for deductions, 'add' for inflows or reversals",
+    )
+    subtext: str | None = Field(
+        default=None,
+        description="Optional clarifying note, e.g. 'Direct Tax Code', 'Car & Personal Loans'. Never fabricate.",
+    )
+    numeric_amount: float | None = Field(
+        default=None,
+        description="Optional numeric amount for deterministic final-balance calculation",
+    )
+
+
+class CashFlowWaterfallData(BaseModel):
+    """
+    Tracks a starting total resource (salary, corpus, capital) as it is depleted or
+    adjusted by a sequence of labeled deductions, producing a final remaining balance.
+
+    Use for: salary depletion (tax → EMI → expenses → surplus), corpus distributions,
+    business revenue → expenses → profit, loan proceeds → fees → net disbursement.
+    relationship_types: waterfall
+    """
+    starting_label: str = Field(
+        description="Label for the initial total, e.g. 'Gross Monthly Salary', 'Starting Corpus', 'Total Inflow'",
+    )
+    starting_value: str = Field(
+        description="Starting total value, e.g. '₹5,00,000', '₹50 Lakh'",
+    )
+    steps: list[WaterfallStep] = Field(
+        description="Ordered list of deductions/adjustments. Must follow narration order. 2–6 steps.",
+    )
+    final_label: str = Field(
+        default="Remaining Balance",
+        description="Label for the final remaining amount, e.g. 'Investable Surplus', 'Net Operating Cash'",
+    )
+    final_value: str | None = Field(
+        default=None,
+        description="Final balance after all deductions. Only populate if derivable from source values or stated in narration.",
+    )
+    header_label: str = Field(
+        default="CASH FLOW BREAKDOWN",
+        description="Category eyebrow label, e.g. 'MONTHLY CASH FLOW', 'SALARY DRAIN BREAKDOWN'",
+    )
+    variant: str | None = Field(
+        default="standard",
+        description="'standard' | 'detailed' | 'compact'",
     )
 
 
@@ -798,6 +983,27 @@ CompositionRegistry.register(
 
 CompositionRegistry.register(
     CompositionDefinition(
+        composition_id="growth_trajectory",
+        display_name="Growth Trajectory",
+        description="Shows a single quantity, corpus, or asset growing upward over time (linear savings, compounding snowball, accelerating returns).",
+        supported_relationship_types=["growth"],
+        data_model=GrowthTrajectoryData,
+        allowed_variants=[
+            "linear_accumulation",
+            "accelerating_growth",
+            "compounding_snowball",
+            "milestone_progression",
+            "standard",
+        ],
+        asset_requirement=AssetRequirement.NONE,
+        remotion_component_id="GrowthTrajectory",
+        fallback_component_id="Charts",
+    )
+)
+
+
+CompositionRegistry.register(
+    CompositionDefinition(
         composition_id="multi_factor_pressure",
         display_name="Multi-Factor Pressure",
         description="Shows 2–4 independent risk factors converging into combined pressure.",
@@ -807,6 +1013,34 @@ CompositionRegistry.register(
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="MultiFactorPressure",
         fallback_component_id="ProgressiveList",
+    )
+)
+
+CompositionRegistry.register(
+    CompositionDefinition(
+        composition_id="trajectory_divergence",
+        display_name="Trajectory Divergence",
+        description="Shows two financial paths evolving in opposite directions over time — investing vs spending, equity vs debt — revealing a growing wealth gap.",
+        supported_relationship_types=["divergence"],
+        data_model=TrajectoryDivergenceData,
+        allowed_variants=["divergence", "wealth_gap", "cost_opportunity", "standard"],
+        asset_requirement=AssetRequirement.NONE,
+        remotion_component_id="TrajectoryDivergence",
+        fallback_component_id="Charts",
+    )
+)
+
+CompositionRegistry.register(
+    CompositionDefinition(
+        composition_id="cash_flow_waterfall",
+        display_name="Cash Flow Waterfall",
+        description="Shows a starting resource (salary, corpus) being sequentially depleted by labeled deductions to reveal a final remaining balance.",
+        supported_relationship_types=["waterfall"],
+        data_model=CashFlowWaterfallData,
+        allowed_variants=["standard", "detailed", "compact"],
+        asset_requirement=AssetRequirement.NONE,
+        remotion_component_id="CashFlowWaterfall",
+        fallback_component_id="Charts",
     )
 )
 

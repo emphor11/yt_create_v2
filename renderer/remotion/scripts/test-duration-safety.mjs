@@ -727,6 +727,166 @@ const compositionModels = [
       return { sceneOpacity, headerSpring, colSpring, spotlightSpring, footerSpring, rows };
     },
   },
+  // ─── GrowthTrajectory — 5-phase growth trajectory model ─────────────
+  {
+    name: "GrowthTrajectory",
+    durations: [10, 15, 24, 34, 45, 60, 120, 180, 300],
+    simulateFrame: (frame, duration_frames) => {
+      const sceneOpacity = interpolate(
+        frame,
+        [0, Math.min(8, Math.max(1, duration_frames - 1))],
+        [0, 1],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+      );
+
+      const headerDelay = safeSpringDelay(4, duration_frames, 0.1);
+      const headerSpring = spring({
+        frame: Math.max(0, frame - headerDelay),
+        fps: 30,
+      });
+
+      const startCardDelay = safeSpringDelay(8, duration_frames, 0.18);
+      const startCardSpring = spring({
+        frame: Math.max(0, frame - startCardDelay),
+        fps: 30,
+      });
+
+      const [curveStart, curveEnd] = safeAnimationWindow(18, 75, duration_frames);
+      const curveProgress = interpolate(
+        frame,
+        [curveStart, curveEnd],
+        [0, 1],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+      );
+
+      const milestoneDelay = safeSpringDelay(38, duration_frames, 0.48);
+      const milestoneSpring = spring({
+        frame: Math.max(0, frame - milestoneDelay),
+        fps: 30,
+      });
+
+      const payoffDelay = safeSpringDelay(56, duration_frames, 0.68);
+      const payoffSpring = spring({
+        frame: Math.max(0, frame - payoffDelay),
+        fps: 30,
+      });
+
+      const currentLeadX = interpolate(curveProgress, [0, 1], [80, 880]);
+      const currentLeadY = interpolate(curveProgress, [0, 0.5, 1], [290, 227, 65]);
+      const areaOpacity = interpolate(curveProgress, [0, 0.3], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
+
+      return {
+        sceneOpacity,
+        headerSpring,
+        startCardSpring,
+        curveProgress,
+        milestoneSpring,
+        payoffSpring,
+        currentLeadX,
+        currentLeadY,
+        areaOpacity,
+      };
+    },
+  },
+  {
+    name: 'TrajectoryDivergence',
+    durations: [30, 60, 90, 120, 150, 180, 240, 300, 360],
+    props: {
+      headerLabel: 'WEALTH ACCUMULATION DIVERGENCE',
+      timeHorizon: '10 Years',
+      baselineLabel: '₹30,000 Monthly Commitment',
+      pathA: {
+        label: 'Investor (Equity SIP)',
+        endValue: '₹38 Lakh',
+        rate: '12% CAGR',
+        direction: 'up',
+        tone: 'positive',
+      },
+      pathB: {
+        label: 'Spender (Car EMI)',
+        startValue: '₹15 Lakh Car',
+        endValue: '₹6 Lakh Resale',
+        rate: '15% Depreciation',
+        direction: 'down',
+        tone: 'negative',
+      },
+      divergenceGap: '₹32 Lakh Wealth Gap',
+      variant: 'wealth_gap',
+    },
+    simulateFrame: (frame, duration_frames) => {
+      const sceneOpacity = interpolate(
+        frame,
+        [0, Math.min(8, Math.max(1, duration_frames - 1))],
+        [0, 1],
+        { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+      );
+      const headerDelay = safeSpringDelay(4, duration_frames);
+      const headerSpring = spring({ frame: Math.max(0, frame - headerDelay), fps: 30 });
+      
+      const baselineDelay = safeSpringDelay(10, duration_frames);
+      const baselineSpring = spring({ frame: Math.max(0, frame - baselineDelay), fps: 30 });
+
+      const [pathStart, pathEnd] = safeAnimationWindow(18, 80, duration_frames);
+      const pathProgress = interpolate(frame, [pathStart, pathEnd], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+
+      const cardADelay = safeSpringDelay(55, duration_frames);
+      const cardASpring = spring({ frame: Math.max(0, frame - cardADelay), fps: 30 });
+      
+      const cardBDelay = safeSpringDelay(55, duration_frames);
+      const cardBSpring = spring({ frame: Math.max(0, frame - cardBDelay), fps: 30 });
+
+      const gapDelay = safeSpringDelay(70, duration_frames);
+      const gapSpring = spring({ frame: Math.max(0, frame - gapDelay), fps: 30 });
+
+      return { sceneOpacity, headerSpring, baselineSpring, pathProgress, cardASpring, cardBSpring, gapSpring };
+    },
+  },
+  {
+    name: 'CashFlowWaterfall',
+    durations: [30, 60, 90, 120, 150, 180, 240, 300, 360],
+    props: {
+      headerLabel: 'MONTHLY CASH FLOW',
+      startingLabel: 'Gross Monthly Salary',
+      startingValue: '₹5,00,000',
+      steps: [
+        { label: 'Taxes', value: '-₹1,50,000', direction: 'subtract', subtext: 'Direct Tax Code' },
+        { label: 'EMI Obligations', value: '-₹1,20,000', direction: 'subtract', subtext: 'Car & Personal Loans' },
+        { label: 'Living Expenses', value: '-₹1,50,000', direction: 'subtract' },
+      ],
+      finalLabel: 'Investable Surplus',
+      finalValue: '₹80,000',
+      variant: 'standard',
+    },
+    simulateFrame: (frame, duration_frames) => {
+      const sceneOpacity = interpolate(
+        frame,
+        [0, Math.min(8, Math.max(1, duration_frames - 1))],
+        [0, 1],
+        { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+      );
+      
+      const headerDelay = safeSpringDelay(4, duration_frames);
+      const headerSpring = spring({ frame: Math.max(0, frame - headerDelay), fps: 30 });
+      
+      const startingDelay = safeSpringDelay(10, duration_frames);
+      const startingSpring = spring({ frame: Math.max(0, frame - startingDelay), fps: 30 });
+      
+      // Simulate max 3 steps for safety limits check
+      const stepsCount = duration_frames < 90 ? Math.min(3, 3) : 3;
+      for (let i = 0; i < stepsCount; i++) {
+        const stepDelay = safeSpringDelay(20 + i * 10, duration_frames);
+        const stepSpring = spring({ frame: Math.max(0, frame - stepDelay), fps: 30 });
+      }
+      
+      const finalDelay = safeSpringDelay(20 + stepsCount * 10 + 10, duration_frames);
+      const finalSpring = spring({ frame: Math.max(0, frame - finalDelay), fps: 30 });
+      
+      return { sceneOpacity, headerSpring, startingSpring, finalSpring };
+    },
+  },
 ];
 
 for (const comp of compositionModels) {

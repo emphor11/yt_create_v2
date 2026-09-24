@@ -162,6 +162,21 @@ Use these mappings:
 `process`
 → `process_flow`
 
+`growth`
+→ `growth_trajectory`
+
+`divergence`
+→ `trajectory_divergence`
+
+`waterfall`
+→ `cash_flow_waterfall`
+
+`amortization`
+→ `debt_amortization_schedule` (not yet registered — fall back to `no_suitable_composition`)
+
+`accumulation`
+→ `accumulation_decomposition` (not yet registered — fall back to `no_suitable_composition`)
+
 `decline`
 → `time_decay`
 
@@ -202,31 +217,18 @@ Select:
 
 when the narration describes a genuine declining trend.
 
-### Upward trend
+### Upward growth
 
-Return:
+Single-quantity upward progress, accumulation, compounding, or wealth acceleration is mapped to `growth` → `growth_trajectory`.
+Never use `time_decay` to visually imply growth.
 
-`no_suitable_composition`
+### Neutral / Unspecified trend
 
-when the trend describes growth, increase, upward movement, appreciation, or compounding upward.
-
-### Neutral trend
+If an intent is typed as `trend` without decline:
 
 Return:
 
 `no_suitable_composition`.
-
-### Oscillating trend
-
-Return:
-
-`no_suitable_composition`
-
-unless the narration explicitly establishes a declining semantic state that can be represented by `time_decay`.
-
-Never use `time_decay` to visually imply growth.
-
-There is currently no registered upward-trend chart composition.
 
 The system will safely create a fallback when you return `no_suitable_composition`.
 
@@ -806,6 +808,86 @@ Do not invent intermediate steps.
 Do not turn a causal explanation into a process merely because it contains multiple sentences.
 
 --------------------------------------------------
+DIVERGENCE — trajectory_divergence
+--------------------------------------------------
+
+Use when two financial paths or strategies evolve in opposite directions from a common starting point over time, and the central viewer insight is the growing gap between them.
+
+NOT for static side-by-side comparisons at one point in time — use `comparison_split` for those.
+
+Fields:
+
+- `time_horizon`: Duration over which the divergence unfolds (required — e.g. '10 Years', '7 Years')
+- `baseline_label`: What both paths share at the start (e.g. '₹30,000 Monthly Commitment')
+- `path_a`: Favorable/growing path:
+  - `label`: Path name (e.g. 'Investor (Equity SIP)')
+  - `end_value`: Terminal value if stated in narration (e.g. '₹38 Lakh'). NEVER fabricate.
+  - `rate`: Return rate if explicitly stated (e.g. '12% CAGR'). NEVER fabricate.
+  - `direction`: 'up' | 'down' | 'neutral'
+  - `tone`: 'positive' | 'negative' | 'neutral'
+- `path_b`: Unfavorable/declining path (same fields as path_a)
+- `divergence_gap`: Explicit gap value if stated in narration (e.g. '₹32 Lakh Wealth Gap'). NEVER fabricate.
+- `header_label`: Category eyebrow, e.g. 'WEALTH ACCUMULATION DIVERGENCE'
+- `variant`: 'divergence' | 'wealth_gap' | 'cost_opportunity' | 'standard'
+
+Do not invent path end values, rates, or the gap amount.
+
+Do not use for a comparison that is purely static (no time evolution, no growing gap).
+
+--------------------------------------------------
+WATERFALL — cash_flow_waterfall
+--------------------------------------------------
+
+Use when a starting total resource (salary, corpus, revenue) is sequentially depleted by labeled deductions, and the residual after all deductions is the key viewer insight.
+
+NOT for a single arithmetic operation — use `calculation_story` for those.
+NOT for sequential procedural steps — use `process_flow` for those.
+
+Required:
+
+- `starting_label`: Label for the initial resource (e.g. 'Gross Monthly Salary', 'Starting Corpus')
+- `starting_value`: The initial total amount
+- `steps`: Ordered list of deductions (2–6 steps):
+  - `label`: Name of the deduction (e.g. 'Taxes', 'EMI Obligations')
+  - `value`: Signed string (e.g. '-₹1,50,000'). Negative values = deductions.
+  - `direction`: 'subtract' | 'add'
+  - `subtext`: Optional brief clarifying note (e.g. 'Direct Tax Code'). Never fabricate.
+
+Optional:
+
+- `final_value`: Remaining balance after all deductions. Only populate if derivable from explicit narration values or stated directly. NEVER fabricate.
+- `final_label`: Label for the remainder (e.g. 'Investable Surplus', 'Net Cash')
+- `header_label`: Category eyebrow, e.g. 'MONTHLY CASH FLOW'
+- `variant`: 'standard' | 'detailed' | 'compact'
+
+Steps must follow narration order. Do not invent intermediate balances or additional deduction categories.
+
+--------------------------------------------------
+GROWTH — growth_trajectory
+--------------------------------------------------
+
+Use for a single quantity, asset, corpus, or financial state growing upward over time (linear savings, compounding snowball, accelerating returns, milestone progression).
+
+Fields:
+
+- `header_label`: Category title, e.g. 'WEALTH ACCUMULATION', 'CORPUS GROWTH', 'COMPOUNDING TRAJECTORY'
+- `start_value`: Starting quantity if mentioned (e.g. '₹0', '₹50,000/mo', '₹10 Lakh')
+- `start_label`: Starting point label (e.g. 'Initial Savings', 'Base Corpus', 'Monthly Contribution')
+- `end_value`: Eventual / target quantity if mentioned (e.g. '₹10 Lakh', '₹1 Crore', '₹38 Lakh')
+- `end_label`: Target label (e.g. 'Target Corpus', 'Accumulated Wealth', 'Eventual Corpus')
+- `time_horizon`: Optional duration (e.g. '7 years', '10 years', 'over time')
+- `growth_rate`: Optional explicit rate if mentioned in narration (e.g. '12% Annual Return', '10% CAGR'). NEVER fabricate.
+- `growth_type`: 'linear' | 'accelerating' | 'compound' | 'unspecified'
+- `milestone_value`: Optional intermediate milestone (e.g. '₹10 Lakh', 'First ₹10 Lakh')
+- `milestone_label`: Optional milestone label (e.g. 'Inflection Point', 'Tipping Point', 'Snowball Begins')
+- `annotation`: Optional key insight or callout note
+- `variant`: 'linear_accumulation' | 'accelerating_growth' | 'compounding_snowball' | 'milestone_progression' | 'standard'
+
+Do not invent intermediate trajectory points.
+
+Do not invent annual returns or growth rates if not stated.
+
+--------------------------------------------------
 DECLINE — time_decay
 --------------------------------------------------
 
@@ -983,7 +1065,7 @@ Composition Assembly and Remotion handle rendering.
 NO LEGACY ARCHITECTURE
 ==================================================
 
-The active Composition Planner has exactly 9 registered compositions:
+The active Composition Planner has exactly 12 registered compositions:
 
 - `metric_hero`
 - `calculation_story`
@@ -992,6 +1074,9 @@ The active Composition Planner has exactly 9 registered compositions:
 - `ranked_list`
 - `process_flow`
 - `time_decay`
+- `growth_trajectory`
+- `trajectory_divergence`
+- `cash_flow_waterfall`
 - `multi_factor_pressure`
 - `broll_caption`
 

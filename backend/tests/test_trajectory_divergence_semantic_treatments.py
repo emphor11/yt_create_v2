@@ -16,6 +16,11 @@ try:
         TrajectoryDivergenceData,
         TrajectoryPath,
     )
+    from engines.composition_planner_engine import (
+        build_candidate_composition_data,
+        merge_factual_and_presentation_data,
+    )
+    from engines.video_assembly.composition_resolver import CompositionResolver
 except ImportError:
     pytest.skip("TrajectoryDivergenceData or ComparisonContext not yet registered", allow_module_level=True)
 
@@ -46,9 +51,10 @@ def test_trajectory_divergence_schema_accepts_valid_payload() -> None:
     )
     assert data.time_horizon == "10 Years"
     assert data.path_a.end_value == "₹38 Lakh"
-    assert data.path_b.end_value == "₹6 Lakh"
+    assert data.path_b.end_value == "₹6 Lakh Resale"
     assert data.divergence_gap == "₹32 Lakh Wealth Gap"
     assert data.variant == "wealth_gap"
+
 
 
 def test_trajectory_divergence_contract_gap_not_required() -> None:
