@@ -38,6 +38,7 @@ from engines.hook_engine import HookEngine
 from engines.script_visual_strategy_engine import ScriptVisualStrategyEngine
 from engines.visual_intent_engine import VisualIntentEngine
 from engines.composition_planner_engine import CompositionPlannerEngine
+from engines.composition_data_filler_engine import CompositionDataFillerEngine
 from engines.video_assembly_engine import VideoAssemblyEngine
 from engines.youtube_metadata_engine import YoutubeMetadataEngine
 from engines.thumbnail_engine import ThumbnailEngine
@@ -301,7 +302,13 @@ def build_pipeline_service(
             strategy_validator=ScriptVisualStrategyValidator(),
             stage_logger=stage_logger,
             visual_intent_engine=VisualIntentEngine(llm_provider) if llm_provider is not None else None,
-            composition_planner_engine=CompositionPlannerEngine(llm_provider) if llm_provider is not None else None,
+            composition_planner_engine=(
+                CompositionPlannerEngine(
+                    llm_provider,
+                    filler_engine=CompositionDataFillerEngine(llm_provider),
+                )
+                if llm_provider is not None else None
+            ),
         ),
         PipelineStage.QUALITY_REVIEW: QualityReviewHandler(
             store=store,

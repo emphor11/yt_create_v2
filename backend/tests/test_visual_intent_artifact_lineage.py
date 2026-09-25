@@ -25,12 +25,28 @@ from engines.composition_planner_engine import (
 )
 from engines.script_visual_strategy_engine import ScriptVisualStrategyResult
 from engines.visual_intent_engine import VisualIntentResult
-from providers.llm_provider import LLMProviderMetadata
+from providers.llm_provider import LLMJsonRequest, LLMJsonResponse, LLMProviderMetadata
 from domain.validators.script_visual_strategy_validator import ScriptVisualStrategyValidator
 
 
 def _metadata() -> LLMProviderMetadata:
     return LLMProviderMetadata(provider="test", model="test")
+
+
+class _CompositionFiller:
+    def generate_json(self, request: LLMJsonRequest) -> LLMJsonResponse:
+        if request.schema_name.endswith("metric_hero"):
+            payload = {"value": "₹50 lakh", "label": "Starting Portfolio"}
+        elif request.schema_name.endswith("calculation_story"):
+            payload = {
+                "input_label": "Investment",
+                "input_value": "₹10 lakh",
+                "result_label": "Ending Value",
+                "result_value": "₹20 lakh",
+            }
+        else:
+            payload = {"caption": "Numbers matter"}
+        return LLMJsonResponse(payload=payload, metadata=_metadata())
 
 
 def _save_prerequisites(store: ArtifactStore, project_id: str, run_id: str) -> None:
@@ -174,7 +190,7 @@ def test_visual_intent_artifact_persists_and_beats_reference_it(tmp_path: Path) 
         strategy_validator=ScriptVisualStrategyValidator(),
         stage_logger=StageLogger(),
         visual_intent_engine=StubIntentEngine(),  # type: ignore[arg-type]
-        composition_planner_engine=CompositionPlannerEngine(),
+        composition_planner_engine=CompositionPlannerEngine(llm_provider=_CompositionFiller()),  # type: ignore[arg-type]
     ).run(project.id, run.id)
 
     visual_artifact = store.find_artifact_by_type(project.id, run.id, "visual_intent")
@@ -194,6 +210,8 @@ def test_visual_intent_artifact_persists_and_beats_reference_it(tmp_path: Path) 
         assert beat["source_intent_id"] == intent_id
         assert beat["source_idea_id"] == idea_id
         assert beat["source_visual_intent_artifact_id"] == visual_artifact.id
+
+    assert body_beat["source_narration_excerpt"] == body_sequence.intents[0].narration_excerpt
 
     assert body_beat["composition_data"]["input_value"] == "₹10 lakh"
     assert body_beat["composition_data"]["result_value"] == "₹20 lakh"

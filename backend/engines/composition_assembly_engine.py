@@ -109,7 +109,7 @@ class CompositionAssemblyEngine:
                     asset_query = comp_beat.asset_query
                     notes = visual_goal
                     component_data = comp_beat.composition_data
-                    narration_text = hook.script_text
+                    narration_text = comp_beat.source_narration_excerpt or hook.script_text
 
                     # Resolve asset if required
                     unique_asset_id = f"asset_comp_hook_{interval.beat_index}_{interval.beat_id}"
@@ -160,7 +160,9 @@ class CompositionAssemblyEngine:
             else:
                 comp_idea = composition_plan.ideas[interval.section_index]
                 comp_beat = comp_idea.beats[interval.beat_index]
-                narration_text = comp_idea.narration
+                # New composition beats carry the exact persisted intent
+                # excerpt. Keep the full-idea fallback for legacy plans.
+                narration_text = comp_beat.source_narration_excerpt or comp_idea.narration
 
                 preferred_component = comp_beat.composition_id
                 visual_goal = comp_beat.visual_goal

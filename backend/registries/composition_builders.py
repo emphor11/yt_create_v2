@@ -711,7 +711,6 @@ def build_growth_trajectory_data(intent: VisualIntent) -> dict[str, Any]:
         "end_label": end_label,
         "growth_type": "linear",
         "variant": "standard",
-        "polarity": "positive",
     }
 
     rate_m = next((m for m in intent.measurements if m.role == "rate" and m not in (start_m, end_m)), None)

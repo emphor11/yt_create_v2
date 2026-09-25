@@ -36,6 +36,10 @@ class CompositionBeat(BaseModel):
         default=None,
         description="ArtifactStore ID of the persisted visual_intent source artifact.",
     )
+    source_narration_excerpt: str | None = Field(
+        default=None,
+        description="Verbatim narration excerpt from the source VisualIntent used for this beat.",
+    )
     composition_id: str = Field(
         description="A registered composition ID from CompositionRegistry. "
                     "e.g. 'metric_hero', 'calculation_story', 'broll_caption'."

@@ -70,7 +70,12 @@ class AssetRequirement(str, Enum):
 # Composition data models (one per composition)
 # ---------------------------------------------------------------------------
 
-class MetricHeroData(BaseModel):
+class StrictCompositionData(BaseModel):
+    """Composition payload base: filler responses may not contain extra fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+class MetricHeroData(StrictCompositionData):
     """
     A single important number/metric the viewer must register.
 
@@ -110,7 +115,7 @@ class MetricHeroData(BaseModel):
     )
 
 
-class CalculationStoryData(BaseModel):
+class CalculationStoryData(StrictCompositionData):
     """
     Shows an input × rate → result math argument, or input → result financial transformation.
 
@@ -159,7 +164,7 @@ class CalculationStoryData(BaseModel):
     )
 
 
-class CauseItem(BaseModel):
+class CauseItem(StrictCompositionData):
     label: str = Field(description="Short label for this cause, e.g. 'High Inflation'")
     value: str | None = Field(default=None, description="Optional value, e.g. '7%'")
     icon: str | None = Field(
@@ -168,7 +173,7 @@ class CauseItem(BaseModel):
     )
 
 
-class CauseEffectData(BaseModel):
+class CauseEffectData(StrictCompositionData):
     """
     Shows 1–3 causes converging to a single outcome.
 
@@ -206,7 +211,7 @@ class CauseEffectData(BaseModel):
     )
 
 
-class TimeDecayData(BaseModel):
+class TimeDecayData(StrictCompositionData):
     """
     Shows how a fixed amount or asset loses purchasing power or value over time.
 
@@ -261,7 +266,7 @@ class TimeDecayData(BaseModel):
     )
 
 
-class GrowthTrajectoryData(BaseModel):
+class GrowthTrajectoryData(StrictCompositionData):
     """
     Shows a single quantity, asset, corpus, or financial state evolving upward over time.
     Especially for illustrating the trajectory from early linear savings accumulation to
@@ -320,7 +325,7 @@ class GrowthTrajectoryData(BaseModel):
 
 
 
-class TrajectoryPath(BaseModel):
+class TrajectoryPath(StrictCompositionData):
     """
     One of two diverging paths in a TrajectoryDivergence composition.
     """
@@ -349,7 +354,7 @@ class TrajectoryPath(BaseModel):
     )
 
 
-class TrajectoryDivergenceData(BaseModel):
+class TrajectoryDivergenceData(StrictCompositionData):
     """
     Shows two financial paths or strategies evolving in opposite directions over time.
     One path improves (investing, equity, SIP) and one deteriorates (spending, debt, depreciation).
@@ -386,7 +391,7 @@ class TrajectoryDivergenceData(BaseModel):
     )
 
 
-class WaterfallStep(BaseModel):
+class WaterfallStep(StrictCompositionData):
     """
     A single deduction or adjustment step in a cash flow waterfall.
     """
@@ -410,7 +415,7 @@ class WaterfallStep(BaseModel):
     )
 
 
-class CashFlowWaterfallData(BaseModel):
+class CashFlowWaterfallData(StrictCompositionData):
     """
     Tracks a starting total resource (salary, corpus, capital) as it is depleted or
     adjusted by a sequence of labeled deductions, producing a final remaining balance.
@@ -446,7 +451,7 @@ class CashFlowWaterfallData(BaseModel):
     )
 
 
-class FactorItem(BaseModel):
+class FactorItem(StrictCompositionData):
     label: str = Field(description="Short label, e.g. 'High Inflation', 'Weak Returns'")
     value: str | None = Field(default=None, description="Optional value, e.g. '7%', '3%'")
     severity: str | None = Field(
@@ -459,7 +464,7 @@ class FactorItem(BaseModel):
     )
 
 
-class MultiFactorPressureData(BaseModel):
+class MultiFactorPressureData(StrictCompositionData):
     """
     Shows 2–4 independent factors converging to create combined pressure/risk.
 
@@ -497,7 +502,7 @@ class MultiFactorPressureData(BaseModel):
     )
 
 
-class BrollCaptionData(BaseModel):
+class BrollCaptionData(StrictCompositionData):
     """
     Fallback composition: B-roll/stock image with a caption.
 
@@ -531,7 +536,7 @@ class BrollCaptionData(BaseModel):
     )
 
 
-class ComparisonSplitData(BaseModel):
+class ComparisonSplitData(StrictCompositionData):
     """
     Shows a side-by-side comparison of two options, strategies, or values.
 
@@ -563,16 +568,17 @@ class ComparisonSplitData(BaseModel):
     )
 
 
-class RankedItem(BaseModel):
+class RankedItem(StrictCompositionData):
     title: str = Field(description="Item title or name, e.g. 'Housing', 'Automobile'")
     rank: int | str | None = Field(default=None, description="Rank number or label, e.g. 1, 2, '#1'")
     value: str | None = Field(default=None, description="Value or metric display string, e.g. '₹45,000', '40%'")
     subtitle: str | None = Field(default=None, description="Optional brief explanation or detail")
     numeric_value: float | None = Field(default=None, description="Optional raw number for relative bar scaling")
     badge: str | None = Field(default=None, description="Optional badge, e.g. 'Top Expense', 'Highest'")
+    change: str | None = Field(default=None, description="Optional change indicator, e.g. '+2', '-1', 'NEW'")
 
 
-class RankedListData(BaseModel):
+class RankedListData(StrictCompositionData):
     """
     Shows an ordered list of items ranked by magnitude, priority, or importance.
 
@@ -592,7 +598,7 @@ class RankedListData(BaseModel):
     )
 
 
-class ProcessStepItem(BaseModel):
+class ProcessStepItem(StrictCompositionData):
     title: str = Field(description="Step title or action name, e.g. 'Earn Income', 'Auto-Debit'")
     subtitle: str | None = Field(default=None, description="Optional brief detail about this step")
     type: str | None = Field(default="step", description="'step' | 'cause' | 'outcome'")
@@ -603,7 +609,7 @@ class ProcessStepItem(BaseModel):
     )
 
 
-class ProcessFlowData(BaseModel):
+class ProcessFlowData(StrictCompositionData):
     """
     Shows sequential steps in a procedure, workflow, or execution process.
 

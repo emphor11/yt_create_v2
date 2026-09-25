@@ -30,6 +30,10 @@ from providers.llm_provider import (
 )
 from registries.composition_registry import CompositionRegistry
 from engines.composition_selector import select_composition_for_intent, CompositionSelectionError
+from engines.composition_data_filler_engine import (
+    CompositionDataFillerEngine,
+    CompositionDataFillerError,
+)
 from registries.composition_builders import CompositionDataError
 from app.assets import load_prompt
 
@@ -1123,13 +1127,20 @@ class CompositionPlannerEngine:
     """
     Selects and validates a composition for one VisualIntent.
 
-    Pure deterministic registry-driven Python execution.
-    Returns a CompositionBeat ready for assembly with zero LLM calls.
+    Deterministic selector plus schema-scoped composition data filler.
+
+    Selection remains pure Python. The filler receives only the selected
+    composition schema and the persisted VisualIntent; missing or ungrounded
+    data fails the stage instead of falling back.
     """
 
-    def __init__(self, llm_provider: LLMProvider | None = None):
-        # Optional parameter preserved for backward-compatibility; never invoked in run()
+    def __init__(
+        self,
+        llm_provider: LLMProvider | None = None,
+        filler_engine: CompositionDataFillerEngine | None = None,
+    ):
         self.llm_provider = llm_provider
+        self.filler_engine = filler_engine or CompositionDataFillerEngine(llm_provider)
 
     def run(
         self,
@@ -1142,8 +1153,11 @@ class CompositionPlannerEngine:
         source_visual_intent_artifact_id: str | None = None,
     ) -> CompositionPlannerResult:
         """
-        Deterministically selects and builds a CompositionBeat for the given VisualIntent.
-        Zero LLM calls. Fact-locked to structured intent fields.
+        Selects a composition deterministically, then fills its exact schema
+        from the source VisualIntent. Unlinked calls retain the old
+        deterministic builder for compatibility with legacy callers; persisted
+        composition plans always pass source IDs and therefore require the
+        schema-scoped filler.
         Fail-fast: raises CompositionPlannerEngineError on any ambiguity, missing data, or validation failure.
         """
         # 1. Deterministic Selection
@@ -1159,9 +1173,9 @@ class CompositionPlannerEngine:
 
         # 2. Registry Lookup
         defn = CompositionRegistry.get(selected_id)
-        if defn is None or defn.builder is None:
+        if defn is None:
             raise CompositionPlannerEngineError(
-                f"No definition or builder registered for composition '{selected_id}'.",
+                f"No definition registered for composition '{selected_id}'.",
                 beat_id=beat_id,
                 relationship_type=intent.relationship_type,
                 composition_id=selected_id,
@@ -1176,41 +1190,78 @@ class CompositionPlannerEngine:
                 composition_id=selected_id,
             )
 
-        # 4. Authoritative Registry-Owned Deterministic Builder
-        try:
-            candidate_data = defn.builder(intent)
-        except CompositionDataError as exc:
-            raise CompositionPlannerEngineError(
-                f"Failed building data for composition '{selected_id}': {exc}",
-                beat_id=beat_id,
-                relationship_type=intent.relationship_type,
-                composition_id=selected_id,
-                cause=exc,
-            ) from exc
-        except Exception as exc:
-            raise CompositionPlannerEngineError(
-                f"Unexpected builder error for composition '{selected_id}': {exc}",
-                beat_id=beat_id,
-                relationship_type=intent.relationship_type,
-                composition_id=selected_id,
-                cause=exc,
-            ) from exc
-
-        # 5. Pydantic Model Validation against registered schema
-        is_valid, errors, validated_data = CompositionRegistry.validate_composition_data(
-            selected_id, candidate_data, visual_goal=intent.what_viewer_must_understand
-        )
-        if not is_valid:
-            raise CompositionPlannerEngineError(
-                f"Validation failed for composition '{selected_id}': {'; '.join(errors)}",
-                beat_id=beat_id,
-                relationship_type=intent.relationship_type,
-                composition_id=selected_id,
-                raw_payload=candidate_data,
+        # 4. New persisted path: the exact source IDs opt into LLM #2. The
+        # old builder remains only for callers that have not yet adopted the
+        # persisted VisualIntent contract.
+        if source_idea_id is not None or source_visual_intent_artifact_id is not None:
+            if source_idea_id is None or source_visual_intent_artifact_id is None:
+                raise CompositionPlannerEngineError(
+                    "Persisted composition planning requires both source_idea_id and "
+                    "source_visual_intent_artifact_id.",
+                    beat_id=beat_id,
+                    relationship_type=intent.relationship_type,
+                    composition_id=selected_id,
+                )
+            try:
+                filled = self.filler_engine.fill(
+                    intent=intent,
+                    composition=defn,
+                    source_artifact_id=source_visual_intent_artifact_id,
+                    source_idea_id=source_idea_id,
+                )
+            except CompositionDataFillerError as exc:
+                raise CompositionPlannerEngineError(
+                    f"Failed filling data for composition '{selected_id}': {exc}",
+                    beat_id=beat_id,
+                    relationship_type=intent.relationship_type,
+                    composition_id=selected_id,
+                    cause=exc,
+                ) from exc
+            validated_data = filled.composition_data
+            provider_metadata = filled.provider_metadata
+            raw_payload = filled.raw_payload
+        else:
+            if defn.builder is None:
+                raise CompositionPlannerEngineError(
+                    f"No filler or legacy builder registered for composition '{selected_id}'.",
+                    beat_id=beat_id,
+                    relationship_type=intent.relationship_type,
+                    composition_id=selected_id,
+                )
+            try:
+                candidate_data = defn.builder(intent)
+            except CompositionDataError as exc:
+                raise CompositionPlannerEngineError(
+                    f"Failed building data for composition '{selected_id}': {exc}",
+                    beat_id=beat_id,
+                    relationship_type=intent.relationship_type,
+                    composition_id=selected_id,
+                    cause=exc,
+                ) from exc
+            except Exception as exc:
+                raise CompositionPlannerEngineError(
+                    f"Unexpected builder error for composition '{selected_id}': {exc}",
+                    beat_id=beat_id,
+                    relationship_type=intent.relationship_type,
+                    composition_id=selected_id,
+                    cause=exc,
+                ) from exc
+            is_valid, errors, validated_data = CompositionRegistry.validate_composition_data(
+                selected_id, candidate_data, visual_goal=intent.what_viewer_must_understand
             )
+            if not is_valid:
+                raise CompositionPlannerEngineError(
+                    f"Validation failed for composition '{selected_id}': {'; '.join(errors)}",
+                    beat_id=beat_id,
+                    relationship_type=intent.relationship_type,
+                    composition_id=selected_id,
+                    raw_payload=candidate_data,
+                )
+            provider_metadata = LLMProviderMetadata(provider="deterministic_python", model="legacy_builder_v1")
+            raw_payload = validated_data
 
         # 6. Variant Verification
-        variant = candidate_data.get("variant")
+        variant = validated_data.get("variant")
         if variant is not None and defn.allowed_variants and variant not in defn.allowed_variants:
             variant = None
 
@@ -1228,6 +1279,7 @@ class CompositionPlannerEngine:
             source_intent_id=intent.intent_id if source_idea_id is not None else None,
             source_idea_id=source_idea_id,
             source_visual_intent_artifact_id=source_visual_intent_artifact_id,
+            source_narration_excerpt=intent.narration_excerpt,
             composition_id=selected_id,
             variant=variant,
             composition_data=validated_data,
@@ -1242,8 +1294,8 @@ class CompositionPlannerEngine:
 
         return CompositionPlannerResult(
             beat=beat,
-            provider_metadata=LLMProviderMetadata(provider="deterministic_python", model="registry_v1"),
-            raw_payload=validated_data,
+            provider_metadata=provider_metadata,
+            raw_payload=raw_payload,
             used_fallback=False,
             fallback_reason=None,
         )
