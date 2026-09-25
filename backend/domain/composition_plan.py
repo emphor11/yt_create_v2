@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class CompositionBeat(BaseModel):
@@ -24,6 +24,18 @@ class CompositionBeat(BaseModel):
     """
 
     beat_id: str = Field(description="Sequential: beat_01, beat_02, ...")
+    source_intent_id: str | None = Field(
+        default=None,
+        description="The exact VisualIntent.intent_id that produced this beat.",
+    )
+    source_idea_id: str | None = Field(
+        default=None,
+        description="The VisualIntentSequence.idea_id containing source_intent_id.",
+    )
+    source_visual_intent_artifact_id: str | None = Field(
+        default=None,
+        description="ArtifactStore ID of the persisted visual_intent source artifact.",
+    )
     composition_id: str = Field(
         description="A registered composition ID from CompositionRegistry. "
                     "e.g. 'metric_hero', 'calculation_story', 'broll_caption'."
@@ -67,6 +79,22 @@ class CompositionBeat(BaseModel):
         default=None,
         description="Detailed reason if this beat was created via fallback (e.g. 'no_suitable_composition', 'validation_error').",
     )
+
+    @model_validator(mode="after")
+    def validate_source_reference(self) -> "CompositionBeat":
+        source_fields = (
+            self.source_intent_id,
+            self.source_idea_id,
+            self.source_visual_intent_artifact_id,
+        )
+        if any(value is not None for value in source_fields) and not all(
+            isinstance(value, str) and value.strip() for value in source_fields
+        ):
+            raise ValueError(
+                "CompositionBeat source reference requires source_intent_id, "
+                "source_idea_id, and source_visual_intent_artifact_id together."
+            )
+        return self
 
 
 class HookCompositionPlan(BaseModel):

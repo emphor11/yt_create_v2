@@ -1138,6 +1138,8 @@ class CompositionPlannerEngine:
         beat_id: str,
         topic: str = "",
         audience: str = "",
+        source_idea_id: str | None = None,
+        source_visual_intent_artifact_id: str | None = None,
     ) -> CompositionPlannerResult:
         """
         Deterministically selects and builds a CompositionBeat for the given VisualIntent.
@@ -1223,6 +1225,9 @@ class CompositionPlannerEngine:
         # 8. Construct Beat (Fail-fast deterministic path never uses fallback)
         beat = CompositionBeat(
             beat_id=beat_id,
+            source_intent_id=intent.intent_id if source_idea_id is not None else None,
+            source_idea_id=source_idea_id,
+            source_visual_intent_artifact_id=source_visual_intent_artifact_id,
             composition_id=selected_id,
             variant=variant,
             composition_data=validated_data,
