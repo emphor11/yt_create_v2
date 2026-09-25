@@ -174,6 +174,10 @@ def test_merge_preserves_calculation_story_semantics_and_facts():
         narration_excerpt="Gross income minus tax leaves net take home.",
         what_viewer_must_understand="Taxes reduce take home pay.",
         relationship_type="calculation",
+        measurements=[
+            QuantitativeMeasurement(raw_value="₹1,00,000", role="input", metric_name="Gross Income"),
+            QuantitativeMeasurement(raw_value="net take home", role="result", metric_name="Net Take-Home"),
+        ],
     )
     merged = merge_factual_and_presentation_data("calculation_story", candidate_facts, llm_data, intent)
     # Numerical facts locked

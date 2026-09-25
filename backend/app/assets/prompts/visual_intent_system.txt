@@ -170,24 +170,24 @@ A sentence may be visually relevant even if it is transitional.
 Judge the semantic meaning, not merely the wording.
 
 ==================================================
-NARRATION EXCERPT — STRICT EXTRACTION
+NARRATION EXCERPT — STRICT EXTRACTION CONTRACT
 ==================================================
 
-`narration_excerpt` MUST be a contiguous, verbatim excerpt from the supplied narration.
+`narration_excerpt` MUST be a **verbatim contiguous substring** of the supplied narration.
 
-Do not paraphrase it.
+HARD RULES (enforced by the pipeline — violations will be rejected):
 
-Do not rewrite it.
+1. **Verbatim**: Copy the exact characters from the narration. Do not paraphrase, rewrite, summarize, or clean up.
 
-Do not summarize it.
+2. **Contiguous**: A single unbroken span. Do not combine non-contiguous pieces from different parts of the narration.
 
-Do not clean it up.
+3. **Ordered**: Excerpts across intents must appear in the same order they appear in the narration. You cannot use a later portion of the narration as an earlier intent's excerpt.
 
-Do not combine non-contiguous pieces.
+4. **Non-overlapping**: Each word in the narration belongs to at most one intent's excerpt. Do not repeat the same sentence in two intents.
 
-Every intent must map to an actual spoken portion of the narration.
+5. **Grounded**: Every intent must map to an actual spoken portion of the narration. Do not invent excerpt text.
 
-The excerpt should contain the semantic span that the visual intent represents.
+The excerpt should contain the semantic span that the visual intent represents. It may be one sentence or several adjacent sentences when they describe the same visual state.
 
 ==================================================
 WHAT_VIEWER_MUST_UNDERSTAND
@@ -575,11 +575,19 @@ Each measurement must contain:
 
 ### raw_value
 
-Copy the value as it appears in the narration.
+**GROUNDING RULE** (enforced by the pipeline — violations will be rejected):
+
+`raw_value` must be the **exact token** from the narration as spoken — the verbatim string that appears in `narration_excerpt`.
+
+- Do NOT invent values not present in the narration.
+- Do NOT normalize, convert, or reformat the narration token.
+- Do NOT compute derived values (e.g. if the narration says "₹50 lakh" and "6%", do not compute "₹3 lakh" and call it a raw_value unless the narration explicitly states it).
 
 Example:
 
-`₹50 lakh`
+If narration says "₹50 lakh", `raw_value` must be `"₹50 lakh"`.
+
+If narration says "six percent", `raw_value` must be `"six percent"`.
 
 ### entity_name
 
@@ -768,7 +776,13 @@ If the narration contains no meaningful temporal information:
 CAUSAL
 ==================================================
 
-Populate `causal` ONLY for `cause_effect` or `multi_factor` relationships where causality is actually expressed.
+Populate `causal` ONLY for `cause_effect` or `multi_factor` relationships.
+
+**MANDATORY CONTRACT** (violations will be rejected by the pipeline):
+
+- If `relationship_type` is `cause_effect`: `causal` MUST be non-null. You MUST populate at least 1 cause and a non-empty outcome.
+- If `relationship_type` is `multi_factor`: `causal` MUST be non-null. You MUST populate at least 2 independent causes and a non-empty outcome.
+- If you cannot identify explicit causes AND an explicit outcome from the narration, reclassify the `relationship_type` — do not leave `causal=null` for these types.
 
 The object contains:
 
@@ -779,7 +793,10 @@ The object contains:
 
 ### causes
 
-List the explicit causes from the narration.
+List the explicit causes **from the narration**. Do not infer causes from general knowledge.
+
+- `cause_effect`: minimum 1 cause
+- `multi_factor`: minimum 2 independent causes
 
 ### mechanism
 
@@ -789,7 +806,7 @@ Do not invent a mechanism from external knowledge.
 
 ### outcome
 
-State the resulting outcome expressed in the narration.
+State the resulting outcome **expressed in the narration**. Must be non-empty for cause_effect and multi_factor.
 
 ### outcome_severity
 
@@ -812,7 +829,7 @@ If the severity is not explicitly supported:
 
 use `neutral`.
 
-If there is no causal relationship:
+If there is no causal relationship (i.e. relationship_type is NOT cause_effect or multi_factor):
 
 `causal = null`
 

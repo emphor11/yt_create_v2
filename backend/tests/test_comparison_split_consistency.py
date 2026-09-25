@@ -144,6 +144,13 @@ def test_comparison_split_planner_merge_preserves_new_fields() -> None:
         narration_excerpt="Comparing FD with debt funds.",
         what_viewer_must_understand="Debt funds yield higher returns than traditional FDs.",
         relationship_type="comparison",
+        comparison=ComparisonStructure(
+            subject_a="Fixed Deposit",
+            value_a="6%",
+            subject_b="Debt Fund",
+            value_b="8%",
+            comparison_dimension="Yield",
+        ),
     )
     merged = merge_factual_and_presentation_data("comparison_split", candidate, llm_result, intent)
     assert merged["header_label"] == "YIELD BENCHMARK"

@@ -1,8 +1,9 @@
 """Tests for CompositionPlannerEngine."""
 import pytest
+from pydantic import ValidationError
 
-from domain.visual_intent import VisualIntent
-from engines.composition_planner_engine import CompositionPlannerEngine, CompositionPlannerResult
+from domain.visual_intent import VisualIntent, SemanticEntity, QuantitativeMeasurement
+from engines.composition_planner_engine import CompositionPlannerEngine, CompositionPlannerResult, CompositionPlannerEngineError
 from providers.llm_provider import LLMJsonRequest, LLMJsonResponse, LLMProviderMetadata, LLMProviderError
 
 
@@ -30,6 +31,9 @@ def make_metric_intent(trigger_word: str | None = None) -> VisualIntent:
         relationship_type="metric",
         emphasis="hero",
         trigger_word=trigger_word,
+        measurements=[
+            QuantitativeMeasurement(raw_value="₹50 lakh", metric_name="Starting Retirement Portfolio", role="input")
+        ],
     )
 
 
@@ -95,7 +99,7 @@ def test_planner_returns_fallback_on_no_suitable_composition() -> None:
     response = {"status": "no_suitable_composition", "reason": "No infographic fits this."}
     provider = StaticLLMProvider(response)
     engine = CompositionPlannerEngine(provider)
-    result = engine.run(intent=make_statement_intent(), beat_id="beat_03")
+    result = engine._run_legacy_llm(intent=make_statement_intent(), beat_id="beat_03")
     assert result.used_fallback is True
     assert result.beat.composition_id == "broll_caption"
     assert result.beat.beat_id == "beat_03"
@@ -110,7 +114,7 @@ def test_planner_returns_fallback_on_unknown_composition_id() -> None:
     }
     provider = StaticLLMProvider(response)
     engine = CompositionPlannerEngine(provider)
-    result = engine.run(intent=make_metric_intent(), beat_id="beat_04")
+    result = engine._run_legacy_llm(intent=make_metric_intent(), beat_id="beat_04")
     assert result.used_fallback is True
     assert result.beat.composition_id == "broll_caption"
 
@@ -124,7 +128,14 @@ def test_planner_returns_fallback_on_missing_required_composition_data() -> None
     }
     provider = StaticLLMProvider(response)
     engine = CompositionPlannerEngine(provider)
-    result = engine.run(intent=make_metric_intent(), beat_id="beat_05")
+    intent = VisualIntent(
+        intent_id="intent_no_label",
+        narration_excerpt="Imagine ₹50 lakh.",
+        what_viewer_must_understand="₹50 lakh.",
+        key_values=["₹50 lakh"],
+        relationship_type="metric",
+    )
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_05")
     assert result.used_fallback is True
     assert result.beat.composition_id == "broll_caption"
 
@@ -132,7 +143,7 @@ def test_planner_returns_fallback_on_missing_required_composition_data() -> None
 def test_planner_returns_fallback_on_llm_provider_error() -> None:
     provider = StaticLLMProvider(LLMProviderError("LLM unreachable"))
     engine = CompositionPlannerEngine(provider)
-    result = engine.run(intent=make_metric_intent(), beat_id="beat_06")
+    result = engine._run_legacy_llm(intent=make_metric_intent(), beat_id="beat_06")
     assert result.used_fallback is True
     assert result.beat.composition_id == "broll_caption"
 
@@ -153,7 +164,7 @@ def test_planner_drops_invalid_variant_silently() -> None:
     response["variant"] = "nonexistent_variant"
     provider = StaticLLMProvider(response)
     engine = CompositionPlannerEngine(provider)
-    result = engine.run(intent=make_metric_intent(), beat_id="beat_08")
+    result = engine._run_legacy_llm(intent=make_metric_intent(), beat_id="beat_08")
     # Should still succeed (not fallback), but variant should be null
     assert result.used_fallback is False
     assert result.beat.variant is None
@@ -164,7 +175,7 @@ def test_planner_accepts_valid_variant() -> None:
     response["variant"] = "supporting"  # valid for metric_hero
     provider = StaticLLMProvider(response)
     engine = CompositionPlannerEngine(provider)
-    result = engine.run(intent=make_metric_intent(), beat_id="beat_09")
+    result = engine._run_legacy_llm(intent=make_metric_intent(), beat_id="beat_09")
     assert result.used_fallback is False
     assert result.beat.variant == "supporting"
 
@@ -174,7 +185,7 @@ def test_planner_accepts_valid_variant() -> None:
 def test_planner_uses_low_temperature() -> None:
     provider = StaticLLMProvider(valid_metric_hero_response())
     engine = CompositionPlannerEngine(provider)
-    engine.run(intent=make_metric_intent(), beat_id="beat_01")
+    engine._run_legacy_llm(intent=make_metric_intent(), beat_id="beat_01")
     assert provider.last_request is not None
     assert provider.last_request.temperature <= 0.2
 
@@ -183,7 +194,7 @@ def test_planner_schema_contains_all_registered_ids() -> None:
     from registries.composition_registry import CompositionRegistry
     provider = StaticLLMProvider(valid_metric_hero_response())
     engine = CompositionPlannerEngine(provider)
-    engine.run(intent=make_metric_intent(), beat_id="beat_01")
+    engine._run_legacy_llm(intent=make_metric_intent(), beat_id="beat_01")
     assert provider.last_request is not None
     schema = provider.last_request.response_schema
     found_ids = set()
@@ -197,7 +208,7 @@ def test_planner_schema_contains_all_registered_ids() -> None:
 def test_planner_prompt_contains_catalog() -> None:
     provider = StaticLLMProvider(valid_metric_hero_response())
     engine = CompositionPlannerEngine(provider)
-    engine.run(intent=make_metric_intent(), beat_id="beat_01", topic="Retirement")
+    engine._run_legacy_llm(intent=make_metric_intent(), beat_id="beat_01", topic="Retirement")
     assert provider.last_request is not None
     system_msg = provider.last_request.messages[0].content
     assert "metric_hero" in system_msg
@@ -234,8 +245,13 @@ def test_planner_returns_valid_beat_for_calculation_story() -> None:
         key_values=["₹50 lakh", "4%", "₹2 lakh"],
         relationship_type="calculation",
         trigger_word="withdrawal",
+        measurements=[
+            QuantitativeMeasurement(raw_value="₹50 lakh", role="input", metric_name="Portfolio"),
+            QuantitativeMeasurement(raw_value="4%", role="rate", metric_name="Withdrawal Rate"),
+            QuantitativeMeasurement(raw_value="₹2 lakh", role="result", metric_name="Annual Income"),
+        ],
     )
-    result = engine.run(intent=intent, beat_id="beat_calc_01")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_calc_01")
     assert result.used_fallback is False
     assert result.beat.composition_id == "calculation_story"
     assert result.beat.composition_data["input_label"] == "Portfolio"
@@ -247,29 +263,23 @@ def test_planner_returns_valid_beat_for_calculation_story() -> None:
     assert result.beat.composition_data["note"] == "Safe Withdrawal Rate"
 
 
-def test_planner_rejects_missing_calculation_story_required_fields_and_falls_back() -> None:
-    response = {
-        "status": "ok",
-        "composition_id": "calculation_story",
-        "composition_data": {
-            "input_label": "Portfolio",
-            "input_value": "₹50 lakh",
-            # Missing operation_label, rate_label, result_label, result_value
-        },
-        "visual_goal": "Calculate income",
-    }
-    provider = StaticLLMProvider(response)
-    engine = CompositionPlannerEngine(provider)
+def test_planner_rejects_missing_calculation_story_required_fields_and_fails_fast() -> None:
+    engine = CompositionPlannerEngine()
     intent = VisualIntent(
         intent_id="intent_calc_err",
         narration_excerpt="A four percent withdrawal.",
         what_viewer_must_understand="Calculate 4%",
         key_values=["4%"],
         relationship_type="calculation",
+        measurements=[
+            # Missing metric_name and entity_name: passes Stage 1 sufficiency, but fails Stage 2 calculation_story eligibility
+            QuantitativeMeasurement(raw_value="50L", role="input"),
+            QuantitativeMeasurement(raw_value="2L", role="result"),
+        ],
     )
-    result = engine.run(intent=intent, beat_id="beat_calc_err")
-    assert result.used_fallback is True
-    assert result.beat.composition_id == "broll_caption"
+    with pytest.raises(CompositionPlannerEngineError) as exc_info:
+        engine.run(intent=intent, beat_id="beat_calc_err")
+    assert "not eligible for composition 'calculation_story'" in str(exc_info.value)
 
 
 def test_planner_returns_valid_beat_for_broll_caption() -> None:
@@ -290,7 +300,7 @@ def test_planner_returns_valid_beat_for_broll_caption() -> None:
     provider = StaticLLMProvider(response)
     engine = CompositionPlannerEngine(provider)
     intent = make_statement_intent()
-    result = engine.run(intent=intent, beat_id="beat_broll_01")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_broll_01")
     assert result.used_fallback is False
     assert result.beat.composition_id == "broll_caption"
     assert result.beat.composition_data["caption"] == "The journey is not as simple as it looks."

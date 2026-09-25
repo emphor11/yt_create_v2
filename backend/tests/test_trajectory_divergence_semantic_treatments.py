@@ -169,6 +169,14 @@ def test_merge_preserves_trajectory_divergence_facts() -> None:
         narration_excerpt="Wealth divergence over 15 years",
         what_viewer_must_understand="Wealth divergence",
         relationship_type="divergence",
+        temporal=TemporalContext(horizon="15 Years"),
+        comparison=ComparisonContext(
+            subject_a="Index Fund SIP",
+            value_a="₹1 Crore",
+            subject_b="Fixed Deposit",
+            value_b="₹35 Lakh",
+            comparison_dimension="Wealth Gap",
+        ),
     )
 
     merged = merge_factual_and_presentation_data(

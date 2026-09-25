@@ -132,6 +132,10 @@ def test_merge_factual_and_presentation_preserves_new_fields() -> None:
         narration_excerpt="Direct Fact Cause triggers Factual Outcome.",
         what_viewer_must_understand="Causal mechanism.",
         relationship_type="cause_effect",
+        causal=CausalStructure(
+            causes=["Direct Fact Cause"],
+            outcome="Factual Outcome",
+        ),
     )
     candidate_facts = {
         "causes": [{"label": "Direct Fact Cause", "value": "10%"}],

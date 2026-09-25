@@ -114,7 +114,7 @@ def test_calculation_story_preserves_llm_refined_operation_wording() -> None:
     }
 
     engine = CompositionPlannerEngine(MockLLMProvider(llm_payload))
-    result = engine.run(intent=intent, beat_id="beat_01")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_01")
 
     assert result.used_fallback is False
     beat_data = result.beat.composition_data
@@ -354,7 +354,7 @@ def test_planner_engine_run_with_rich_intent_and_dummy_narration() -> None:
     }
 
     engine = CompositionPlannerEngine(MockLLMProvider(llm_payload))
-    result = engine.run(intent=intent, beat_id="beat_01")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_01")
 
     assert result.used_fallback is False
     assert result.beat.composition_id == "comparison_split"

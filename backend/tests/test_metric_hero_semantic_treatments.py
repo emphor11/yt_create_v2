@@ -79,6 +79,7 @@ def test_merge_preserves_metric_hero_semantics():
         narration_excerpt="Purchasing power dropped to ₹26.",
         what_viewer_must_understand="Purchasing power drops to ₹26.",
         relationship_type="metric",
+        key_values=["₹26"],
     )
     merged = merge_factual_and_presentation_data("metric_hero", candidate_facts, llm_data, intent)
     # Factual value is locked

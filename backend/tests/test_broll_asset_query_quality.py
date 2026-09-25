@@ -133,12 +133,14 @@ def test_build_fallback_asset_query_from_narration_clusters() -> None:
 def test_make_fallback_beat_never_truncates_narration() -> None:
     """Verifies that _make_fallback_beat produces a concrete query and NEVER narration_excerpt[:60]."""
     long_narration = "The monthly installment is only the visible surface of a much larger financial drain."
+    # 'statement' is the correct relationship_type here: the narration makes a claim
+    # with no quantitative structure (no measurements, no calculation operands/result).
     intent = VisualIntent(
         intent_id="intent_02_01",
         narration_excerpt=long_narration,
         what_viewer_must_understand="The monthly installment is only the visible surface of a much larger financial drain.",
         key_values=["₹25,000"],
-        relationship_type="calculation",
+        relationship_type="statement",
     )
     beat = _make_fallback_beat(intent, beat_id="beat_02_01", fallback_reason="validation_error", topic="Car Loans")
 
@@ -182,12 +184,16 @@ def test_composition_planner_handles_null_or_invalid_asset_query_gracefully() ->
 
 def test_composition_planner_nulls_asset_query_for_infographics() -> None:
     """Infographic compositions must strictly have asset_query=None even if LLM generated a string."""
+    from domain.visual_intent import QuantitativeMeasurement
     intent = VisualIntent(
         intent_id="intent_01_02",
         narration_excerpt="40% of salary locked in car payment.",
         what_viewer_must_understand="40% of salary is committed.",
         key_values=["40%"],
         relationship_type="metric",
+        measurements=[
+            QuantitativeMeasurement(raw_value="40%", metric_name="Salary Locked in Car", role="input")
+        ],
     )
     payload = {
         "status": "ok",

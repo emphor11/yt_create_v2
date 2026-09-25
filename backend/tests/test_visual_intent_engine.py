@@ -1,7 +1,16 @@
 """Tests for VisualIntentEngine."""
 import pytest
 
-from domain.visual_intent import VALID_RELATIONSHIP_TYPES, VisualIntent, VisualIntentSequence
+from domain.visual_intent import (
+    VALID_RELATIONSHIP_TYPES,
+    VisualIntent,
+    VisualIntentSequence,
+    CausalStructure,
+    ComparisonStructure,
+    SemanticEntity,
+    TemporalContext,
+    QuantitativeMeasurement,
+)
 from engines.visual_intent_engine import VisualIntentEngine, VisualIntentEngineError
 from providers.llm_provider import LLMJsonRequest, LLMJsonResponse, LLMProviderMetadata, LLMProviderError
 
@@ -36,10 +45,10 @@ def valid_payload(idea_id: str = "idea_01") -> dict:
             },
             {
                 "intent_id": "intent_02",
-                "narration_excerpt": "You withdraw 4% every year, giving you ₹2 lakh.",
-                "what_viewer_must_understand": "4% of ₹50 lakh equals ₹2 lakh annually.",
-                "key_values": ["4%", "₹50 lakh", "₹2 lakh"],
-                "relationship_type": "calculation",
+                "narration_excerpt": "You withdraw 4% every year.",
+                "what_viewer_must_understand": "4% annual withdrawal strategy.",
+                "key_values": ["4%"],
+                "relationship_type": "statement",
                 "emphasis": "show_result",
                 "trigger_word": "withdraw",
             },
@@ -61,12 +70,45 @@ def test_visual_intent_rejects_invalid_relationship_type() -> None:
 
 def test_visual_intent_accepts_all_valid_relationship_types() -> None:
     for rt in VALID_RELATIONSHIP_TYPES:
-        intent = VisualIntent(
-            intent_id="intent_01",
-            narration_excerpt="Some text",
-            what_viewer_must_understand="Something",
-            relationship_type=rt,
-        )
+        kwargs: dict = {
+            "intent_id": "intent_01",
+            "narration_excerpt": "Some text",
+            "what_viewer_must_understand": "Something",
+            "relationship_type": rt,
+        }
+        if rt == "cause_effect":
+            kwargs["causal"] = CausalStructure(causes=["Cause"], outcome="Outcome")
+        elif rt == "multi_factor":
+            kwargs["causal"] = CausalStructure(causes=["Cause 1", "Cause 2"], outcome="Outcome")
+        elif rt == "comparison":
+            kwargs["comparison"] = ComparisonStructure(
+                subject_a="A", value_a="1", subject_b="B", value_b="2", comparison_dimension="Dim"
+            )
+        elif rt == "divergence":
+            kwargs["temporal"] = TemporalContext(horizon="10 years")
+            kwargs["comparison"] = ComparisonStructure(
+                subject_a="A", value_a="1", subject_b="B", value_b="2", comparison_dimension="Dim"
+            )
+        elif rt == "metric":
+            kwargs["key_values"] = ["10%"]
+        elif rt == "calculation":
+            kwargs["measurements"] = [
+                QuantitativeMeasurement(raw_value="10", role="input"),
+                QuantitativeMeasurement(raw_value="20", role="result"),
+            ]
+        elif rt == "growth":
+            kwargs["temporal"] = TemporalContext(horizon="10 years")
+        elif rt == "decline":
+            kwargs["temporal"] = TemporalContext(horizon="10 years", is_decay_over_time=True)
+        elif rt == "trend":
+            kwargs["temporal"] = TemporalContext(horizon="10 years")
+        elif rt in ("ranking", "process"):
+            kwargs["entities"] = [
+                SemanticEntity(name="E1"),
+                SemanticEntity(name="E2"),
+            ]
+
+        intent = VisualIntent(**kwargs)
         assert intent.relationship_type == rt
 
 
@@ -75,7 +117,7 @@ def test_visual_intent_defaults() -> None:
         intent_id="intent_01",
         narration_excerpt="Some text",
         what_viewer_must_understand="Something",
-        relationship_type="metric",
+        relationship_type="statement",
     )
     assert intent.key_values == []
     assert intent.emphasis is None
@@ -245,7 +287,7 @@ def test_engine_injects_pacing_budget_for_body_idea() -> None:
     """Verifies that non-hook ideas receive PACING BUDGET in the user prompt."""
     provider = StaticLLMProvider(valid_payload())
     engine = VisualIntentEngine(provider)
-    narration_75 = "Imagine you retire with fifty lakh rupees and you withdraw four percent every year. " + " ".join(["word"] * 60)
+    narration_75 = "Imagine you retire with ₹50 lakh. You withdraw 4% every year. " + " ".join(["word"] * 65)
     words = len(narration_75.split())
 
     result = engine.run(
@@ -271,7 +313,7 @@ def test_engine_preserves_hook_specific_constraints() -> None:
     """Verifies that hook mode receives HOOK-SPECIFIC CONSTRAINTS and NOT body pacing budget."""
     provider = StaticLLMProvider(valid_payload("hook"))
     engine = VisualIntentEngine(provider)
-    hook_narration = "Imagine you retire with fifty lakh rupees and you withdraw four percent every year."
+    hook_narration = "Imagine you retire with ₹50 lakh. You withdraw 4% every year."
 
     result = engine.run(
         idea_id="hook",
@@ -294,7 +336,7 @@ def test_engine_pacing_diagnostic_detects_underproduction() -> None:
     # 75 words expects min 4 beats, but payload only has 2
     provider = StaticLLMProvider(valid_payload())
     engine = VisualIntentEngine(provider)
-    narration_75 = "Imagine you retire with fifty lakh and you withdraw four percent. " + " ".join(["word"] * 64)
+    narration_75 = "Imagine you retire with ₹50 lakh. You withdraw 4% every year. " + " ".join(["word"] * 65)
 
     result = engine.run(
         idea_id="idea_01",

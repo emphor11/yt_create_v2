@@ -21,10 +21,39 @@ Adding a new composition requires:
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from domain.visual_intent import VisualIntent
+from registries.composition_builders import (
+    build_broll_caption_data,
+    build_calculation_story_data,
+    build_cash_flow_waterfall_data,
+    build_cause_effect_data,
+    build_comparison_split_data,
+    build_growth_trajectory_data,
+    build_metric_hero_data,
+    build_multi_factor_pressure_data,
+    build_process_flow_data,
+    build_ranked_list_data,
+    build_time_decay_data,
+    build_trajectory_divergence_data,
+    is_eligible_broll_caption,
+    is_eligible_calculation_story,
+    is_eligible_cash_flow_waterfall,
+    is_eligible_cause_effect,
+    is_eligible_comparison_split,
+    is_eligible_growth_trajectory,
+    is_eligible_metric_hero,
+    is_eligible_multi_factor_pressure,
+    is_eligible_process_flow,
+    is_eligible_ranked_list,
+    is_eligible_time_decay,
+    is_eligible_trajectory_divergence,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -610,6 +639,8 @@ class CompositionDefinition(BaseModel):
     asset_requirement: AssetRequirement
     remotion_component_id: str  # matching TSX component name
     fallback_component_id: str  # legacy component used if composition fails
+    builder: Callable[[VisualIntent], dict[str, Any]] | None = None
+    is_eligible: Callable[[VisualIntent], bool] | None = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -881,6 +912,8 @@ CompositionRegistry.register(
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="MetricHero",
         fallback_component_id="NumberCounter",
+        builder=build_metric_hero_data,
+        is_eligible=is_eligible_metric_hero,
     )
 )
 
@@ -902,6 +935,8 @@ CompositionRegistry.register(
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="CalculationStory",
         fallback_component_id="SplitComparison",
+        builder=build_calculation_story_data,
+        is_eligible=is_eligible_calculation_story,
     )
 )
 
@@ -916,6 +951,8 @@ CompositionRegistry.register(
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="CauseEffect",
         fallback_component_id="ProcessFlow",
+        builder=build_cause_effect_data,
+        is_eligible=is_eligible_cause_effect,
     )
 )
 
@@ -930,6 +967,8 @@ CompositionRegistry.register(
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="SplitComparison",
         fallback_component_id="Typography",
+        builder=build_comparison_split_data,
+        is_eligible=is_eligible_comparison_split,
     )
 )
 
@@ -944,6 +983,8 @@ CompositionRegistry.register(
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="RankedList",
         fallback_component_id="Typography",
+        builder=build_ranked_list_data,
+        is_eligible=is_eligible_ranked_list,
     )
 )
 
@@ -958,6 +999,8 @@ CompositionRegistry.register(
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="ProcessFlow",
         fallback_component_id="Typography",
+        builder=build_process_flow_data,
+        is_eligible=is_eligible_process_flow,
     )
 )
 
@@ -978,6 +1021,8 @@ CompositionRegistry.register(
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="TimeDecay",
         fallback_component_id="Charts",
+        builder=build_time_decay_data,
+        is_eligible=is_eligible_time_decay,
     )
 )
 
@@ -998,9 +1043,10 @@ CompositionRegistry.register(
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="GrowthTrajectory",
         fallback_component_id="Charts",
+        builder=build_growth_trajectory_data,
+        is_eligible=is_eligible_growth_trajectory,
     )
 )
-
 
 CompositionRegistry.register(
     CompositionDefinition(
@@ -1013,6 +1059,8 @@ CompositionRegistry.register(
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="MultiFactorPressure",
         fallback_component_id="ProgressiveList",
+        builder=build_multi_factor_pressure_data,
+        is_eligible=is_eligible_multi_factor_pressure,
     )
 )
 
@@ -1027,6 +1075,8 @@ CompositionRegistry.register(
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="TrajectoryDivergence",
         fallback_component_id="Charts",
+        builder=build_trajectory_divergence_data,
+        is_eligible=is_eligible_trajectory_divergence,
     )
 )
 
@@ -1041,6 +1091,8 @@ CompositionRegistry.register(
         asset_requirement=AssetRequirement.NONE,
         remotion_component_id="CashFlowWaterfall",
         fallback_component_id="Charts",
+        builder=build_cash_flow_waterfall_data,
+        is_eligible=is_eligible_cash_flow_waterfall,
     )
 )
 
@@ -1058,5 +1110,7 @@ CompositionRegistry.register(
         asset_requirement=AssetRequirement.OPTIONAL_BROLL,
         remotion_component_id="BrollCaption",
         fallback_component_id="Typography",
+        builder=build_broll_caption_data,
+        is_eligible=is_eligible_broll_caption,
     )
 )

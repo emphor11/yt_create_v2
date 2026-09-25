@@ -6,7 +6,7 @@ from engines.composition_planner_engine import (
     merge_factual_and_presentation_data,
 )
 from engines.video_assembly.composition_resolver import CompositionResolver
-from domain.visual_intent import VisualIntent
+from domain.visual_intent import VisualIntent, SemanticEntity
 
 
 def test_ranked_list_data_accepts_all_fields() -> None:
@@ -115,6 +115,10 @@ def test_ranked_list_planner_merge_preserves_new_fields() -> None:
         narration_excerpt="Top wealth destroyers.",
         what_viewer_must_understand="Lifestyle inflation is the biggest drag on long-term wealth.",
         relationship_type="ranking",
+        entities=[
+            SemanticEntity(name="Lifestyle Inflation", role="subject"),
+            SemanticEntity(name="Taxes", role="subject"),
+        ],
     )
     merged = merge_factual_and_presentation_data("ranked_list", candidate, llm_result, intent)
     assert merged["header_label"] == "LEADERBOARD"

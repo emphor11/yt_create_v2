@@ -370,21 +370,93 @@ class VisualIntentEngine:
                     )
                 seen_trigger_words.add(tw_lower)
 
+                tw_pattern = re.compile(r"\b" + re.escape(tw_lower) + r"\b", re.IGNORECASE)
                 excerpt = intent_item.get("narration_excerpt", "")
-                if tw_lower not in excerpt.lower():
+                if not tw_pattern.search(excerpt):
                     raise VisualIntentEngineError(
-                        f"VisualIntent trigger_word '{clean_tw}' does not appear in narration_excerpt: '{excerpt}'.",
+                        f"VisualIntent trigger_word '{clean_tw}' does not appear in narration_excerpt: '{excerpt}' (must match as a complete word).",
                         raw_payload=raw,
                         provider_metadata=response.metadata,
                     )
 
-                if tw_lower not in narration.lower():
+                if not tw_pattern.search(narration):
                     raise VisualIntentEngineError(
-                        f"VisualIntent trigger_word '{clean_tw}' does not appear in narration: '{narration}'.",
+                        f"VisualIntent trigger_word '{clean_tw}' does not appear in narration: '{narration}' (must match as a complete word).",
                         raw_payload=raw,
                         provider_metadata=response.metadata,
                     )
                 intent_item["trigger_word"] = clean_tw
+
+        # ── Validate intent_id uniqueness ────────────────────────────────────
+        seen_intent_ids: set[str] = set()
+        for intent_item in intents_raw:
+            iid = intent_item.get("intent_id", "")
+            if iid in seen_intent_ids:
+                raise VisualIntentEngineError(
+                    f"Duplicate intent_id '{iid}' in idea '{idea_id}'. "
+                    "Each intent_id must be unique within the same idea.",
+                    raw_payload=raw,
+                    provider_metadata=response.metadata,
+                )
+            seen_intent_ids.add(iid)
+
+        # ── Validate narration_excerpt verbatim + ordering ───────────────────
+        # Each excerpt must:
+        #   1. Be a verbatim contiguous substring of the full narration.
+        #   2. Not overlap the preceding excerpt.
+        #   3. Appear at or after the position where the previous excerpt ended.
+        narration_lower = narration.lower()
+        prev_end: int = 0
+        for intent_item in intents_raw:
+            excerpt: str = intent_item.get("narration_excerpt", "")
+            if not excerpt:
+                continue  # empty excerpts are allowed (engine will reject later via Pydantic)
+            excerpt_lower = excerpt.lower()
+            pos = narration_lower.find(excerpt_lower, prev_end)
+            if pos == -1:
+                # Try from beginning — may be an ordering violation
+                pos_from_start = narration_lower.find(excerpt_lower)
+                if pos_from_start == -1:
+                    raise VisualIntentEngineError(
+                        f"narration_excerpt is not a verbatim substring of the narration. "
+                        f"Excerpt: '{excerpt[:120]}'. "
+                        "narration_excerpt must be copied verbatim from the narration text — do not paraphrase.",
+                        raw_payload=raw,
+                        provider_metadata=response.metadata,
+                    )
+                raise VisualIntentEngineError(
+                    f"narration_excerpt appears out of order in the narration. "
+                    f"Excerpt '{excerpt[:80]}' starts before the end of the previous excerpt. "
+                    "Excerpts must be non-overlapping and ordered as they appear in the narration.",
+                    raw_payload=raw,
+                    provider_metadata=response.metadata,
+                )
+            prev_end = pos + len(excerpt)
+
+        # ── Validate raw_value grounding in narration_excerpt ────────────────
+        # Each measurement.raw_value must appear (case-insensitive substring) in
+        # the narration_excerpt of its intent. This prevents invented factual values.
+        for intent_item in intents_raw:
+            excerpt = intent_item.get("narration_excerpt", "")
+            excerpt_lower = excerpt.lower()
+            for meas in intent_item.get("measurements", []) or []:
+                rv: str = meas.get("raw_value", "") if isinstance(meas, dict) else getattr(meas, "raw_value", "")
+                if not rv:
+                    continue
+                # Normalize: strip currency symbols and commas for a looser token match
+                # so '₹50 lakh' finds '50 lakh' and '₹50' finds '50'
+                rv_lower = rv.lower()
+                # Try exact substring first (most values will match this)
+                if rv_lower not in excerpt_lower:
+                    # Strip leading currency/symbol characters and retry
+                    rv_stripped = re.sub(r"^[₹$€£¥\s]+", "", rv_lower).strip()
+                    if rv_stripped and rv_stripped not in excerpt_lower:
+                        raise VisualIntentEngineError(
+                            f"measurement.raw_value '{rv}' does not appear in its narration_excerpt: '{excerpt[:120]}'. "
+                            "raw_value must be the exact token from the narration — do not invent values.",
+                            raw_payload=raw,
+                            provider_metadata=response.metadata,
+                        )
 
         try:
             # Ensure idea_id is set correctly (LLM might echo it back incorrectly)
@@ -395,8 +467,13 @@ class VisualIntentEngine:
                 intents=[VisualIntent.model_validate(i) for i in intents_raw],
             )
         except ValidationError as error:
+            # Surface the model_validator messages directly — they are already
+            # human-readable and contain actionable grounding instructions.
+            messages = "; ".join(
+                str(e["msg"]) for e in error.errors()
+            )
             raise VisualIntentEngineError(
-                "LLM returned invalid VisualIntent data.",
+                f"VisualIntent semantic contract violation: {messages}",
                 raw_payload=raw,
                 provider_metadata=response.metadata,
             ) from error

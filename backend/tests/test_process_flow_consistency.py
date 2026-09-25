@@ -6,7 +6,7 @@ from engines.composition_planner_engine import (
     merge_factual_and_presentation_data,
 )
 from engines.video_assembly.composition_resolver import CompositionResolver
-from domain.visual_intent import VisualIntent
+from domain.visual_intent import VisualIntent, SemanticEntity
 
 
 def test_process_flow_data_accepts_all_fields() -> None:
@@ -120,6 +120,10 @@ def test_process_flow_planner_merge_preserves_new_fields() -> None:
         narration_excerpt="Wealth accumulation system.",
         what_viewer_must_understand="Following the process flow produces automated long-term wealth.",
         relationship_type="process",
+        entities=[
+            SemanticEntity(name="Step 1", role="step"),
+            SemanticEntity(name="Step 2", role="step"),
+        ],
     )
     merged = merge_factual_and_presentation_data("process_flow", candidate, llm_result, intent)
     assert merged["header_label"] == "AUTOMATION PIPELINE"

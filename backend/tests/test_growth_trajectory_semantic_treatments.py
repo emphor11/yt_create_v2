@@ -202,6 +202,7 @@ def test_compound_growth_wealth_snowball_candidate_extraction() -> None:
         what_viewer_must_understand="The wealth snowball shifts into rapid compounding returns",
         relationship_type="growth",
         measurements=[],
+        temporal=TemporalContext(horizon="over time"),
         visual_dynamics=VisualDynamics(
             focal_point="The compounding inflection point accelerates wealth",
             visual_priority="hero",
@@ -276,6 +277,7 @@ def test_milestone_progression_candidate_extraction() -> None:
                 role="benchmark",
             ),
         ],
+        temporal=TemporalContext(horizon="after this tipping point"),
         visual_dynamics=VisualDynamics(
             focal_point="The first ₹10 Lakh tipping point",
             visual_priority="high",
@@ -318,6 +320,7 @@ def test_merge_factual_preserves_extracted_facts() -> None:
         narration_excerpt="Wealth snowball expanding.",
         what_viewer_must_understand="Snowball returns",
         relationship_type="growth",
+        temporal=TemporalContext(horizon="10 Years"),
     )
 
     merged = merge_factual_and_presentation_data("growth_trajectory", candidate_facts, llm_presentation, intent)

@@ -29,6 +29,8 @@ from providers.llm_provider import (
     LLMProviderMetadata,
 )
 from registries.composition_registry import CompositionRegistry
+from engines.composition_selector import select_composition_for_intent, CompositionSelectionError
+from registries.composition_builders import CompositionDataError
 from app.assets import load_prompt
 
 
@@ -46,10 +48,18 @@ class CompositionPlannerEngineError(Exception):
         self,
         message: str,
         *,
+        beat_id: str | None = None,
+        relationship_type: str | None = None,
+        composition_id: str | None = None,
+        cause: Exception | None = None,
         raw_payload: dict[str, Any] | None = None,
         provider_metadata: LLMProviderMetadata | None = None,
     ):
         super().__init__(message)
+        self.beat_id = beat_id
+        self.relationship_type = relationship_type
+        self.composition_id = composition_id
+        self.cause = cause
         self.raw_payload = raw_payload or {}
         self.provider_metadata = provider_metadata
 
@@ -1113,10 +1123,12 @@ class CompositionPlannerEngine:
     """
     Selects and validates a composition for one VisualIntent.
 
-    One LLM call per intent. Returns a CompositionBeat ready for assembly.
+    Pure deterministic registry-driven Python execution.
+    Returns a CompositionBeat ready for assembly with zero LLM calls.
     """
 
-    def __init__(self, llm_provider: LLMProvider):
+    def __init__(self, llm_provider: LLMProvider | None = None):
+        # Optional parameter preserved for backward-compatibility; never invoked in run()
         self.llm_provider = llm_provider
 
     def run(
@@ -1128,17 +1140,132 @@ class CompositionPlannerEngine:
         audience: str = "",
     ) -> CompositionPlannerResult:
         """
-        Args:
-            intent:   The VisualIntent to find a composition for.
-            beat_id:  Identifier for this beat (e.g. "beat_01").
-            topic:    Optional — injected for context.
-            audience: Optional — injected for context.
-
-        Returns:
-            CompositionPlannerResult containing:
-              - beat: a CompositionBeat (either selected or broll_caption fallback)
-              - used_fallback: True if fallback was triggered
+        Deterministically selects and builds a CompositionBeat for the given VisualIntent.
+        Zero LLM calls. Fact-locked to structured intent fields.
+        Fail-fast: raises CompositionPlannerEngineError on any ambiguity, missing data, or validation failure.
         """
+        # 1. Deterministic Selection
+        try:
+            selected_id = select_composition_for_intent(intent)
+        except CompositionSelectionError as exc:
+            raise CompositionPlannerEngineError(
+                f"Failed selecting composition: {exc}",
+                beat_id=beat_id,
+                relationship_type=intent.relationship_type,
+                cause=exc,
+            ) from exc
+
+        # 2. Registry Lookup
+        defn = CompositionRegistry.get(selected_id)
+        if defn is None or defn.builder is None:
+            raise CompositionPlannerEngineError(
+                f"No definition or builder registered for composition '{selected_id}'.",
+                beat_id=beat_id,
+                relationship_type=intent.relationship_type,
+                composition_id=selected_id,
+            )
+
+        # 3. Eligibility Guard Check
+        if defn.is_eligible is not None and not defn.is_eligible(intent):
+            raise CompositionPlannerEngineError(
+                f"VisualIntent is not eligible for composition '{selected_id}'.",
+                beat_id=beat_id,
+                relationship_type=intent.relationship_type,
+                composition_id=selected_id,
+            )
+
+        # 4. Authoritative Registry-Owned Deterministic Builder
+        try:
+            candidate_data = defn.builder(intent)
+        except CompositionDataError as exc:
+            raise CompositionPlannerEngineError(
+                f"Failed building data for composition '{selected_id}': {exc}",
+                beat_id=beat_id,
+                relationship_type=intent.relationship_type,
+                composition_id=selected_id,
+                cause=exc,
+            ) from exc
+        except Exception as exc:
+            raise CompositionPlannerEngineError(
+                f"Unexpected builder error for composition '{selected_id}': {exc}",
+                beat_id=beat_id,
+                relationship_type=intent.relationship_type,
+                composition_id=selected_id,
+                cause=exc,
+            ) from exc
+
+        # 5. Pydantic Model Validation against registered schema
+        is_valid, errors, validated_data = CompositionRegistry.validate_composition_data(
+            selected_id, candidate_data, visual_goal=intent.what_viewer_must_understand
+        )
+        if not is_valid:
+            raise CompositionPlannerEngineError(
+                f"Validation failed for composition '{selected_id}': {'; '.join(errors)}",
+                beat_id=beat_id,
+                relationship_type=intent.relationship_type,
+                composition_id=selected_id,
+                raw_payload=candidate_data,
+            )
+
+        # 6. Variant Verification
+        variant = candidate_data.get("variant")
+        if variant is not None and defn.allowed_variants and variant not in defn.allowed_variants:
+            variant = None
+
+        # 7. Asset Query & Asset Requirement
+        if selected_id == "broll_caption":
+            asset_requirement = "optional_broll"
+            asset_query = build_fallback_asset_query(intent, topic=topic)
+        else:
+            asset_requirement = defn.asset_requirement.value
+            asset_query = None
+
+        # 8. Construct Beat (Fail-fast deterministic path never uses fallback)
+        beat = CompositionBeat(
+            beat_id=beat_id,
+            composition_id=selected_id,
+            variant=variant,
+            composition_data=validated_data,
+            asset_requirement=asset_requirement,
+            asset_query=asset_query,
+            trigger_word=intent.trigger_word,
+            visual_goal=intent.what_viewer_must_understand,
+            relationship_type=intent.relationship_type,
+            used_fallback=False,
+            fallback_reason=None,
+        )
+
+        return CompositionPlannerResult(
+            beat=beat,
+            provider_metadata=LLMProviderMetadata(provider="deterministic_python", model="registry_v1"),
+            raw_payload=validated_data,
+            used_fallback=False,
+            fallback_reason=None,
+        )
+
+    def _run_legacy_llm(
+        self,
+        *,
+        intent: VisualIntent,
+        beat_id: str,
+        topic: str = "",
+        audience: str = "",
+    ) -> CompositionPlannerResult:
+        """
+        [DEPRECATED / TEMPORARY]
+        Preserved legacy LLM execution path solely for transitional test verification.
+        Will be removed in Phase 11.
+        """
+        if self.llm_provider is None:
+            fallback = _make_fallback_beat(intent, beat_id, fallback_reason="no_llm_provider", topic=topic)
+            return CompositionPlannerResult(
+                beat=fallback,
+                provider_metadata=LLMProviderMetadata(provider="fallback", model="fallback"),
+                raw_payload={"error": "no_llm_provider"},
+                used_fallback=True,
+                fallback_reason="no_llm_provider",
+            )
+
         system_prompt_template = load_prompt("composition_planner_system.txt")
         catalog_section = CompositionRegistry.get_planner_prompt_section()
         system_content = system_prompt_template.replace("{{COMPOSITION_CATALOG}}", catalog_section)
@@ -1165,15 +1292,13 @@ class CompositionPlannerEngine:
                 LLMMessage(role="system", content=system_content),
                 LLMMessage(role="user", content=user_content),
             ],
-            temperature=0.1,  # Low temperature — structured selection, not creativity
+            temperature=0.1,
             max_tokens=1500,
         )
 
-        # --- LLM call ---
         try:
             response = self.llm_provider.generate_json(llm_request)
         except LLMProviderError as error:
-            # LLM hard failure → use fallback, don't crash the pipeline
             fallback_reason = f"provider_error: {error}"
             fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason, topic=topic)
             return CompositionPlannerResult(
@@ -1187,7 +1312,6 @@ class CompositionPlannerEngine:
         raw = response.payload
         status = raw.get("status", "")
 
-        # --- No suitable composition declared by LLM ---
         if status == "no_suitable_composition":
             reason = raw.get("reason", "No suitable composition declared by LLM")
             fallback_reason = f"no_suitable_composition: {reason}"
@@ -1200,10 +1324,8 @@ class CompositionPlannerEngine:
                 fallback_reason=fallback_reason,
             )
 
-        # --- Validate composition_id ---
         composition_id = raw.get("composition_id", "")
         if not CompositionRegistry.is_registered(composition_id):
-            # Unknown composition → fallback (LLM ignored the enum constraint)
             fallback_reason = f"unknown_composition_id: '{composition_id}' is not registered"
             fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason, topic=topic)
             return CompositionPlannerResult(
@@ -1215,9 +1337,8 @@ class CompositionPlannerEngine:
             )
 
         defn = CompositionRegistry.get(composition_id)
-        assert defn is not None  # guaranteed by is_registered check above
+        assert defn is not None
 
-        # --- Validate supported relationship_type ---
         if intent.relationship_type not in defn.supported_relationship_types:
             fallback_reason = (
                 f"unsupported_relationship_type: '{composition_id}' does not support '{intent.relationship_type}'"
@@ -1231,7 +1352,6 @@ class CompositionPlannerEngine:
                 fallback_reason=fallback_reason,
             )
 
-        # --- Semantic guardrail: time_decay must strictly represent decline/erosion ---
         if composition_id == "time_decay" and intent.relationship_type == "trend" and not _is_declining_intent(intent):
             fallback_reason = "time_decay rejected: trend does not indicate decline or erosion"
             fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason, topic=topic)
@@ -1243,12 +1363,10 @@ class CompositionPlannerEngine:
                 fallback_reason=fallback_reason,
             )
 
-        # --- Validate variant ---
         variant = raw.get("variant")
         if variant is not None and defn.allowed_variants and variant not in defn.allowed_variants:
-            variant = None  # silently drop invalid variant
+            variant = None
 
-        # --- Merge Factual Candidate Data with LLM Presentation Refinements ---
         candidate_facts = build_candidate_composition_data(composition_id, intent)
         composition_data_raw: dict[str, Any] = raw.get("composition_data", {})
         merged_data = merge_factual_and_presentation_data(
@@ -1263,7 +1381,6 @@ class CompositionPlannerEngine:
         )
 
         if not is_valid:
-            # Invalid data → fallback
             fallback_reason = f"validation_error: {'; '.join(errors)}"
             fallback = _make_fallback_beat(intent, beat_id, fallback_reason=fallback_reason, topic=topic)
             return CompositionPlannerResult(
@@ -1274,7 +1391,6 @@ class CompositionPlannerEngine:
                 fallback_reason=fallback_reason,
             )
 
-        # --- Build CompositionBeat ---
         raw_asset_query = raw.get("asset_query")
         if composition_id == "broll_caption":
             if is_valid_asset_query(raw_asset_query):

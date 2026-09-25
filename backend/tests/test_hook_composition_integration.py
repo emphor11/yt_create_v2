@@ -13,7 +13,7 @@ from domain.composition_plan import (
     HookCompositionPlan,
     IdeaCompositionPlan,
 )
-from domain.visual_intent import VisualIntent, VisualIntentSequence
+from domain.visual_intent import VisualIntent, VisualIntentSequence, ComparisonStructure
 from domain.voice_track import VoiceTrack, WordTimestamp
 from domain.script_visual_strategy import ScriptVisualStrategy, VideoIdea
 from engines.video_assembly.timeline_builder import TimelineBuilder
@@ -107,6 +107,13 @@ def test_visual_intent_engine_hook_mode() -> None:
                 "key_values": ["Rent vs Buy"],
                 "relationship_type": "comparison",
                 "trigger_word": None,
+                "comparison": {
+                    "subject_a": "Home EMI",
+                    "value_a": "₹65K/mo",
+                    "subject_b": "Rent & SIP",
+                    "value_b": "₹40K SIP",
+                    "comparison_dimension": "20-YEAR OUTCOME",
+                },
             },
             {
                 "intent_id": "intent_02",
@@ -167,9 +174,18 @@ def test_composition_planner_plans_hook_beats() -> None:
         key_values=["Rent vs Buy"],
         relationship_type="comparison",
         trigger_word=None,
+        comparison=ComparisonStructure(
+            subject_a="Home EMI",
+            value_a="₹65K/mo",
+            subject_b="Rent & SIP",
+            value_b="₹40K SIP",
+            comparison_dimension="20-YEAR OUTCOME",
+            winner="right",
+            delta="+₹1.2 Crore Alpha",
+        ),
     )
 
-    result = engine.run(
+    result = engine._run_legacy_llm(
         intent=intent,
         beat_id="beat_hook_01",
         topic="Rent vs Buy",

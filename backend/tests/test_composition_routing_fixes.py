@@ -11,7 +11,14 @@ Covers:
 """
 import pytest
 
-from domain.visual_intent import VisualIntent
+from domain.visual_intent import (
+    VisualIntent,
+    CausalStructure,
+    ComparisonStructure,
+    SemanticEntity,
+    TemporalContext,
+    QuantitativeMeasurement,
+)
 from domain.video_assembly_props import ComponentSpec
 from engines.composition_planner_engine import CompositionPlannerEngine, CompositionPlannerResult
 from engines.video_assembly.composition_resolver import CompositionResolver
@@ -73,9 +80,14 @@ def test_planner_routes_cause_effect_successfully() -> None:
         key_values=["15%", "0%"],
         relationship_type="cause_effect",
         trigger_word="causes",
+        causal=CausalStructure(
+            causes=["Lifestyle inflation"],
+            outcome="Savings hit zero",
+            outcome_severity="critical",
+        ),
     )
     engine = CompositionPlannerEngine(StaticLLMProvider(response))
-    result = engine.run(intent=intent, beat_id="beat_ce_01")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_ce_01")
     assert result.used_fallback is False
     assert result.fallback_reason is None
     assert result.beat.composition_id == "cause_effect"
@@ -122,9 +134,14 @@ def test_planner_routes_multi_factor_successfully() -> None:
         key_values=["7%", "30%", "4%"],
         relationship_type="multi_factor",
         trigger_word="converge",
+        causal=CausalStructure(
+            causes=["High taxes", "Inflation", "Weak returns"],
+            outcome="Capital erosion",
+            outcome_severity="critical",
+        ),
     )
     engine = CompositionPlannerEngine(StaticLLMProvider(response))
-    result = engine.run(intent=intent, beat_id="beat_mf_01")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_mf_01")
     assert result.used_fallback is False
     assert result.fallback_reason is None
     assert result.beat.composition_id == "multi_factor_pressure"
@@ -172,9 +189,18 @@ def test_planner_routes_comparison_split_successfully() -> None:
         key_values=["6.5%", "12.0%"],
         relationship_type="comparison",
         trigger_word="versus",
+        comparison=ComparisonStructure(
+            subject_a="Fixed Deposit",
+            value_a="6.5%",
+            subject_b="Nifty Index",
+            value_b="12.0%",
+            comparison_dimension="Annual Return",
+            delta="+5.5% Advantage",
+            winner="Nifty Index",
+        ),
     )
     engine = CompositionPlannerEngine(StaticLLMProvider(response))
-    result = engine.run(intent=intent, beat_id="beat_cmp_01")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_cmp_01")
     assert result.used_fallback is False
     assert result.fallback_reason is None
     assert result.beat.composition_id == "comparison_split"
@@ -219,9 +245,14 @@ def test_planner_routes_ranked_list_successfully() -> None:
         key_values=["₹45,000", "₹25,000"],
         relationship_type="ranking",
         trigger_word="ranked",
+        entities=[
+            SemanticEntity(name="Luxury Rent", role="subject"),
+            SemanticEntity(name="Car EMI", role="subject"),
+            SemanticEntity(name="Dining & Travel", role="subject"),
+        ],
     )
     engine = CompositionPlannerEngine(StaticLLMProvider(response))
-    result = engine.run(intent=intent, beat_id="beat_rnk_01")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_rnk_01")
     assert result.used_fallback is False
     assert result.fallback_reason is None
     assert result.beat.composition_id == "ranked_list"
@@ -265,9 +296,15 @@ def test_planner_routes_process_flow_successfully() -> None:
         key_values=["four steps"],
         relationship_type="process",
         trigger_word="process",
+        entities=[
+            SemanticEntity(name="Earn Income", role="step"),
+            SemanticEntity(name="Auto-Debit", role="step"),
+            SemanticEntity(name="Index Fund", role="step"),
+            SemanticEntity(name="Financial Freedom", role="outcome"),
+        ],
     )
     engine = CompositionPlannerEngine(StaticLLMProvider(response))
-    result = engine.run(intent=intent, beat_id="beat_prc_01")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_prc_01")
     assert result.used_fallback is False
     assert result.fallback_reason is None
     assert result.beat.composition_id == "process_flow"
@@ -304,9 +341,10 @@ def test_decline_relationship_allows_time_decay() -> None:
         key_values=["₹2 Lakh", "15 Years"],
         relationship_type="decline",
         trigger_word="erosion",
+        temporal=TemporalContext(horizon="15 Years", is_decay_over_time=True),
     )
     engine = CompositionPlannerEngine(StaticLLMProvider(response))
-    result = engine.run(intent=intent, beat_id="beat_dec_01")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_dec_01")
     assert result.used_fallback is False
     assert result.beat.composition_id == "time_decay"
 
@@ -337,9 +375,10 @@ def test_declining_trend_allows_time_decay() -> None:
         relationship_type="trend",
         emphasis="value_erosion",
         trigger_word="decay",
+        temporal=TemporalContext(horizon="20 Years", is_decay_over_time=True),
     )
     engine = CompositionPlannerEngine(StaticLLMProvider(response))
-    result = engine.run(intent=intent, beat_id="beat_trend_01")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_trend_01")
     assert result.used_fallback is False
     assert result.beat.composition_id == "time_decay"
 
@@ -365,9 +404,10 @@ def test_upward_trend_rejects_time_decay() -> None:
         key_values=["₹10 Lakh", "15 Years"],
         relationship_type="trend",
         emphasis="show_growth",
+        temporal=TemporalContext(horizon="15 Years"),
     )
     engine = CompositionPlannerEngine(StaticLLMProvider(response))
-    result = engine.run(intent=intent, beat_id="beat_trend_up")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_trend_up")
     assert result.used_fallback is True
     assert result.beat.composition_id == "broll_caption"
     assert "time_decay rejected: trend does not indicate decline" in result.fallback_reason
@@ -392,9 +432,10 @@ def test_neutral_trend_rejects_time_decay() -> None:
         what_viewer_must_understand="Rate trends vary across market cycles.",
         key_values=["5 Years"],
         relationship_type="trend",
+        temporal=TemporalContext(horizon="5 Years"),
     )
     engine = CompositionPlannerEngine(StaticLLMProvider(response))
-    result = engine.run(intent=intent, beat_id="beat_trend_neu")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_trend_neu")
     assert result.used_fallback is True
     assert result.beat.composition_id == "broll_caption"
     assert "time_decay rejected" in result.fallback_reason
@@ -453,7 +494,7 @@ def test_no_suitable_composition_returns_explicit_fallback_metadata() -> None:
         relationship_type="statement",
     )
     engine = CompositionPlannerEngine(StaticLLMProvider(response))
-    result = engine.run(intent=intent, beat_id="beat_abs_01")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_abs_01")
     assert result.used_fallback is True
     assert result.beat.composition_id == "broll_caption"
     assert result.fallback_reason.startswith("no_suitable_composition:")
@@ -469,22 +510,21 @@ def test_no_suitable_composition_returns_explicit_fallback_metadata() -> None:
 def test_missing_required_fields_produces_validation_error_fallback() -> None:
     response = {
         "status": "ok",
-        "composition_id": "comparison_split",
+        "composition_id": "metric_hero",
         "composition_data": {
-            "left_role": "FD",
-            # Missing left_value, right_role, right_value
+            # Missing required fields: value, label
         },
-        "visual_goal": "Incomplete comparison",
+        "visual_goal": "Incomplete metric",
     }
     intent = VisualIntent(
         intent_id="intent_err",
-        narration_excerpt="Comparing two assets.",
-        what_viewer_must_understand="Comparison test",
-        key_values=[],
-        relationship_type="comparison",
+        narration_excerpt="A significant financial milestone.",
+        what_viewer_must_understand="Metric test",
+        key_values=["₹50 lakh"],
+        relationship_type="metric",
     )
     engine = CompositionPlannerEngine(StaticLLMProvider(response))
-    result = engine.run(intent=intent, beat_id="beat_err_01")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_err_01")
     assert result.used_fallback is True
     assert result.fallback_reason.startswith("validation_error:")
     assert result.beat.composition_id == "broll_caption"
@@ -495,11 +535,11 @@ def test_provider_error_produces_provider_error_fallback() -> None:
         intent_id="intent_prov_err",
         narration_excerpt="Network error simulation.",
         what_viewer_must_understand="Network error",
-        key_values=[],
+        key_values=["10%"],
         relationship_type="metric",
     )
     engine = CompositionPlannerEngine(StaticLLMProvider(LLMProviderError("Connection timeout")))
-    result = engine.run(intent=intent, beat_id="beat_prov_err")
+    result = engine._run_legacy_llm(intent=intent, beat_id="beat_prov_err")
     assert result.used_fallback is True
     assert result.fallback_reason.startswith("provider_error:")
     assert "Connection timeout" in result.fallback_reason

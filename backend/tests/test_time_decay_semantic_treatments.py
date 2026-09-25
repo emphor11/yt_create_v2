@@ -125,6 +125,7 @@ def test_merge_preserves_time_decay_semantics() -> None:
         narration_excerpt="Inflation decays purchasing power.",
         what_viewer_must_understand="Loss",
         relationship_type="decline",
+        temporal=TemporalContext(horizon="20 Years", is_decay_over_time=True),
     )
 
     merged = merge_factual_and_presentation_data(
@@ -190,6 +191,7 @@ def test_time_decay_single_period_candidate_extraction() -> None:
                 raw_value="15%",
                 metric_name="First-year depreciation",
                 role="rate",
+                direction="down",
             ),
         ],
         entities=[
@@ -254,6 +256,7 @@ def test_merge_preserves_decay_type() -> None:
         narration_excerpt="Car loses 15% in year 1.",
         what_viewer_must_understand="Depreciation",
         relationship_type="decline",
+        temporal=TemporalContext(horizon="Year 1", is_decay_over_time=True),
     )
 
     merged = merge_factual_and_presentation_data(

@@ -137,6 +137,11 @@ def test_merge_factual_and_presentation_preserves_new_fields() -> None:
         narration_excerpt="Factual factors converge into severe deficit.",
         what_viewer_must_understand="Causal convergence.",
         relationship_type="multi_factor",
+        causal=CausalStructure(
+            causes=["Inflation Force", "Tax Drag"],
+            outcome="Severe Deficit",
+            outcome_severity="critical",
+        ),
     )
     candidate_facts = {
         "factors": [
