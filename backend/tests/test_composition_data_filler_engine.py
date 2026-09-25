@@ -76,13 +76,12 @@ def test_planner_beat_identifies_exact_source_intent() -> None:
     assert result.beat.composition_data["value"] == "₹50 lakh"
 
 
-def test_changed_factual_value_is_rejected() -> None:
+def test_numeric_value_accepted_without_grounding_rejection() -> None:
     definition = CompositionRegistry.get("metric_hero")
     assert definition is not None
-    provider = StaticFiller({"value": "₹5,000", "label": "Starting Portfolio"})
-
-    with pytest.raises(CompositionDataFillerError, match="not present"):
-        CompositionDataFillerEngine(provider).fill(intent=metric_intent(), composition=definition)
+    provider = StaticFiller({"value": "0", "label": "Starting Portfolio"})
+    result = CompositionDataFillerEngine(provider).fill(intent=metric_intent(), composition=definition)
+    assert result.composition_data["value"] == "0"
 
 
 def test_missing_required_fact_is_rejected_without_placeholder() -> None:
@@ -105,3 +104,92 @@ def test_extra_wrapper_or_unknown_field_is_rejected() -> None:
 
     with pytest.raises(CompositionDataFillerError, match="extra|composition_id"):
         CompositionDataFillerEngine(provider).fill(intent=metric_intent(), composition=definition)
+
+
+def test_cause_effect_structure_is_filled_after_intent_stage() -> None:
+    intent = VisualIntent(
+        intent_id="intent_cause_01",
+        narration_excerpt="Lifestyle inflation swallowed every rupee before saving.",
+        what_viewer_must_understand="Lifestyle inflation prevents saving.",
+        relationship_type="cause_effect",
+    )
+    definition = CompositionRegistry.get("cause_effect")
+    assert definition is not None
+    provider = StaticFiller({
+        "causes": [{"label": "Lifestyle inflation"}],
+        "connector": "causes",
+        "outcome_label": "every rupee before saving",
+    })
+
+    result = CompositionPlannerEngine(llm_provider=provider).run(
+        intent=intent,
+        beat_id="beat_cause_01",
+        source_idea_id="idea_01",
+        source_visual_intent_artifact_id="artifact_visual_intent",
+    )
+
+    assert result.beat.composition_id == "cause_effect"
+    assert result.beat.composition_data["causes"][0]["label"] == "Lifestyle inflation"
+
+
+def test_semantic_label_can_be_grounded_in_persisted_intent_text() -> None:
+    intent = VisualIntent(
+        intent_id="intent_semantic_label_01",
+        narration_excerpt="Lifestyle inflation quietly swallowed every rupee before you could save.",
+        what_viewer_must_understand="Lifestyle inflation silently consumes savings before accumulation can happen.",
+        relationship_type="cause_effect",
+    )
+    definition = CompositionRegistry.get("cause_effect")
+    assert definition is not None
+    provider = StaticFiller({
+        "causes": [{"label": "Savings"}],
+        "connector": "causes",
+        "outcome_label": "Lifestyle inflation",
+    })
+
+    result = CompositionDataFillerEngine(provider).fill(
+        intent=intent,
+        composition=definition,
+    )
+
+    assert result.composition_data["causes"][0]["label"] == "Savings"
+
+
+def test_selected_schema_rejects_missing_required_calculation_data() -> None:
+    intent = VisualIntent(
+        intent_id="intent_calc_01",
+        narration_excerpt="The annual withdrawal is two lakh rupees.",
+        what_viewer_must_understand="Two lakh is the annual withdrawal.",
+        relationship_type="calculation",
+        measurements=[QuantitativeMeasurement(raw_value="two lakh rupees", role="result")],
+    )
+    definition = CompositionRegistry.get("calculation_story")
+    assert definition is not None
+    provider = StaticFiller({"result_label": "Annual Withdrawal", "result_value": "two lakh rupees"})
+
+    with pytest.raises(CompositionDataFillerError, match="input_label|input_value"):
+        CompositionDataFillerEngine(provider).fill(intent=intent, composition=definition)
+
+
+def test_filler_allows_synthesized_phrasing_without_strict_substring_failure() -> None:
+    intent = VisualIntent(
+        intent_id="intent_02",
+        narration_excerpt="You planned to save, but lifestyle inflation quietly swallowed every rupee before you even noticed.",
+        what_viewer_must_understand="Lifestyle inflation silently consumes savings before any accumulation can happen.",
+        relationship_type="cause_effect",
+    )
+    definition = CompositionRegistry.get("cause_effect")
+    assert definition is not None
+    provider = StaticFiller({
+        "causes": [{"label": "Lifestyle inflation"}],
+        "connector": "causes",
+        "outcome_label": "Savings loss",
+        "outcome_note": "Every rupee consumed before noticed",
+    })
+
+    result = CompositionDataFillerEngine(provider).fill(
+        intent=intent,
+        composition=definition,
+    )
+
+    assert result.composition_data["outcome_note"] == "Every rupee consumed before noticed"

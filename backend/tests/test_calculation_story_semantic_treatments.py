@@ -1,9 +1,5 @@
 import pytest
 from domain.visual_intent import VisualIntent, QuantitativeMeasurement, TemporalContext
-from engines.composition_planner_engine import (
-    build_candidate_composition_data,
-    merge_factual_and_presentation_data,
-)
 from engines.video_assembly.composition_resolver import CompositionResolver
 from registries.composition_registry import CompositionRegistry, CalculationStoryData
 
@@ -42,152 +38,12 @@ def test_calculation_story_backwards_compatibility_with_old_payload():
     assert data.operation_type == "multiplication"
 
 
-def test_build_candidate_composition_data_extracts_calculation_story_semantics():
-    intent = VisualIntent(
-        intent_id="calc_intent_01",
-        narration_excerpt="₹10 lakh grows to ₹1 crore over 20 years.",
-        what_viewer_must_understand="₹10 lakh grows to ₹1 crore over 20 years.",
-        relationship_type="calculation",
-        measurements=[
-            QuantitativeMeasurement(
-                raw_value="₹10 lakh",
-                metric_name="Initial Corpus",
-                role="input",
-            ),
-            QuantitativeMeasurement(
-                raw_value="12% CAGR",
-                role="rate",
-            ),
-            QuantitativeMeasurement(
-                raw_value="₹1 crore",
-                metric_name="Accumulated Wealth",
-                polarity="positive",
-                role="result",
-            ),
-        ],
-        temporal=TemporalContext(
-            horizon="over 20 years",
-        ),
-    )
-    facts = build_candidate_composition_data("calculation_story", intent)
-    assert facts["input_value"] == "₹10 lakh"
-    assert facts["input_label"] == "Initial Corpus"
-    assert facts["rate_label"] == "12% CAGR"
-    assert facts["result_value"] == "₹1 crore"
-    assert facts["result_label"] == "Accumulated Wealth"
-    assert facts["polarity"] == "positive"
-    assert facts["timeframe"] == "over 20 years"
 
 
-def test_build_candidate_without_explicit_rate_label():
-    """Verify calculation_story succeeds when only input and result exist (transformation)."""
-    intent = VisualIntent(
-        intent_id="calc_intent_transform",
-        narration_excerpt="Starting salary of ₹50,000 grows to ₹2,00,000.",
-        what_viewer_must_understand="Income quadrupled over career.",
-        relationship_type="calculation",
-        measurements=[
-            QuantitativeMeasurement(
-                raw_value="₹50,000",
-                metric_name="Starting Salary",
-                role="input",
-            ),
-            QuantitativeMeasurement(
-                raw_value="₹2,00,000",
-                metric_name="Final Salary",
-                role="result",
-            ),
-        ],
-    )
-    facts = build_candidate_composition_data("calculation_story", intent)
-    assert facts["input_value"] == "₹50,000"
-    assert facts["input_label"] == "Starting Salary"
-    assert facts["result_value"] == "₹2,00,000"
-    assert facts["result_label"] == "Final Salary"
-    assert facts["operation_type"] == "growth"
-    assert "operation_label" not in facts
-    assert facts.get("rate_label") is None
-    spec = CompositionResolver().resolve_composition(
-        composition_id="calculation_story",
-        composition_data=facts,
-    )
-    assert spec.props["operationLabel"] == "→"
 
 
-def test_build_candidate_subtraction_operation():
-    """Verify subtraction keyword detection maps operation to subtraction."""
-    intent = VisualIntent(
-        intent_id="calc_intent_sub",
-        narration_excerpt="Gross revenue minus ₹15 lakh operating expenses leaves ₹35 lakh EBITDA.",
-        what_viewer_must_understand="Operating expenses reduce profit.",
-        relationship_type="calculation",
-        measurements=[
-            QuantitativeMeasurement(
-                raw_value="₹50 lakh",
-                metric_name="Gross Revenue",
-                role="input",
-            ),
-            QuantitativeMeasurement(
-                raw_value="₹15 lakh",
-                metric_name="Operating Expenses",
-                role="delta",
-            ),
-            QuantitativeMeasurement(
-                raw_value="₹35 lakh",
-                metric_name="EBITDA",
-                role="result",
-            ),
-        ],
-    )
-    facts = build_candidate_composition_data("calculation_story", intent)
-    assert facts["input_value"] == "₹50 lakh"
-    assert facts["result_value"] == "₹35 lakh"
-    assert facts["operation_type"] == "subtraction"
-    assert "operation_label" not in facts
-    assert facts["rate_label"] == "₹15 lakh"
-    assert facts["secondary_label"] == "Operating Expenses"
-    spec = CompositionResolver().resolve_composition(
-        composition_id="calculation_story",
-        composition_data=facts,
-    )
-    assert spec.props["operationLabel"] == "−"
 
 
-def test_merge_preserves_calculation_story_semantics_and_facts():
-    candidate_facts = {
-        "input_value": "₹1,00,000",
-        "input_label": "Gross Income",
-        "rate_label": "₹20,000 Tax",
-        "result_value": "₹80,000",
-        "result_label": "Net Take-Home",
-        "polarity": "negative",
-    }
-    llm_data = {
-        "input_value": "wrong_input",
-        "result_value": "wrong_result",
-        "operation_label": "-",
-        "operation_type": "subtraction",
-        "variant": "subtraction",
-    }
-    intent = VisualIntent(
-        intent_id="intent_calc_sub",
-        narration_excerpt="Gross income minus tax leaves net take home.",
-        what_viewer_must_understand="Taxes reduce take home pay.",
-        relationship_type="calculation",
-        measurements=[
-            QuantitativeMeasurement(raw_value="₹1,00,000", role="input", metric_name="Gross Income"),
-            QuantitativeMeasurement(raw_value="net take home", role="result", metric_name="Net Take-Home"),
-        ],
-    )
-    merged = merge_factual_and_presentation_data("calculation_story", candidate_facts, llm_data, intent)
-    # Numerical facts locked
-    assert merged["input_value"] == "₹1,00,000"
-    assert merged["result_value"] == "₹80,000"
-    # Semantic fields passed through
-    assert merged["operation_label"] == "-"
-    assert merged["operation_type"] == "subtraction"
-    assert merged["variant"] == "subtraction"
-    assert merged["polarity"] == "negative"
 
 
 def test_composition_resolver_does_not_invent_multiplication():

@@ -232,15 +232,17 @@ Every intent MUST use exactly one relationship_type from this closed vocabulary:
 - `cause_effect`
 - `multi_factor`
 - `comparison`
-- `trend`
 - `growth`
 - `decline`
+- `divergence`
 - `ranking`
 - `process`
 - `statement`
 - `quote`
 - `definition`
 - `broll`
+
+DO NOT use `trend`. Classify all time-based directional changes as either `growth` or `decline`.
 
 Do not invent new relationship types.
 
@@ -270,9 +272,11 @@ Use this when the narration explicitly describes multiple pressures acting toget
 
 Two subjects, states, options, or values are contrasted.
 
-### trend
+### growth vs decline (DO NOT USE `trend`)
 
-A value or state changes over time without the narration necessarily framing it as specific erosion or single upward growth trajectory.
+Do NOT use ambiguous `trend`. Classify directional changes explicitly:
+- `growth`: When a value, rate, spending, cost, asset, corpus, or phenomenon increases, rises, expands, accumulates, or trends upward over time.
+- `decline`: When a value, purchasing power, corpus, balance, or phenomenon decreases, erodes, decays, drops, or falls over time.
 
 ### growth
 
@@ -454,12 +458,17 @@ Rules:
 
 - The FIRST intent MUST have `trigger_word = null`.
 - Every later intent MUST have a trigger word.
-- The trigger word MUST be one single standalone word from its `narration_excerpt`.
+-The trigger word MUST be copied VERBATIM, CHARACTER-FOR-CHARACTER, directly from its `narration_excerpt`.
+- CRITICAL: DO NOT change the word's tense, suffix, prefix, or grammatical form.
+  - If the narration text says "automated", your trigger word MUST be "automated". NEVER change it to "automating" or "automate".
+  - If the narration text says "automating", your trigger word MUST be "automating". NEVER change it to "automated".
+  - If the narration text says "spending", your trigger word MUST be "spending", NOT "spend" or "spent".
+  - If the narration text says "invested", your trigger word MUST be "invested", NOT "investing" or "investment".
+- NEVER lemmatize, conjugate, or normalize words. Copy the exact standalone word token as it literally appears in the text.
 - It MUST also appear in the original idea narration.
 - It MUST contain no spaces.
 - It MUST contain no punctuation.
 - It MUST NOT be a number.
-- It MUST NOT be a common English stopword.
 - It MUST NOT repeat a trigger word already used in the same idea.
 - It should mark the semantic inflection point where the new visual understanding begins.
 
@@ -773,16 +782,17 @@ If the narration contains no meaningful temporal information:
 `temporal = null`
 
 ==================================================
-CAUSAL
+CAUSAL EVIDENCE (OPTIONAL)
 ==================================================
 
-Populate `causal` ONLY for `cause_effect` or `multi_factor` relationships.
+Populate `causal` when the narration explicitly provides causal evidence.
+This field is optional at the VisualIntent stage. The selected composition's
+data-filler stage owns the final cause/effect schema and rejects missing or
+unsupported required data.
 
-**MANDATORY CONTRACT** (violations will be rejected by the pipeline):
-
-- If `relationship_type` is `cause_effect`: `causal` MUST be non-null. You MUST populate at least 1 cause and a non-empty outcome.
-- If `relationship_type` is `multi_factor`: `causal` MUST be non-null. You MUST populate at least 2 independent causes and a non-empty outcome.
-- If you cannot identify explicit causes AND an explicit outcome from the narration, reclassify the `relationship_type` — do not leave `causal=null` for these types.
+Do not invent causes, mechanisms, outcomes, or severity. If the narration does
+not state them clearly, leave `causal` null or partially populated rather than
+guessing.
 
 The object contains:
 
@@ -795,8 +805,7 @@ The object contains:
 
 List the explicit causes **from the narration**. Do not infer causes from general knowledge.
 
-- `cause_effect`: minimum 1 cause
-- `multi_factor`: minimum 2 independent causes
+- When present, causes must be copied from the narration.
 
 ### mechanism
 
@@ -806,7 +815,7 @@ Do not invent a mechanism from external knowledge.
 
 ### outcome
 
-State the resulting outcome **expressed in the narration**. Must be non-empty for cause_effect and multi_factor.
+State the resulting outcome only when it is expressed in the narration.
 
 ### outcome_severity
 
@@ -829,7 +838,7 @@ If the severity is not explicitly supported:
 
 use `neutral`.
 
-If there is no causal relationship (i.e. relationship_type is NOT cause_effect or multi_factor):
+If there is no explicit causal evidence:
 
 `causal = null`
 

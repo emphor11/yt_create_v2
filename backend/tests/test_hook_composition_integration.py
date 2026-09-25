@@ -143,60 +143,6 @@ def test_visual_intent_engine_hook_mode() -> None:
     assert "HOOK-SPECIFIC CONSTRAINTS" in provider.last_request.messages[1].content
 
 
-def test_composition_planner_plans_hook_beats() -> None:
-    """Verifies CompositionPlanner plans modern compositions for hook intents."""
-    mock_planner_payload = {
-        "status": "ok",
-        "composition_id": "comparison_split",
-        "variant": "versus",
-        "composition_data": {
-            "header_label": "WEALTH PARADOX",
-            "comparison_label": "20-YEAR OUTCOME",
-            "left_role": "Home EMI",
-            "left_value": "₹65K/mo",
-            "right_role": "Rent & SIP",
-            "right_value": "₹40K SIP",
-            "winner": "right",
-            "delta": "+₹1.2 Crore Alpha",
-        },
-        "asset_requirement": "none",
-        "asset_query": None,
-        "trigger_word": None,
-        "visual_goal": "Show Rent vs Buy comparison",
-    }
-    provider = MockLLMProvider(mock_planner_payload)
-    engine = CompositionPlannerEngine(provider)
-
-    intent = VisualIntent(
-        intent_id="intent_hook_01",
-        narration_excerpt="What if rent is building wealth?",
-        what_viewer_must_understand="Rent vs Buy wealth outcome",
-        key_values=["Rent vs Buy"],
-        relationship_type="comparison",
-        trigger_word=None,
-        comparison=ComparisonStructure(
-            subject_a="Home EMI",
-            value_a="₹65K/mo",
-            subject_b="Rent & SIP",
-            value_b="₹40K SIP",
-            comparison_dimension="20-YEAR OUTCOME",
-            winner="right",
-            delta="+₹1.2 Crore Alpha",
-        ),
-    )
-
-    result = engine._run_legacy_llm(
-        intent=intent,
-        beat_id="beat_hook_01",
-        topic="Rent vs Buy",
-        audience="retail investors",
-    )
-
-    assert result.beat.composition_id == "comparison_split"
-    assert result.beat.variant == "versus"
-    assert result.beat.composition_data["winner"] == "right"
-
-
 def test_timeline_builder_with_hook_composition_plan() -> None:
     """Verifies TimelineBuilder uses composition_plan.hook_plan.beats instead of legacy directives."""
     hook = Hook(

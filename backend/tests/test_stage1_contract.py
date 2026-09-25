@@ -1,20 +1,20 @@
 """
-Stage 1 Contract Tests — VisualIntent Semantic Sufficiency.
+Stage 1 Contract Tests — composition-independent VisualIntent extraction.
 
-These tests verify that Stage 1 (narration → VisualIntent) enforces the
-semantic sufficiency contract. Every test exercises the actual contract rule,
-not implementation details. A failing test means the contract is not enforced.
+Stage 1 validates grounded excerpts, trigger words, relationship types, and
+raw values. Composition-specific completeness is tested at the selected
+composition filler boundary, not here.
 
 Tests A–Q map to the requirements in the implementation plan:
 
 A  — Valid cause_effect with full causal → passes
-B  — cause_effect with causal=null → raises
-C  — cause_effect with causal.causes=[] → raises
-D  — multi_factor with only 1 cause → raises
-E  — comparison with comparison=null → raises
-F  — divergence without temporal.horizon → raises
-G  — metric with no measurements and no key_values → raises
-H  — calculation with no input-role measurement → raises
+B  — cause_effect with causal=null → passes to the filler boundary
+C  — cause_effect with causal.causes=[] → passes to the filler boundary
+D  — multi_factor with only 1 cause → passes to the filler boundary
+E  — comparison with comparison=null → passes to the filler boundary
+F  — divergence without temporal.horizon → passes to the filler boundary
+G  — metric with no measurements and no key_values → passes to the filler boundary
+H  — calculation with no input-role measurement → passes to the filler boundary
 I  — narration_excerpt not verbatim in narration → raises (engine)
 J  — narration_excerpt out of narration order → raises (engine)
 K  — overlapping narration_excerpts → raises (engine)
@@ -22,18 +22,16 @@ L  — duplicate intent_id → raises (engine)
 M  — trigger_word 'invest' does NOT match 'investing' (boundary fix)
 N  — raw_value not present in narration_excerpt → raises (engine)
 O  — valid ranking with ≥2 ordered entities → passes
-P  — calculation: result measurement without any input/baseline → raises
+P  — calculation: result measurement without any input/baseline → passes to filler boundary
 Q  — valid broll with no semantic fields → passes
 """
 import pytest
-from pydantic import ValidationError
 
 from domain.visual_intent import (
     CausalStructure,
     ComparisonStructure,
     QuantitativeMeasurement,
     SemanticEntity,
-    TemporalContext,
     VisualIntent,
 )
 from engines.visual_intent_engine import VisualIntentEngine, VisualIntentEngineError
@@ -108,15 +106,15 @@ def test_A_valid_cause_effect_passes() -> None:
 # ---------------------------------------------------------------------------
 
 def test_B_cause_effect_null_causal_raises() -> None:
-    """cause_effect without causal populated must be rejected at the domain level."""
-    with pytest.raises((ValidationError, ValueError), match="causal"):
-        VisualIntent(
-            intent_id="intent_01",
-            narration_excerpt="Inflation leads to lower corpus.",
-            what_viewer_must_understand="Inflation reduces corpus.",
-            relationship_type="cause_effect",
-            causal=None,
-        )
+    """Missing causal detail is allowed until the selected composition filler."""
+    intent = VisualIntent(
+        intent_id="intent_01",
+        narration_excerpt="Inflation leads to lower corpus.",
+        what_viewer_must_understand="Inflation reduces corpus.",
+        relationship_type="cause_effect",
+        causal=None,
+    )
+    assert intent.causal is None
 
 
 # ---------------------------------------------------------------------------
@@ -124,18 +122,15 @@ def test_B_cause_effect_null_causal_raises() -> None:
 # ---------------------------------------------------------------------------
 
 def test_C_cause_effect_empty_causes_raises() -> None:
-    """cause_effect with an explicit empty causes list must be rejected."""
-    with pytest.raises((ValidationError, ValueError), match="cause"):
-        VisualIntent(
-            intent_id="intent_01",
-            narration_excerpt="Something leads to something else.",
-            what_viewer_must_understand="Effect.",
-            relationship_type="cause_effect",
-            causal=CausalStructure(
-                causes=[],
-                outcome="Portfolio shrinks",
-            ),
-        )
+    """An empty causal structure is preserved for composition-stage validation."""
+    intent = VisualIntent(
+        intent_id="intent_01",
+        narration_excerpt="Something leads to something else.",
+        what_viewer_must_understand="Effect.",
+        relationship_type="cause_effect",
+        causal=CausalStructure(causes=[], outcome="Portfolio shrinks"),
+    )
+    assert intent.causal is not None and intent.causal.causes == []
 
 
 # ---------------------------------------------------------------------------
@@ -143,19 +138,15 @@ def test_C_cause_effect_empty_causes_raises() -> None:
 # ---------------------------------------------------------------------------
 
 def test_D_multi_factor_single_cause_raises() -> None:
-    """multi_factor with fewer than 2 causes must be rejected."""
-    with pytest.raises((ValidationError, ValueError), match="2"):
-        VisualIntent(
-            intent_id="intent_01",
-            narration_excerpt="Inflation and weak returns destroy wealth together.",
-            what_viewer_must_understand="Two pressures on wealth.",
-            relationship_type="multi_factor",
-            causal=CausalStructure(
-                causes=["Inflation"],
-                outcome="Wealth destruction",
-                outcome_severity="high",
-            ),
-        )
+    """The filler, not Stage 1, owns the minimum factor count."""
+    intent = VisualIntent(
+        intent_id="intent_01",
+        narration_excerpt="Inflation and weak returns destroy wealth together.",
+        what_viewer_must_understand="Two pressures on wealth.",
+        relationship_type="multi_factor",
+        causal=CausalStructure(causes=["Inflation"], outcome="Wealth destruction", outcome_severity="high"),
+    )
+    assert intent.causal is not None and len(intent.causal.causes) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -163,15 +154,15 @@ def test_D_multi_factor_single_cause_raises() -> None:
 # ---------------------------------------------------------------------------
 
 def test_E_comparison_null_raises() -> None:
-    """comparison relationship_type without comparison structure must be rejected."""
-    with pytest.raises((ValidationError, ValueError), match="comparison"):
-        VisualIntent(
-            intent_id="intent_01",
-            narration_excerpt="Fixed Deposit gives 6% while Equity Fund gives 12%.",
-            what_viewer_must_understand="Equity outperforms FD.",
-            relationship_type="comparison",
-            comparison=None,
-        )
+    """Comparison data is filled after comparison_split is selected."""
+    intent = VisualIntent(
+        intent_id="intent_01",
+        narration_excerpt="Fixed Deposit gives 6% while Equity Fund gives 12%.",
+        what_viewer_must_understand="Equity outperforms FD.",
+        relationship_type="comparison",
+        comparison=None,
+    )
+    assert intent.comparison is None
 
 
 # ---------------------------------------------------------------------------
@@ -179,22 +170,19 @@ def test_E_comparison_null_raises() -> None:
 # ---------------------------------------------------------------------------
 
 def test_F_divergence_no_temporal_raises() -> None:
-    """divergence without a temporal horizon must be rejected."""
-    with pytest.raises((ValidationError, ValueError), match="temporal|horizon"):
-        VisualIntent(
-            intent_id="intent_01",
-            narration_excerpt="Investing grows, spending shrinks.",
-            what_viewer_must_understand="Two diverging paths.",
-            relationship_type="divergence",
-            temporal=None,
-            comparison=ComparisonStructure(
-                subject_a="Investing",
-                value_a="grows",
-                subject_b="Spending",
-                value_b="shrinks",
-                comparison_dimension="Wealth trajectory",
-            ),
-        )
+    """Temporal completeness belongs to trajectory_divergence data filling."""
+    intent = VisualIntent(
+        intent_id="intent_01",
+        narration_excerpt="Investing grows, spending shrinks.",
+        what_viewer_must_understand="Two diverging paths.",
+        relationship_type="divergence",
+        temporal=None,
+        comparison=ComparisonStructure(
+            subject_a="Investing", value_a="grows", subject_b="Spending",
+            value_b="shrinks", comparison_dimension="Wealth trajectory",
+        ),
+    )
+    assert intent.temporal is None
 
 
 # ---------------------------------------------------------------------------
@@ -202,16 +190,16 @@ def test_F_divergence_no_temporal_raises() -> None:
 # ---------------------------------------------------------------------------
 
 def test_G_metric_no_values_raises() -> None:
-    """A metric without any values is semantically empty and must be rejected."""
-    with pytest.raises((ValidationError, ValueError), match="metric|measurement|key_value"):
-        VisualIntent(
-            intent_id="intent_01",
-            narration_excerpt="This is an important number.",
-            what_viewer_must_understand="Some number is important.",
-            relationship_type="metric",
-            measurements=[],
-            key_values=[],
-        )
+    """The metric schema/filler owns the required value check."""
+    intent = VisualIntent(
+        intent_id="intent_01",
+        narration_excerpt="This is an important number.",
+        what_viewer_must_understand="Some number is important.",
+        relationship_type="metric",
+        measurements=[],
+        key_values=[],
+    )
+    assert intent.measurements == [] and intent.key_values == []
 
 
 # ---------------------------------------------------------------------------
@@ -219,20 +207,15 @@ def test_G_metric_no_values_raises() -> None:
 # ---------------------------------------------------------------------------
 
 def test_H_calculation_no_input_raises() -> None:
-    """A calculation without an operand (input/baseline) must be rejected."""
-    with pytest.raises((ValidationError, ValueError), match="input|baseline"):
-        VisualIntent(
-            intent_id="intent_01",
-            narration_excerpt="4% of the corpus gives two lakh.",
-            what_viewer_must_understand="4% of corpus = 2 lakh.",
-            relationship_type="calculation",
-            measurements=[
-                QuantitativeMeasurement(
-                    raw_value="two lakh",
-                    role="result",
-                ),
-            ],
-        )
+    """The calculation schema/filler owns the required input check."""
+    intent = VisualIntent(
+        intent_id="intent_01",
+        narration_excerpt="4% of the corpus gives two lakh.",
+        what_viewer_must_understand="4% of corpus = 2 lakh.",
+        relationship_type="calculation",
+        measurements=[QuantitativeMeasurement(raw_value="two lakh", role="result")],
+    )
+    assert intent.measurements[0].role == "result"
 
 
 # ---------------------------------------------------------------------------
@@ -430,20 +413,16 @@ def test_P_calculation_result_without_input_raises() -> None:
     A calculation intent that has only a result measurement but no input/baseline
     is an incomplete math story and must be rejected.
     """
-    with pytest.raises((ValidationError, ValueError), match="input|baseline"):
-        VisualIntent(
-            intent_id="intent_01",
-            narration_excerpt="The annual withdrawal is two lakh rupees.",
-            what_viewer_must_understand="Two lakh is the annual withdrawal.",
-            relationship_type="calculation",
-            measurements=[
-                QuantitativeMeasurement(
-                    raw_value="two lakh rupees",
-                    role="result",
-                    metric_name="Annual Withdrawal",
-                ),
-            ],
-        )
+    intent = VisualIntent(
+        intent_id="intent_01",
+        narration_excerpt="The annual withdrawal is two lakh rupees.",
+        what_viewer_must_understand="Two lakh is the annual withdrawal.",
+        relationship_type="calculation",
+        measurements=[QuantitativeMeasurement(
+            raw_value="two lakh rupees", role="result", metric_name="Annual Withdrawal"
+        )],
+    )
+    assert intent.measurements[0].role == "result"
 
 
 # ---------------------------------------------------------------------------

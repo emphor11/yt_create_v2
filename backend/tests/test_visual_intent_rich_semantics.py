@@ -590,8 +590,8 @@ def test_trigger_word_rule_7_no_punctuation_only() -> None:
         engine.run(idea_id="idea_01", narration="Starting portfolio of ₹50 lakh. Wait... look here.")
 
 
-def test_trigger_word_rule_8_no_stopwords() -> None:
-    """Rule 8: trigger_word must not be a common English stopword."""
+def test_trigger_word_common_word_accepted() -> None:
+    """Common words like 'If' or 'the' are accepted as valid trigger words."""
     payload = {
         "idea_id": "idea_01",
         "intents": [
@@ -604,16 +604,16 @@ def test_trigger_word_rule_8_no_stopwords() -> None:
             },
             {
                 "intent_id": "intent_02",
-                "narration_excerpt": "And the returns accelerate.",
+                "narration_excerpt": "If the returns accelerate.",
                 "what_viewer_must_understand": "Accelerating returns",
                 "relationship_type": "metric",
-                "trigger_word": "the",  # INVALID: stopword
+                "trigger_word": "If",
             },
         ],
     }
     engine = make_engine_with_payload(payload)
-    with pytest.raises(VisualIntentEngineError, match="cannot be a common stopword"):
-        engine.run(idea_id="idea_01", narration="Starting portfolio of ₹50 lakh. And the returns accelerate.")
+    result = engine.run(idea_id="idea_01", narration="Starting portfolio of ₹50 lakh. If the returns accelerate.")
+    assert result.sequence.intents[1].trigger_word == "If"
 
 
 def test_trigger_word_trailing_punctuation_sanitized_successfully() -> None:

@@ -1,10 +1,6 @@
 from typing import Any
 import pytest
 from registries.composition_registry import CompositionRegistry, ProcessFlowData, ProcessStepItem
-from engines.composition_planner_engine import (
-    build_candidate_composition_data,
-    merge_factual_and_presentation_data,
-)
 from engines.video_assembly.composition_resolver import CompositionResolver
 from domain.visual_intent import VisualIntent, SemanticEntity
 
@@ -104,30 +100,4 @@ def test_process_flow_resolver_mappings_2_3_5_steps() -> None:
     assert spec.props["steps"][0]["connectorLabel"] == "then"
 
 
-def test_process_flow_planner_merge_preserves_new_fields() -> None:
-    candidate = {
-        "header_label": "AUTOMATION PIPELINE",
-        "layout": "horizontal",
-        "variant": "horizontal",
-        "footer_label": "Zero manual overhead",
-        "steps": [{"title": "Step 1"}],
-    }
-    llm_result = {
-        "steps": [{"title": "Step 1", "value": "100"}],
-    }
-    intent = VisualIntent(
-        intent_id="intent_process",
-        narration_excerpt="Wealth accumulation system.",
-        what_viewer_must_understand="Following the process flow produces automated long-term wealth.",
-        relationship_type="process",
-        entities=[
-            SemanticEntity(name="Step 1", role="step"),
-            SemanticEntity(name="Step 2", role="step"),
-        ],
-    )
-    merged = merge_factual_and_presentation_data("process_flow", candidate, llm_result, intent)
-    assert merged["header_label"] == "AUTOMATION PIPELINE"
-    assert merged["layout"] == "horizontal"
-    assert merged["variant"] == "horizontal"
-    assert merged["footer_label"] == "Zero manual overhead"
 

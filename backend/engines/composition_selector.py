@@ -37,6 +37,8 @@ PRIMARY_RELATIONSHIP_MAP: dict[str, str] = {
     "quote": "broll_caption",
     "definition": "broll_caption",
     "broll": "broll_caption",
+    "comparison": "comparison_split",
+    "divergence": "trajectory_divergence",
 }
 
 
@@ -53,46 +55,9 @@ def select_composition_for_intent(intent: VisualIntent) -> str:
     """
     rel_type = intent.relationship_type
 
-    # 1. Comparison: strictly maps to comparison_split (requires ComparisonStructure with dimension)
-    if rel_type == "comparison":
-        has_static_comparison = bool(
-            intent.comparison
-            and intent.comparison.subject_a
-            and intent.comparison.subject_b
-            and intent.comparison.value_a
-            and intent.comparison.value_b
-            and intent.comparison.comparison_dimension
-        )
-        if has_static_comparison:
-            return "comparison_split"
-
-        raise CompositionSelectionError(
-            rel_type,
-            "comparison requires structured ComparisonStructure with subject_a, subject_b, value_a, value_b, and comparison_dimension.",
-        )
-
-    # 2. Divergence: maps to trajectory_divergence (requires temporal.horizon and ComparisonStructure)
-    if rel_type == "divergence":
-        has_temporal_horizon = bool(intent.temporal and intent.temporal.horizon)
-        has_divergent_comparison = bool(
-            intent.comparison
-            and intent.comparison.subject_a
-            and intent.comparison.subject_b
-            and intent.comparison.value_a
-            and intent.comparison.value_b
-        )
-        if has_temporal_horizon and has_divergent_comparison:
-            return "trajectory_divergence"
-
-        raise CompositionSelectionError(
-            rel_type,
-            "divergence requires structured temporal horizon and ComparisonStructure with subject_a, subject_b, value_a, and value_b.",
-        )
-
-    # 2. Disambiguation: trend
+    # 'trend' is deprecated in favor of explicit 'growth' and 'decline'.
+    # For backward compatibility with existing artifacts, resolve trend deterministically:
     if rel_type == "trend":
-        # Must use ONLY explicit structured direction information already present in VisualIntent.
-        # Do NOT infer direction from narration keywords.
         has_decay = bool(intent.temporal and intent.temporal.is_decay_over_time)
         downward_measurement = any(m.direction == "down" for m in intent.measurements)
         upward_measurement = any(m.direction == "up" for m in intent.measurements)
@@ -105,14 +70,8 @@ def select_composition_for_intent(intent: VisualIntent) -> str:
                 )
             return "time_decay"
 
-        if upward_measurement:
-            return "growth_trajectory"
-
-        raise CompositionSelectionError(
-            rel_type,
-            "trend direction is ambiguous; requires explicit measurement direction ('up' or 'down') "
-            "or temporal.is_decay_over_time=True.",
-        )
+        # If not downward, resolve to growth_trajectory
+        return "growth_trajectory"
 
     # 3. Direct Primary Mappings
     if rel_type in PRIMARY_RELATIONSHIP_MAP:

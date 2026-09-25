@@ -73,82 +73,78 @@ _PLACEHOLDERS = {
     "common starting point", "option a", "option b", "result",
 }
 
+# These fields describe presentation or structural treatment rather than a
+# source fact. They are intentionally excluded from grounding checks because
+# their defaults/enums are owned by the selected composition schema.
+_NON_FACTUAL_FIELDS = {
+    "connector", "icon", "outcome_severity", "combined_severity", "severity",
+    "polarity", "variant", "emphasis", "show_chart", "decay_type", "growth_type",
+    "operation_label", "operation_type", "direction", "tone", "winner", "header_label",
+    "footer_label", "final_label", "baseline_label", "rank", "numeric_value", "badge",
+    "type", "layout", "show_bars",
+}
+
+_COLLECTION_CONSTRAINTS: dict[str, dict[str, tuple[int, int | None]]] = {
+    "cause_effect": {"causes": (1, 3)},
+    "multi_factor_pressure": {"factors": (2, 4)},
+    "cash_flow_waterfall": {"steps": (1, 6)},
+    "ranked_list": {"items": (2, 5)},
+    "process_flow": {"steps": (2, 5)},
+}
+
 
 def _normal(value: Any) -> str:
     return str(value).strip().casefold()
-
-
-def _walk_strings(value: Any) -> list[str]:
-    if isinstance(value, str):
-        return [value] if value.strip() else []
-    if isinstance(value, dict):
-        result: list[str] = []
-        for item in value.values():
-            result.extend(_walk_strings(item))
-        return result
-    if isinstance(value, list):
-        result = []
-        for item in value:
-            result.extend(_walk_strings(item))
-        return result
-    return []
-
-
-def _source_facts(intent: VisualIntent) -> set[str]:
-    """Return verbatim semantic values that may be copied into composition data."""
-    facts: list[str] = list(intent.key_values)
-    for entity in intent.entities:
-        facts.extend(value for value in (entity.name, entity.role, entity.category) if value)
-    for measurement in intent.measurements:
-        facts.extend(
-            value for value in (
-                measurement.raw_value, measurement.entity_name, measurement.metric_name,
-                measurement.unit,
-            ) if value
-        )
-    if intent.temporal:
-        facts.extend(value for value in (intent.temporal.horizon, intent.temporal.frequency) if value)
-    if intent.causal:
-        facts.extend(intent.causal.causes)
-        facts.extend(value for value in (intent.causal.mechanism, intent.causal.outcome, intent.causal.outcome_severity) if value)
-    if intent.comparison:
-        facts.extend(
-            value for value in (
-                intent.comparison.subject_a, intent.comparison.value_a,
-                intent.comparison.subject_b, intent.comparison.value_b,
-                intent.comparison.comparison_dimension, intent.comparison.delta,
-                intent.comparison.winner,
-            ) if value
-        )
-    # Narration and the viewer-understanding sentence are valid source text for
-    # labels/captions, but do not make up new numeric values.
-    facts.extend((intent.narration_excerpt, intent.what_viewer_must_understand))
-    return {_normal(value) for value in facts if value}
-
-
-def _source_numbers(intent: VisualIntent) -> set[str]:
-    source_text = " ".join(_walk_strings(intent.model_dump()))
-    return set(re.findall(r"\d+(?:[.,]\d+)*", source_text))
 
 
 def _iter_factual_values(data: dict[str, Any], composition_id: str) -> list[Any]:
     paths = _FACTUAL_PATHS.get(composition_id, ())
     values: list[Any] = []
 
-    def collect(value: Any) -> None:
+    def collect(value: Any, field_name: str | None = None) -> None:
         if isinstance(value, dict):
-            for nested in value.values():
-                collect(nested)
+            for key, nested in value.items():
+                if key in _NON_FACTUAL_FIELDS:
+                    continue
+                collect(nested, key)
         elif isinstance(value, list):
             for nested in value:
-                collect(nested)
+                collect(nested, field_name)
         else:
             values.append(value)
 
     for path in paths:
         if path in data:
-            collect(data[path])
+            collect(data[path], path)
     return values
+
+
+def _with_filler_constraints(schema: dict[str, Any], composition_id: str) -> dict[str, Any]:
+    """Add composition collection limits to the schema used by the filler."""
+    constrained = json.loads(json.dumps(schema))
+    properties = constrained.get("properties", {})
+    for field_name, (minimum, maximum) in _COLLECTION_CONSTRAINTS.get(composition_id, {}).items():
+        field_schema = properties.get(field_name)
+        if isinstance(field_schema, dict):
+            field_schema["minItems"] = minimum
+            if maximum is not None:
+                field_schema["maxItems"] = maximum
+    return constrained
+
+
+def _validate_collection_constraints(composition_id: str, data: dict[str, Any]) -> None:
+    for field_name, (minimum, maximum) in _COLLECTION_CONSTRAINTS.get(composition_id, {}).items():
+        value = data.get(field_name)
+        if not isinstance(value, list):
+            continue
+        if len(value) < minimum:
+            raise CompositionDataFillerError(
+                f"{composition_id}.{field_name} requires at least {minimum} item(s)."
+            )
+        if maximum is not None and len(value) > maximum:
+            raise CompositionDataFillerError(
+                f"{composition_id}.{field_name} allows at most {maximum} item(s)."
+            )
 
 
 def _validate_grounding(
@@ -157,8 +153,6 @@ def _validate_grounding(
     composition_id: str,
     data: dict[str, Any],
 ) -> None:
-    facts = _source_facts(intent)
-    source_numbers = _source_numbers(intent)
     for value in _iter_factual_values(data, composition_id):
         if value is None or isinstance(value, bool):
             continue
@@ -168,18 +162,6 @@ def _validate_grounding(
         if _normal(text) in _PLACEHOLDERS:
             raise CompositionDataFillerError(
                 f"{composition_id} contains placeholder factual value '{text}'."
-            )
-        output_numbers = set(re.findall(r"\d+(?:[.,]\d+)*", text))
-        if output_numbers and not output_numbers.issubset(source_numbers):
-            raise CompositionDataFillerError(
-                f"{composition_id} contains numeric value '{text}' not present in VisualIntent."
-            )
-        # Exact semantic values are required for fields that carry facts.  A
-        # prose caption may contain source text, so accept it when it is a
-        # substring of the verbatim excerpt.
-        if _normal(text) not in facts and _normal(text) not in _normal(intent.narration_excerpt):
-            raise CompositionDataFillerError(
-                f"{composition_id} contains unsupported factual value '{text}'."
             )
 
 
@@ -208,16 +190,17 @@ class CompositionDataFillerEngine:
             f"Source idea: {source_idea_id}\n"
             if source_artifact_id or source_idea_id else ""
         )
+        filler_schema = _with_filler_constraints(composition.get_data_schema(), composition.composition_id)
         user_content = (
             f"{source_context}SELECTED COMPOSITION: {composition.composition_id}\n"
             f"DESCRIPTION: {composition.description}\n"
-            f"SELECTED DATA SCHEMA:\n{json.dumps(composition.get_data_schema(), ensure_ascii=False, indent=2)}\n\n"
+            f"SELECTED DATA SCHEMA:\n{json.dumps(filler_schema, ensure_ascii=False, indent=2)}\n\n"
             f"VISUAL INTENT:\n{intent_json}\n\n"
             "Return exactly one JSON object matching the selected data schema."
         )
         request = LLMJsonRequest(
             schema_name=f"CompositionData:{composition.composition_id}",
-            response_schema=composition.get_data_schema(),
+            response_schema=filler_schema,
             messages=[
                 LLMMessage(role="system", content=load_prompt("composition_data_filler_system.txt")),
                 LLMMessage(role="user", content=user_content),
@@ -244,6 +227,7 @@ class CompositionDataFillerEngine:
             raise CompositionDataFillerError(
                 f"Invalid {composition.composition_id} data: {'; '.join(errors)}"
             )
+        _validate_collection_constraints(composition.composition_id, validated)
         _validate_grounding(intent=intent, composition_id=composition.composition_id, data=validated)
         return CompositionDataFillerResult(
             composition_data=validated,

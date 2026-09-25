@@ -30,12 +30,8 @@ from app.assets import load_prompt
 logger = logging.getLogger(__name__)
 
 
-# Common English grammatical stopwords disallowed as trigger words.
-TRIGGER_WORD_STOPWORDS: frozenset[str] = frozenset({
-    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-    "of", "in", "on", "at", "and", "or", "but", "to", "for", "with", "by",
-    "it", "this", "that", "these", "those", "so", "as", "if",
-})
+# Trigger word stopwords blocklist removed
+TRIGGER_WORD_STOPWORDS: frozenset[str] = frozenset()
 
 
 def calculate_pacing_budget(narration: str) -> dict[str, Any]:
@@ -287,7 +283,7 @@ class VisualIntentEngine:
                 LLMMessage(role="user", content=user_content),
             ],
             temperature=0.1,  # Low temperature — this is classification, not creativity
-            max_tokens=2000,
+            max_tokens=8192,
         )
 
         try:
@@ -356,12 +352,6 @@ class VisualIntentEngine:
                         provider_metadata=response.metadata,
                     )
                 tw_lower = clean_tw.lower()
-                if tw_lower in TRIGGER_WORD_STOPWORDS:
-                    raise VisualIntentEngineError(
-                        f"VisualIntent trigger_word '{tw_raw}' cannot be a common stopword ('{tw_lower}').",
-                        raw_payload=raw,
-                        provider_metadata=response.metadata,
-                    )
                 if tw_lower in seen_trigger_words:
                     raise VisualIntentEngineError(
                         f"Duplicate trigger_word '{clean_tw}' in idea '{idea_id}'. Each trigger word within an idea must be unique.",

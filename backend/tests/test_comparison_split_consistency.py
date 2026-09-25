@@ -1,10 +1,6 @@
 from typing import Any
 import pytest
 from registries.composition_registry import CompositionRegistry, ComparisonSplitData
-from engines.composition_planner_engine import (
-    build_candidate_composition_data,
-    merge_factual_and_presentation_data,
-)
 from engines.video_assembly.composition_resolver import CompositionResolver
 from domain.visual_intent import (
     VisualIntent,
@@ -121,41 +117,4 @@ def test_comparison_split_resolver_disambiguates_labels() -> None:
     assert spec3.props["comparisonLabel"] == "ANNUAL WEALTH"
 
 
-def test_comparison_split_planner_merge_preserves_new_fields() -> None:
-    candidate = {
-        "left_role": "Fixed Deposit",
-        "left_value": "6%",
-        "right_role": "Debt Fund",
-        "right_value": "8%",
-        "header_label": "YIELD BENCHMARK",
-        "tone": "superiority",
-        "variant": "editorial",
-    }
-    llm_result = {
-        "left_role": "Fixed Deposit",
-        "left_value": "6%",
-        "right_role": "Debt Fund",
-        "right_value": "8%",
-        "delta": "+2%",
-        "winner": "right",
-    }
-    intent = VisualIntent(
-        intent_id="intent_split",
-        narration_excerpt="Comparing FD with debt funds.",
-        what_viewer_must_understand="Debt funds yield higher returns than traditional FDs.",
-        relationship_type="comparison",
-        comparison=ComparisonStructure(
-            subject_a="Fixed Deposit",
-            value_a="6%",
-            subject_b="Debt Fund",
-            value_b="8%",
-            comparison_dimension="Yield",
-        ),
-    )
-    merged = merge_factual_and_presentation_data("comparison_split", candidate, llm_result, intent)
-    assert merged["header_label"] == "YIELD BENCHMARK"
-    assert merged["tone"] == "superiority"
-    assert merged["variant"] == "editorial"
-    assert merged["winner"] == "right"
-    assert merged["delta"] == "+2%"
 

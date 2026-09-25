@@ -1181,8 +1181,11 @@ class CompositionPlannerEngine:
                 composition_id=selected_id,
             )
 
-        # 3. Eligibility Guard Check
-        if defn.is_eligible is not None and not defn.is_eligible(intent):
+        # 3. Legacy builder eligibility. The persisted path deliberately does
+        # not use these VisualIntent-era guards: composition completeness is
+        # now owned by the selected schema and filler.
+        is_persisted_path = source_idea_id is not None or source_visual_intent_artifact_id is not None
+        if not is_persisted_path and defn.is_eligible is not None and not defn.is_eligible(intent):
             raise CompositionPlannerEngineError(
                 f"VisualIntent is not eligible for composition '{selected_id}'.",
                 beat_id=beat_id,

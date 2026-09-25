@@ -236,21 +236,22 @@ def test_visual_intent_provenance_rejects_non_verbatim_source_span() -> None:
         VisualIntentArtifact(sequences=[sequence], provenance=provenance)
 
 
-def test_missing_calculation_fact_is_rejected_without_placeholder() -> None:
-    with pytest.raises(ValueError, match="calculation.*result"):
-        VisualIntent(
-            intent_id="calc_01",
-            narration_excerpt="Invest ₹10 lakh and reach an amount.",
-            what_viewer_must_understand="The result is not stated.",
-            relationship_type="calculation",
-            measurements=[
-                QuantitativeMeasurement(
-                    raw_value="₹10 lakh",
-                    metric_name="Investment",
-                    role="input",
-                )
-            ],
-        )
+def test_missing_calculation_fact_survives_intent_stage_for_filler_rejection() -> None:
+    intent = VisualIntent(
+        intent_id="calc_01",
+        narration_excerpt="Invest ₹10 lakh and reach an amount.",
+        what_viewer_must_understand="The result is not stated.",
+        relationship_type="calculation",
+        measurements=[
+            QuantitativeMeasurement(
+                raw_value="₹10 lakh",
+                metric_name="Investment",
+                role="input",
+            )
+        ],
+    )
+    assert intent.relationship_type == "calculation"
+    assert intent.measurements[0].raw_value == "₹10 lakh"
 
 
 def test_composition_beat_rejects_partial_source_reference() -> None:

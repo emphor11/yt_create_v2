@@ -1,10 +1,6 @@
 from typing import Any
 import pytest
 from registries.composition_registry import CompositionRegistry, MultiFactorPressureData, FactorItem
-from engines.composition_planner_engine import (
-    build_candidate_composition_data,
-    merge_factual_and_presentation_data,
-)
 from engines.video_assembly.composition_resolver import CompositionResolver
 from domain.visual_intent import (
     VisualIntent,
@@ -67,116 +63,8 @@ def test_multi_factor_pressure_allowed_variants_in_registry() -> None:
     assert "standard" in defn.allowed_variants
 
 
-def test_candidate_fact_extraction_dual_tri_quad_factor() -> None:
-    # 2 Factors
-    intent2 = VisualIntent(
-        intent_id="intent_01",
-        narration_excerpt="High inflation and low fixed yields threaten savings.",
-        what_viewer_must_understand="Dual pressure on capital.",
-        relationship_type="multi_factor",
-        causal=CausalStructure(
-            causes=["High Inflation", "Low Fixed Yield"],
-            outcome="Purchasing Power Collapse",
-            outcome_severity="critical",
-            mechanism="Real returns drop into negative territory",
-        ),
-        measurements=[
-            QuantitativeMeasurement(entity_name="High Inflation", raw_value="7.2%", numeric_value=7.2, unit="%", role="input"),
-            QuantitativeMeasurement(entity_name="Purchasing Power", raw_value="-38% Real Loss", numeric_value=-38.0, unit="%", role="result"),
-        ],
-    )
-    cand2 = build_candidate_composition_data("multi_factor_pressure", intent2)
-    assert cand2["variant"] == "dual_factor"
-    assert cand2["combined_severity"] == "critical"
-    assert cand2["polarity"] == "critical"
-    assert cand2["outcome_header_label"] == "CRITICAL THREAT"
-    assert cand2["outcome_note"] == "Real returns drop into negative territory"
-    assert cand2["outcome_value"] == "-38% Real Loss"
-    assert len(cand2["factors"]) == 2
-    assert cand2["factors"][0]["value"] == "7.2%"
-
-    # 3 Factors
-    intent3 = VisualIntent(
-        intent_id="intent_02",
-        narration_excerpt="Three risk factors hit simultaneously.",
-        what_viewer_must_understand="Triple risk factor.",
-        relationship_type="multi_factor",
-        causal=CausalStructure(
-            causes=["Factor A", "Factor B", "Factor C"],
-            outcome="Systemic Stress",
-            outcome_severity="high",
-        ),
-    )
-    cand3 = build_candidate_composition_data("multi_factor_pressure", intent3)
-    assert cand3["variant"] == "tri_factor"
-    assert cand3["combined_severity"] == "high"
-    assert cand3["polarity"] == "high"
-    assert len(cand3["factors"]) == 3
-
-    # 4 Factors
-    intent4 = VisualIntent(
-        intent_id="intent_03",
-        narration_excerpt="Four forces squeeze retirement margins.",
-        what_viewer_must_understand="Quadruple convergence.",
-        relationship_type="multi_factor",
-        causal=CausalStructure(
-            causes=["Market Drawdown", "Rising Debt Service", "Expense Drag", "Emergency Outflow"],
-            outcome="Severe Capital Drain",
-            outcome_severity="critical",
-        ),
-    )
-    cand4 = build_candidate_composition_data("multi_factor_pressure", intent4)
-    assert cand4["variant"] == "quad_factor"
-    assert cand4["combined_severity"] == "critical"
-    assert len(cand4["factors"]) == 4
 
 
-def test_merge_factual_and_presentation_preserves_new_fields() -> None:
-    intent = VisualIntent(
-        intent_id="intent_04",
-        narration_excerpt="Factual factors converge into severe deficit.",
-        what_viewer_must_understand="Causal convergence.",
-        relationship_type="multi_factor",
-        causal=CausalStructure(
-            causes=["Inflation Force", "Tax Drag"],
-            outcome="Severe Deficit",
-            outcome_severity="critical",
-        ),
-    )
-    candidate_facts = {
-        "factors": [
-            {"label": "Inflation Force", "value": "7%"},
-            {"label": "Tax Drag", "value": "30%"},
-        ],
-        "combined_label": "Severe Deficit",
-        "combined_severity": "critical",
-        "outcome_value": "$180K Gap",
-        "outcome_header_label": "SYSTEMIC SQUEEZE",
-        "outcome_note": "Compounding drag drains portfolio",
-        "variant": "dual_factor",
-        "polarity": "critical",
-    }
-    llm_presentation = {
-        "composition_id": "multi_factor_pressure",
-        "factors": [
-            {"label": "Inflation Force (Styled)", "severity": "high", "icon": "trending_down"},
-            {"label": "Tax Drag (Styled)", "severity": "critical", "icon": "receipt"},
-        ],
-        "combined_label": "Severe Deficit (Enhanced)",
-    }
-    merged = merge_factual_and_presentation_data("multi_factor_pressure", candidate_facts, llm_presentation, intent)
-    assert merged["outcome_value"] == "$180K Gap"
-    assert merged["outcome_header_label"] == "SYSTEMIC SQUEEZE"
-    assert merged["outcome_note"] == "Compounding drag drains portfolio"
-    assert merged["variant"] == "dual_factor"
-    assert merged["polarity"] == "critical"
-    assert len(merged["factors"]) == 2
-    assert merged["factors"][0]["value"] == "7%"
-    assert merged["factors"][0]["severity"] == "high"
-    assert merged["factors"][0]["icon"] == "trending_down"
-    assert merged["factors"][1]["value"] == "30%"
-    assert merged["factors"][1]["severity"] == "critical"
-    assert merged["factors"][1]["icon"] == "receipt"
 
 
 def test_composition_resolver_multi_factor_pressure_maps_all_props() -> None:

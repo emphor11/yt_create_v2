@@ -1,10 +1,6 @@
 from typing import Any
 import pytest
 from registries.composition_registry import CompositionRegistry, RankedListData, RankedItem
-from engines.composition_planner_engine import (
-    build_candidate_composition_data,
-    merge_factual_and_presentation_data,
-)
 from engines.video_assembly.composition_resolver import CompositionResolver
 from domain.visual_intent import VisualIntent, SemanticEntity
 
@@ -100,28 +96,4 @@ def test_ranked_list_resolver_mappings_2_3_5_items() -> None:
     assert spec.props["items"][0]["numericValue"] == 9.0
 
 
-def test_ranked_list_planner_merge_preserves_new_fields() -> None:
-    candidate = {
-        "header_label": "LEADERBOARD",
-        "variant": "dominance",
-        "footer_label": "Summary of ranks",
-        "items": [{"title": "Rank 1", "rank": 1}],
-    }
-    llm_result = {
-        "items": [{"title": "Rank 1", "rank": 1, "value": "100"}],
-    }
-    intent = VisualIntent(
-        intent_id="intent_ranked",
-        narration_excerpt="Top wealth destroyers.",
-        what_viewer_must_understand="Lifestyle inflation is the biggest drag on long-term wealth.",
-        relationship_type="ranking",
-        entities=[
-            SemanticEntity(name="Lifestyle Inflation", role="subject"),
-            SemanticEntity(name="Taxes", role="subject"),
-        ],
-    )
-    merged = merge_factual_and_presentation_data("ranked_list", candidate, llm_result, intent)
-    assert merged["header_label"] == "LEADERBOARD"
-    assert merged["variant"] == "dominance"
-    assert merged["footer_label"] == "Summary of ranks"
 

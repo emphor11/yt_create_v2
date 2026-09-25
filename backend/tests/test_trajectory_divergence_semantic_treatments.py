@@ -16,10 +16,6 @@ try:
         TrajectoryDivergenceData,
         TrajectoryPath,
     )
-    from engines.composition_planner_engine import (
-        build_candidate_composition_data,
-        merge_factual_and_presentation_data,
-    )
     from engines.video_assembly.composition_resolver import CompositionResolver
 except ImportError:
     pytest.skip("TrajectoryDivergenceData or ComparisonContext not yet registered", allow_module_level=True)
@@ -88,113 +84,8 @@ def test_trajectory_divergence_registered_in_composition_registry() -> None:
     assert "standard" in defn.allowed_variants
 
 
-def test_build_candidate_trajectory_divergence_extracts_comparison_semantics() -> None:
-    intent = VisualIntent(
-        intent_id="intent_div_01",
-        chunk_index=1,
-        narration_excerpt="Over 10 years, putting ₹30,000 into an equity SIP creates ₹38 Lakh, while paying that same ₹30,000 as car EMI leaves you with a depreciated car worth just ₹6 Lakh—a ₹32 Lakh gap.",
-        what_viewer_must_understand="Investing vs spending creates a ₹32 Lakh divergence gap over 10 years",
-        relationship_type="divergence",
-        comparison=ComparisonContext(
-            subject_a="Investor (Equity SIP)",
-            value_a="₹38 Lakh",
-            subject_b="Spender (Car EMI)",
-            value_b="₹6 Lakh",
-            comparison_dimension="₹30,000 Monthly Allocation",
-            delta="₹32 Lakh Wealth Gap",
-        ),
-        temporal=TemporalContext(
-            horizon="10 Years",
-        ),
-        measurements=[
-            QuantitativeMeasurement(
-                raw_value="₹32 Lakh Wealth Gap",
-                role="delta",
-            ),
-            QuantitativeMeasurement(
-                raw_value="12% Return",
-                role="rate",
-            ),
-        ],
-        visual_dynamics=VisualDynamics(
-            focal_point="THE COMPOUNDING SPREAD",
-            visual_priority="high",
-        ),
-    )
-
-    candidate = build_candidate_composition_data("trajectory_divergence", intent)
-    assert candidate["time_horizon"] == "10 Years"
-    assert candidate["baseline_label"] == "₹30,000 Monthly Allocation"
-    assert candidate["path_a"]["label"] == "Investor (Equity SIP)"
-    assert candidate["path_a"]["end_value"] == "₹38 Lakh"
-    assert candidate["path_b"]["label"] == "Spender (Car EMI)"
-    assert candidate["path_b"]["end_value"] == "₹6 Lakh"
-    assert candidate["divergence_gap"] == "₹32 Lakh Wealth Gap"
-    assert candidate["header_label"] == "THE COMPOUNDING SPREAD"
 
 
-def test_merge_preserves_trajectory_divergence_facts() -> None:
-    candidate_facts = {
-        "time_horizon": "15 Years",
-        "baseline_label": "Starting Investment",
-        "path_a": {
-            "label": "Strategy A",
-            "end_value": "₹1 Crore",
-            "rate": "14% CAGR",
-            "direction": "up",
-            "tone": "positive",
-        },
-        "path_b": {
-            "label": "Strategy B",
-            "end_value": "₹35 Lakh",
-            "rate": "7% FD",
-            "direction": "up",
-            "tone": "neutral",
-        },
-        "divergence_gap": "₹65 Lakh Difference",
-    }
-    llm_data = {
-        "time_horizon": "20 Years",  # Drift from LLM
-        "path_a": {
-            "label": "Index Fund SIP",  # Refined label
-        },
-        "path_b": {
-            "label": "Fixed Deposit",   # Refined label
-        },
-        "header_label": "THE 15-YEAR WEALTH GAP",
-    }
-    intent = VisualIntent(
-        intent_id="intent_div_merge",
-        chunk_index=1,
-        narration_excerpt="Wealth divergence over 15 years",
-        what_viewer_must_understand="Wealth divergence",
-        relationship_type="divergence",
-        temporal=TemporalContext(horizon="15 Years"),
-        comparison=ComparisonContext(
-            subject_a="Index Fund SIP",
-            value_a="₹1 Crore",
-            subject_b="Fixed Deposit",
-            value_b="₹35 Lakh",
-            comparison_dimension="Wealth Gap",
-        ),
-    )
-
-    merged = merge_factual_and_presentation_data(
-        "trajectory_divergence",
-        candidate_facts,
-        llm_data,
-        intent,
-    )
-    # Facts locked
-    assert merged["time_horizon"] == "15 Years"
-    assert merged["divergence_gap"] == "₹65 Lakh Difference"
-    assert merged["path_a"]["end_value"] == "₹1 Crore"
-    assert merged["path_b"]["end_value"] == "₹35 Lakh"
-    assert merged["path_a"]["rate"] == "14% CAGR"
-    # Refined presentation labels merged
-    assert merged["path_a"]["label"] == "Index Fund SIP"
-    assert merged["path_b"]["label"] == "Fixed Deposit"
-    assert merged["header_label"] == "THE 15-YEAR WEALTH GAP"
 
 
 def test_composition_resolver_maps_trajectory_divergence_props() -> None:
