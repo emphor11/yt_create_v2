@@ -1,22 +1,114 @@
 import React from 'react';
-import { AbsoluteFill, interpolate, spring, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { tokens } from '../design-tokens';
 import { GrowthTrajectoryProps } from '../types';
 import { safeAnimationWindow, safeSpringDelay } from '../animation-safety';
 
-export function GrowthTrajectory(childProps: {
-  scene_id: string;
-  composition: string;
-  fps: number;
-  duration_frames: number;
-  props: GrowthTrajectoryProps;
-  frame_spans?: any[];
-}) {
-  const { props, duration_frames, fps = 30 } = childProps;
+// ---------------------------------------------------------------------------
+// Atmospheric Editorial Backdrop (Zero Dashboard Clutter)
+// ---------------------------------------------------------------------------
+
+interface EditorialBackdropProps {
+  accentColorRgb: string;
+}
+
+function EditorialBackdrop({ accentColorRgb }: EditorialBackdropProps) {
+  return (
+    <AbsoluteFill
+      style={{
+        backgroundColor: "#060911",
+        overflow: "hidden",
+        pointerEvents: "none",
+        zIndex: 0,
+      }}
+    >
+      {/* Deep Multi-stop Obsidian Vignette */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "radial-gradient(ellipse 95% 75% at 50% 46%, #0b1222 0%, #060913 65%, #020408 100%)",
+        }}
+      />
+
+      {/* Atmospheric Soft Radiant Bloom behind the destination apex */}
+      <div
+        style={{
+          position: "absolute",
+          width: "900px",
+          height: "600px",
+          right: "80px",
+          top: "32%",
+          transform: "translateY(-50%)",
+          borderRadius: "50%",
+          background: `radial-gradient(ellipse at center, rgba(${accentColorRgb}, 0.10) 0%, rgba(${accentColorRgb}, 0.02) 48%, transparent 72%)`,
+          filter: "blur(60px)",
+        }}
+      />
+
+      {/* Ultra-subtle Horizontal Baseline & Datum Guideline */}
+      <div
+        style={{
+          position: "absolute",
+          top: "84px",
+          left: "120px",
+          right: "120px",
+          height: "1px",
+          background: "linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.04) 15%, rgba(255, 255, 255, 0.04) 85%, transparent 100%)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          bottom: "96px",
+          left: "120px",
+          right: "120px",
+          height: "1px",
+          background: "linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.035) 15%, rgba(255, 255, 255, 0.035) 85%, transparent 100%)",
+        }}
+      />
+    </AbsoluteFill>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Exact Analytical Cubic Bezier Position Calculator
+// ---------------------------------------------------------------------------
+
+function getCubicBezierPoint(
+  t: number,
+  p0: [number, number],
+  p1: [number, number],
+  p2: [number, number],
+  p3: [number, number]
+): [number, number] {
+  const clampedT = Math.max(0, Math.min(1, t));
+  const u = 1 - clampedT;
+  const tt = clampedT * clampedT;
+  const uu = u * u;
+  const uuu = uu * u;
+  const ttt = tt * clampedT;
+
+  const x = uuu * p0[0] + 3 * uu * clampedT * p1[0] + 3 * u * tt * p2[0] + ttt * p3[0];
+  const y = uuu * p0[1] + 3 * uu * clampedT * p1[1] + 3 * u * tt * p2[1] + ttt * p3[1];
+  return [x, y];
+}
+
+// ---------------------------------------------------------------------------
+// Main GrowthTrajectory Component
+// ---------------------------------------------------------------------------
+
+export function GrowthTrajectory(rawProps: GrowthTrajectoryProps | any) {
   const frame = useCurrentFrame();
+  const videoConfig = useVideoConfig();
+
+  // Robust prop unwrapping supporting VideoAssembly wrapper and direct calls
+  const resolvedProps: GrowthTrajectoryProps = (rawProps as any)?.props || rawProps || {};
+  const duration_frames = (rawProps as any)?.duration_frames || videoConfig?.durationInFrames || 180;
+  const fps = (rawProps as any)?.fps || videoConfig?.fps || 30;
 
   const {
-    headerLabel = "GROWTH TRAJECTORY",
+    headerLabel,
     startValue,
     startLabel = "Starting Point",
     endValue,
@@ -28,7 +120,7 @@ export function GrowthTrajectory(childProps: {
     milestoneLabel,
     annotation,
     variant = "standard",
-  } = props;
+  } = resolvedProps;
 
   // Scene fade-in (frames 0..8)
   const sceneOpacity = interpolate(
@@ -38,23 +130,53 @@ export function GrowthTrajectory(childProps: {
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
 
-  // 1. Establish: Entrance of start card and header
-  const headerDelay = safeSpringDelay(4, duration_frames, 0.1);
+  // Sub-threshold camera motion: subtle atmospheric zoom (1.000 -> 1.006)
+  const cameraScale = interpolate(
+    frame,
+    [0, Math.max(1, duration_frames)],
+    [1.000, 1.006],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+
+  // -------------------------------------------------------------------------
+  // Color Palette & Polarity Staging
+  // -------------------------------------------------------------------------
+  const isDeclining =
+    variant === "declining_trajectory" ||
+    (growthRate && growthRate.includes("-")) ||
+    (endValue && endValue.startsWith("-"));
+
+  const accentColor = isDeclining ? (tokens.accent.rose || "#f43f5e") : (tokens.accent.emerald || "#10b981");
+  const accentColorRgb = isDeclining ? "244, 63, 94" : "16, 185, 129";
+  const startColor = "#38bdf8"; // Cyan for baseline/foundation
+
+  // -------------------------------------------------------------------------
+  // Duration-Adaptive Choreography Windows
+  // -------------------------------------------------------------------------
+  const scaleRatio = Math.min(1, duration_frames / 120);
+
+  // 1. Header & Datum Entrance
+  const headerDelay = safeSpringDelay(Math.round(3 * scaleRatio), duration_frames, 0.08);
   const headerSpring = spring({
     frame: Math.max(0, frame - headerDelay),
     fps,
     config: tokens.motion.reveal,
   });
 
-  const startCardDelay = safeSpringDelay(8, duration_frames, 0.18);
-  const startCardSpring = spring({
-    frame: Math.max(0, frame - startCardDelay),
+  // 2. Start Origin Anchor Entrance
+  const startDelay = safeSpringDelay(Math.round(6 * scaleRatio), duration_frames, 0.14);
+  const startSpring = spring({
+    frame: Math.max(0, frame - startDelay),
     fps,
     config: tokens.motion.reveal,
   });
 
-  // 2. Trajectory drawing window (e.g. frames 18..75 scaled to duration)
-  const [curveStart, curveEnd] = safeAnimationWindow(18, 75, duration_frames);
+  // 3. Trajectory Curve Progressive Reveal Window
+  const [curveStart, curveEnd] = safeAnimationWindow(
+    Math.round(14 * scaleRatio),
+    Math.round(58 * scaleRatio),
+    duration_frames
+  );
   const curveProgress = interpolate(
     frame,
     [curveStart, curveEnd],
@@ -62,556 +184,626 @@ export function GrowthTrajectory(childProps: {
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
 
-  // 3. Optional inflection / milestone reveal (triggers around 50% along the path)
-  const isCompoundingOrAccelerating =
-    growthType === "compound" ||
-    growthType === "accelerating" ||
-    variant === "compounding_snowball" ||
-    variant === "accelerating_growth" ||
-    variant === "milestone_progression";
-
-  const hasMilestone = Boolean(milestoneValue || milestoneLabel || isCompoundingOrAccelerating);
-  const milestoneDelay = safeSpringDelay(38, duration_frames, 0.48);
+  // 4. Milestone / Inflection Activation Window (triggers when path crosses ~50% progress)
+  const milestoneDelay = safeSpringDelay(
+    Math.round(34 * scaleRatio),
+    duration_frames,
+    0.46
+  );
   const milestoneSpring = spring({
     frame: Math.max(0, frame - milestoneDelay),
     fps,
     config: tokens.motion.gentle,
   });
 
-  // 4. Payoff / target card reveal (settles once curve arrives at terminus)
-  const payoffDelay = safeSpringDelay(56, duration_frames, 0.68);
-  const payoffSpring = spring({
-    frame: Math.max(0, frame - payoffDelay),
+  // 5. Climax / End Value Arrival
+  const endDelay = safeSpringDelay(
+    Math.round(48 * scaleRatio),
+    duration_frames,
+    0.62
+  );
+  const endSpring = spring({
+    frame: Math.max(0, frame - endDelay),
     fps,
     config: tokens.motion.impact,
   });
 
-  // SVG Coordinate Geometry (960 x 360 coordinate space)
-  const svgWidth = 960;
-  const svgHeight = 360;
-  const xStart = 80;
-  const yStart = 290; // baseline
-  const xEnd = 880;
-  const yEnd = 65;   // peak target
+  // Footnote entrance
+  const annotationDelay = safeSpringDelay(
+    Math.round(58 * scaleRatio),
+    duration_frames,
+    0.72
+  );
+  const annotationSpring = spring({
+    frame: Math.max(0, frame - annotationDelay),
+    fps,
+    config: tokens.motion.gentle,
+  });
+
+  // -------------------------------------------------------------------------
+  // Sweeping Full-Canvas Trajectory Geometry (1920 x 1080 Viewport)
+  // -------------------------------------------------------------------------
+  const svgWidth = 1920;
+  const svgHeight = 1080;
+
+  // Origin coordinate
+  const xStart = 240;
+  const yStart = isDeclining ? 340 : 730;
+
+  // Apex / Destination coordinate
+  const xEnd = 1680;
+  const yEnd = isDeclining ? 730 : 340;
+
   const dx = xEnd - xStart;
-  const dy = yStart - yEnd; // positive height difference (225px)
+  const dy = yStart - yEnd;
 
-  // Curve profile based on growth regime
-  let cp1x: number;
-  let cp1y: number;
-  let cp2x: number;
-  let cp2y: number;
-  let inflectionX = xStart + dx * 0.52;
-  let inflectionY = yStart - dy * 0.28;
+  // Exact mathematical Bezier Control Points by growth variant
+  let cp1: [number, number];
+  let cp2: [number, number];
+  let milestoneT = 0.50; // parameter t along curve where milestone sits
 
-  if (growthType === "linear" || variant === "linear_accumulation") {
-    // Gentle steady upward linear trajectory
-    cp1x = Math.round(xStart + dx * 0.33);
-    cp1y = Math.round(yStart - dy * 0.33);
-    cp2x = Math.round(xStart + dx * 0.66);
-    cp2y = Math.round(yStart - dy * 0.66);
-    inflectionX = Math.round(xStart + dx * 0.5);
-    inflectionY = Math.round(yStart - dy * 0.5);
+  if (isDeclining) {
+    // Graceful descent
+    cp1 = [xStart + dx * 0.40, yStart + dy * 0.20];
+    cp2 = [xStart + dx * 0.75, yStart + dy * 0.85];
+    milestoneT = 0.48;
+  } else if (growthType === "linear" || variant === "linear_accumulation") {
+    // Steady disciplined linear accumulation
+    cp1 = [xStart + dx * 0.33, yStart - dy * 0.33];
+    cp2 = [xStart + dx * 0.67, yStart - dy * 0.67];
+    milestoneT = 0.50;
   } else if (growthType === "accelerating" || variant === "accelerating_growth") {
-    // Gradual start, bending noticeably upward in the middle
-    cp1x = Math.round(xStart + dx * 0.42);
-    cp1y = Math.round(yStart - dy * 0.16);
-    cp2x = Math.round(xStart + dx * 0.72);
-    cp2y = Math.round(yStart - dy * 0.60);
-    inflectionX = Math.round(xStart + dx * 0.50);
-    inflectionY = Math.round(yStart - dy * 0.30);
+    // Noticeable mid-stage upward inflection
+    cp1 = [xStart + dx * 0.38, yStart - dy * 0.12];
+    cp2 = [xStart + dx * 0.70, yStart - dy * 0.62];
+    milestoneT = 0.52;
   } else {
-    // Classic compounding hockey stick / wealth snowball
-    cp1x = Math.round(xStart + dx * 0.52);
-    cp1y = Math.round(yStart - dy * 0.10);
-    cp2x = Math.round(xStart + dx * 0.78);
-    cp2y = Math.round(yStart - dy * 0.45);
-    inflectionX = Math.round(xStart + dx * 0.54);
-    inflectionY = Math.round(yStart - dy * 0.22);
+    // Classic Compounding Snowball (Hockey Stick)
+    // Starts shallow/flat during early capital accumulation, then exponentially surges
+    cp1 = [xStart + dx * 0.50, yStart - dy * 0.08];
+    cp2 = [xStart + dx * 0.80, yStart - dy * 0.52];
+    milestoneT = 0.55;
   }
 
-  const pathData = `M ${xStart} ${yStart} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${xEnd} ${yEnd}`;
-  const areaFillData = `${pathData} L ${xEnd} 320 L ${xStart} 320 Z`;
-  const pathTotalLength = 1100;
-  const strokeOffset = pathTotalLength * (1 - curveProgress);
+  const p0: [number, number] = [xStart, yStart];
+  const p3: [number, number] = [xEnd, yEnd];
 
-  // Position of lead marker along curve
-  const currentLeadX = interpolate(curveProgress, [0, 1], [xStart, xEnd]);
-  const currentLeadY = interpolate(
-    curveProgress,
-    [0, 0.5, 1],
-    [yStart, inflectionY, yEnd]
-  );
+  const pathData = `M ${p0[0]} ${p0[1]} C ${cp1[0]} ${cp1[1]}, ${cp2[0]} ${cp2[1]}, ${p3[0]} ${p3[1]}`;
+  const baselineY = 820;
+  const areaFillData = `M ${p0[0]} ${p0[1]} C ${cp1[0]} ${cp1[1]}, ${cp2[0]} ${cp2[1]}, ${p3[0]} ${p3[1]} L ${xEnd} ${baselineY} L ${xStart} ${baselineY} Z`;
 
-  const displayStartValue = startValue || startLabel || "";
-  const displayEndValue = endValue || endLabel || "";
+  // Calculated SVG path length
+  const totalLength = 1750;
+  const strokeOffset = totalLength * (1 - curveProgress);
+
+  // Exact lead marker position along curve
+  const [leadX, leadY] = getCubicBezierPoint(curveProgress, p0, cp1, cp2, p3);
+  const [milestoneX, milestoneY] = getCubicBezierPoint(milestoneT, p0, cp1, cp2, p3);
+
+  // Determine milestone presence
+  const hasExplicitMilestone = Boolean(milestoneValue || milestoneLabel);
+  const isCompoundingSnowball = variant === "compounding_snowball" || growthType === "compound";
+  const displayMilestone = hasExplicitMilestone || isCompoundingSnowball;
+
+  const milestonePrimaryText = milestoneValue || (isDeclining ? "CRITICAL THRESHOLD" : "INFLECTION POINT");
+  const milestoneSecondaryText = milestoneLabel || (isDeclining ? "Accelerating erosion" : "Compounding kicks in");
+
+  // Dynamic typography sizing based on length to prevent layout wrapping
+  const startValStr = startValue || "";
+  const endValStr = endValue || "";
+
+  const startFontSize = startValStr.length > 14 ? 34 : startValStr.length > 9 ? 42 : 52;
+  const endFontSize = endValStr.length > 14 ? 54 : endValStr.length > 9 ? 66 : 82;
+
+  // Editorial category title
+  const effectiveHeader = (headerLabel || (
+    isDeclining
+      ? "DECAY TRAJECTORY"
+      : isCompoundingSnowball
+      ? "COMPOUNDING TRAJECTORY"
+      : "GROWTH TRAJECTORY"
+  )).toUpperCase();
 
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: tokens.bg.base,
+        backgroundColor: "#060911",
         fontFamily: tokens.font.family,
         opacity: sceneOpacity,
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        padding: "50px 70px",
+        transform: `scale(${cameraScale})`,
         overflow: "hidden",
       }}
     >
-      {/* Top Header Bar */}
+      <EditorialBackdrop accentColorRgb={accentColorRgb} />
+
+      {/* ----------------------------------------------------------------- */}
+      {/* 1. TOP EDITORIAL SAFE ZONE (Header & Temporal Chips)             */}
+      {/* ----------------------------------------------------------------- */}
       <div
         style={{
+          position: "absolute",
+          top: "44px",
+          left: "120px",
+          right: "120px",
+          height: "48px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           opacity: headerSpring,
-          transform: `translateY(${interpolate(headerSpring, [0, 1], [-20, 0])}px)`,
-          width: "100%",
-          paddingBottom: "12px",
-          borderBottom: `1px solid ${tokens.bg.border}`,
+          transform: `translateY(${interpolate(headerSpring, [0, 1], [-14, 0])}px)`,
+          zIndex: 10,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        {/* Left: Section Topic / Category Tag */}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div
             style={{
-              width: "12px",
-              height: "12px",
+              width: "8px",
+              height: "8px",
               borderRadius: "50%",
-              backgroundColor: tokens.accent.emerald,
-              boxShadow: `0 0 14px ${tokens.accent.emerald}`,
+              backgroundColor: accentColor,
+              boxShadow: `0 0 10px ${accentColor}`,
             }}
           />
           <span
             style={{
-              fontSize: "19px",
+              fontSize: "14px",
               fontWeight: 700,
               textTransform: "uppercase",
-              letterSpacing: "0.12em",
-              color: tokens.text.secondary,
+              letterSpacing: "0.16em",
+              color: "#94a3b8",
             }}
           >
-            {headerLabel}
+            {effectiveHeader}
           </span>
         </div>
 
+        {/* Right: Temporal & Rate Badges (Restrained Editorial Style) */}
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          {growthRate && (
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                fontSize: "15px",
-                fontWeight: 700,
-                color: tokens.accent.amber,
-                backgroundColor: "rgba(245, 158, 11, 0.12)",
-                border: "1px solid rgba(245, 158, 11, 0.35)",
-                padding: "6px 14px",
-                borderRadius: tokens.radius.chip,
-              }}
-            >
-              📈 {growthRate}
-            </div>
-          )}
           {timeHorizon && (
             <div
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: "8px",
-                fontSize: "15px",
-                fontWeight: 700,
-                color: tokens.accent.cyan,
-                backgroundColor: "rgba(56, 189, 248, 0.12)",
-                border: "1px solid rgba(56, 189, 248, 0.35)",
+                gap: "7px",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "#cbd5e1",
+                backgroundColor: "rgba(255, 255, 255, 0.04)",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
                 padding: "6px 14px",
                 borderRadius: tokens.radius.chip,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
               }}
             >
-              ⏱ {timeHorizon}
+              <span style={{ color: "#64748b" }}>HORIZON</span>
+              <span style={{ color: "#f8fafc", fontWeight: 700 }}>{timeHorizon}</span>
+            </div>
+          )}
+
+          {growthRate && (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "7px",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: accentColor,
+                backgroundColor: `rgba(${accentColorRgb}, 0.08)`,
+                border: `1px solid rgba(${accentColorRgb}, 0.28)`,
+                padding: "6px 14px",
+                borderRadius: tokens.radius.chip,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+              }}
+            >
+              <span>{isDeclining ? "▼" : "▲"}</span>
+              <span style={{ fontWeight: 800 }}>{growthRate}</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Main Content: Split Storytelling Layout */}
-      <div
+      {/* ----------------------------------------------------------------- */}
+      {/* 2. SWEEPING FULL-CANVAS SVG TRAJECTORY                            */}
+      {/* ----------------------------------------------------------------- */}
+      <svg
+        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
         style={{
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flex: 1,
-          gap: "40px",
-          marginTop: "20px",
-          marginBottom: "10px",
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          overflow: "visible",
+          zIndex: 5,
         }}
       >
-        {/* Left: Starting Anchor Card */}
+        <defs>
+          {/* Subtle Area Gradient under Trajectory */}
+          <linearGradient id="editorialAreaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={accentColor} stopOpacity="0.12" />
+            <stop offset="65%" stopColor={accentColor} stopOpacity="0.02" />
+            <stop offset="100%" stopColor={accentColor} stopOpacity="0.0" />
+          </linearGradient>
+
+          {/* Linear Line Gradient from Origin to Destination */}
+          <linearGradient id="editorialLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor={startColor} />
+            <stop offset="45%" stopColor="#38bdf8" />
+            <stop offset="78%" stopColor={accentColor} />
+            <stop offset="100%" stopColor={accentColor} />
+          </linearGradient>
+
+          {/* Soft Editorial Line Glow Filter */}
+          <filter id="trajectoryGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3.5" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+
+          {/* Progressive Reveal Clip for Area Fill to eliminate premature ghosting */}
+          <clipPath id="trajectoryAreaClip">
+            <rect x="0" y="0" width={Math.max(xStart, leadX)} height={svgHeight} />
+          </clipPath>
+        </defs>
+
+        {/* Faint Horizontal Metric Guide Grid */}
+        <line
+          x1={xStart - 40}
+          y1={baselineY}
+          x2={xEnd + 80}
+          y2={baselineY}
+          stroke="rgba(255, 255, 255, 0.05)"
+          strokeWidth="1.5"
+        />
+        <line
+          x1={xStart - 40}
+          y1={yStart}
+          x2={xEnd + 80}
+          y2={yStart}
+          stroke="rgba(255, 255, 255, 0.03)"
+          strokeWidth="1"
+          strokeDasharray="4 8"
+        />
+        <line
+          x1={xStart - 40}
+          y1={yEnd}
+          x2={xEnd + 80}
+          y2={yEnd}
+          stroke="rgba(255, 255, 255, 0.03)"
+          strokeWidth="1"
+          strokeDasharray="4 8"
+        />
+
+        {/* Delicate Area Fill Under Curve (Reveals in sync with trajectory stroke) */}
+        <path
+          d={areaFillData}
+          fill="url(#editorialAreaGrad)"
+          clipPath="url(#trajectoryAreaClip)"
+          opacity={interpolate(curveProgress, [0, 0.35], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          })}
+        />
+
+        {/* The Sweeping Editorial Trajectory Curve */}
+        <path
+          d={pathData}
+          fill="none"
+          stroke="url(#editorialLineGrad)"
+          strokeWidth="4.5"
+          strokeLinecap="round"
+          strokeDasharray={totalLength}
+          strokeDashoffset={strokeOffset}
+          filter="url(#trajectoryGlow)"
+        />
+
+        {/* Origin Node Anchor */}
+        <g opacity={startSpring} transform={`scale(${startSpring})`} style={{ transformOrigin: `${p0[0]}px ${p0[1]}px` }}>
+          <circle cx={p0[0]} cy={p0[1]} r="6" fill={startColor} />
+          <circle cx={p0[0]} cy={p0[1]} r="13" fill="none" stroke={startColor} strokeWidth="1.5" opacity="0.35" />
+        </g>
+
+        {/* Inflection / Milestone Marker & Vertical Datum Guideline */}
+        {displayMilestone && (
+          <g opacity={milestoneSpring}>
+            {/* Delicate Vertical Datum Rule */}
+            <line
+              x1={milestoneX}
+              y1={milestoneY}
+              x2={milestoneX}
+              y2={baselineY}
+              stroke="rgba(255, 255, 255, 0.12)"
+              strokeWidth="1.5"
+              strokeDasharray="4 4"
+            />
+            {/* Inflection Node Indicator */}
+            <circle cx={milestoneX} cy={milestoneY} r="5" fill="#f8fafc" />
+            <circle
+              cx={milestoneX}
+              cy={milestoneY}
+              r={12 * milestoneSpring}
+              fill="none"
+              stroke={accentColor}
+              strokeWidth="1.5"
+              opacity="0.5"
+            />
+          </g>
+        )}
+
+        {/* Kinetic Traveling Lead Point (Active during path traversal) */}
+        {curveProgress > 0.01 && curveProgress < 0.99 && (
+          <g>
+            <circle
+              cx={leadX}
+              cy={leadY}
+              r="4.5"
+              fill="#ffffff"
+              style={{ filter: "drop-shadow(0 0 6px #ffffff)" }}
+            />
+            <circle
+              cx={leadX}
+              cy={leadY}
+              r="10"
+              fill="none"
+              stroke={accentColor}
+              strokeWidth="1.5"
+              opacity="0.65"
+            />
+          </g>
+        )}
+
+        {/* Destination Climax Node Dot */}
+        <g opacity={endSpring} transform={`scale(${endSpring})`} style={{ transformOrigin: `${p3[0]}px ${p3[1]}px` }}>
+          {/* Subtle Terminal Vertical Datum Rule */}
+          <line
+            x1={p3[0]}
+            y1={p3[1]}
+            x2={p3[0]}
+            y2={baselineY}
+            stroke="rgba(255, 255, 255, 0.10)"
+            strokeWidth="1.5"
+            strokeDasharray="4 4"
+          />
+          <circle cx={p3[0]} cy={p3[1]} r="7.5" fill={accentColor} />
+          <circle
+            cx={p3[0]}
+            cy={p3[1]}
+            r={16 * endSpring}
+            fill="none"
+            stroke={accentColor}
+            strokeWidth="2"
+            opacity="0.45"
+          />
+          <circle
+            cx={p3[0]}
+            cy={p3[1]}
+            r={24 * endSpring}
+            fill="none"
+            stroke={accentColor}
+            strokeWidth="1"
+            opacity="0.2"
+          />
+        </g>
+      </svg>
+
+      {/* ----------------------------------------------------------------- */}
+      {/* 3. DIRECTLY TIED EDITORIAL VALUE OVERLAYS (NO CARDS)              */}
+      {/* ----------------------------------------------------------------- */}
+
+      {/* A. ORIGIN VALUE ANCHOR (Tied directly to left origin) */}
+      <div
+        style={{
+          position: "absolute",
+          left: `${xStart - 40}px`,
+          top: isDeclining ? `${yStart - 170}px` : `${yStart - 160}px`,
+          width: "360px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-start",
+          opacity: startSpring,
+          transform: `translateY(${interpolate(startSpring, [0, 1], [18, 0])}px)`,
+          zIndex: 8,
+          pointerEvents: "none",
+        }}
+      >
+        {/* Origin Category Tag */}
         <div
           style={{
-            opacity: startCardSpring,
-            transform: `translateX(${interpolate(startCardSpring, [0, 1], [-35, 0])}px)`,
-            flex: 0.75,
-            maxWidth: "360px",
-            backgroundColor: tokens.bg.cardLeft,
-            borderRadius: tokens.radius.card,
-            border: `1px solid ${tokens.bg.border}`,
-            borderLeft: `4px solid ${tokens.accent.cyan}`,
-            padding: "32px 28px",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            boxShadow: "0 16px 36px -12px rgba(0, 0, 0, 0.5)",
+            fontSize: "12px",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.14em",
+            color: "#64748b",
+            marginBottom: "4px",
           }}
         >
-          <div>
-            <div
-              style={{
-                fontSize: "15px",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                color: tokens.accent.cyan,
-                marginBottom: "8px",
-              }}
-            >
-              {startLabel}
-            </div>
-            <div
-              style={{
-                fontSize: displayStartValue.length > 14 ? "30px" : displayStartValue.length > 8 ? "40px" : "54px",
-                fontWeight: 800,
-                color: tokens.text.primary,
-                lineHeight: 1.1,
-                marginBottom: "12px",
-              }}
-            >
-              {displayStartValue}
-            </div>
-            <div
-              style={{
-                fontSize: "15px",
-                color: tokens.text.muted,
-                lineHeight: 1.4,
-              }}
-            >
-              {growthType === "compound"
-                ? "Early foundation built strictly through disciplined savings"
-                : "Baseline accumulation starting point"}
-            </div>
-          </div>
-
-          <div
-            style={{
-              marginTop: "24px",
-              padding: "10px 14px",
-              borderRadius: tokens.radius.chip,
-              backgroundColor: "rgba(255, 255, 255, 0.04)",
-              border: `1px solid ${tokens.bg.border}`,
-              fontSize: "14px",
-              fontWeight: 600,
-              color: tokens.text.secondary,
-            }}
-          >
-            Phase 1: Linear Accumulation
-          </div>
+          {startLabel.toUpperCase()}
         </div>
 
-        {/* Center Canvas: The Animated Growth Trajectory Chart */}
+        {/* Start Value */}
+        {startValue && (
+          <div
+            style={{
+              fontSize: `${startFontSize}px`,
+              fontWeight: 800,
+              fontVariantNumeric: "tabular-nums",
+              color: "#e2e8f0",
+              lineHeight: 1.05,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            {startValue}
+          </div>
+        )}
+
+        {/* Subtle Phase Subtitle */}
         <div
           style={{
-            flex: 1.8,
+            fontSize: "13px",
+            fontWeight: 500,
+            color: "#64748b",
+            marginTop: "6px",
+            letterSpacing: "0.02em",
+          }}
+        >
+          {isDeclining ? "Initial baseline position" : "Initial capital base"}
+        </div>
+      </div>
+
+      {/* B. INFLECTION MILESTONE CALLOUT (Floating at inflection node) */}
+      {displayMilestone && (
+        <div
+          style={{
+            position: "absolute",
+            left: `${milestoneX}px`,
+            top: isDeclining ? `${milestoneY + 28}px` : `${milestoneY - 88}px`,
+            transform: `translate(-50%, ${interpolate(milestoneSpring, [0, 1], [isDeclining ? -8 : 8, 0])}px) scale(${milestoneSpring})`,
+            opacity: milestoneSpring,
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
-            position: "relative",
-            minHeight: "360px",
+            padding: "8px 18px",
+            borderRadius: "6px",
+            backgroundColor: "rgba(11, 18, 34, 0.88)",
+            border: `1px solid rgba(${accentColorRgb}, 0.35)`,
+            backdropFilter: "blur(10px)",
+            boxShadow: "0 12px 28px -6px rgba(0, 0, 0, 0.6)",
+            whiteSpace: "nowrap",
+            zIndex: 9,
+            pointerEvents: "none",
           }}
         >
-          <svg
-            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-            style={{ width: "100%", height: "100%", overflow: "visible" }}
-          >
-            <defs>
-              <linearGradient id="growthAreaGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor={tokens.accent.cyan} stopOpacity="0.04" />
-                <stop offset="50%" stopColor={tokens.accent.emerald} stopOpacity="0.16" />
-                <stop offset="100%" stopColor={tokens.accent.amber} stopOpacity="0.28" />
-              </linearGradient>
-
-              <linearGradient id="growthLineGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor={tokens.accent.cyan} />
-                <stop offset="52%" stopColor={tokens.accent.emerald} />
-                <stop offset="100%" stopColor={tokens.accent.amber} />
-              </linearGradient>
-
-              <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="4" result="blur" />
-                <feComposite in="SourceGraphic" in2="blur" operator="over" />
-              </filter>
-            </defs>
-
-            {/* Horizontal Grid & Time Axis Guide Lines */}
-            <line
-              x1={xStart}
-              y1={yStart}
-              x2={xEnd}
-              y2={yStart}
-              stroke="rgba(255, 255, 255, 0.12)"
-              strokeWidth="2"
-            />
-            <line
-              x1={xStart}
-              y1={Math.round((yStart + yEnd) / 2)}
-              x2={xEnd}
-              y2={Math.round((yStart + yEnd) / 2)}
-              stroke="rgba(255, 255, 255, 0.05)"
-              strokeWidth="1"
-              strokeDasharray="4 4"
-            />
-            <line
-              x1={xStart}
-              y1={yEnd}
-              x2={xEnd}
-              y2={yEnd}
-              stroke="rgba(255, 255, 255, 0.08)"
-              strokeWidth="1"
-              strokeDasharray="4 4"
-            />
-
-            {/* Area Fill under the growth curve */}
-            <path
-              d={areaFillData}
-              fill="url(#growthAreaGrad)"
-              opacity={interpolate(curveProgress, [0, 0.3], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })}
-            />
-
-            {/* The Main Growth Curve */}
-            <path
-              d={pathData}
-              fill="none"
-              stroke="url(#growthLineGrad)"
-              strokeWidth="5"
-              strokeLinecap="round"
-              strokeDasharray={pathTotalLength}
-              strokeDashoffset={strokeOffset}
-              filter="url(#glow)"
-            />
-
-            {/* Starting Node Dot */}
-            <circle
-              cx={xStart}
-              cy={yStart}
-              r={startCardSpring * 6}
-              fill={tokens.accent.cyan}
-              stroke="#fff"
-              strokeWidth="2"
-            />
-
-            {/* Optional Inflection / Transition Marker */}
-            {hasMilestone && (
-              <g opacity={milestoneSpring}>
-                {/* Vertical Dotted Guide Line */}
-                <line
-                  x1={inflectionX}
-                  y1={yStart}
-                  x2={inflectionX}
-                  y2={inflectionY}
-                  stroke={tokens.accent.emerald}
-                  strokeWidth="2"
-                  strokeDasharray="3 3"
-                  opacity="0.65"
-                />
-
-                {/* Inflection Node Pulse */}
-                <circle
-                  cx={inflectionX}
-                  cy={inflectionY}
-                  r={8 * milestoneSpring}
-                  fill={tokens.accent.emerald}
-                  stroke="#fff"
-                  strokeWidth="2"
-                />
-                <circle
-                  cx={inflectionX}
-                  cy={inflectionY}
-                  r={15 * milestoneSpring}
-                  fill="none"
-                  stroke={tokens.accent.emerald}
-                  strokeWidth="1.5"
-                  opacity="0.45"
-                />
-              </g>
-            )}
-
-            {/* Lead Moving Dot along the animated path */}
-            {curveProgress > 0.02 && curveProgress < 0.98 && (
-              <circle
-                cx={currentLeadX}
-                cy={currentLeadY}
-                r="7"
-                fill="#fff"
-                filter="url(#glow)"
-              />
-            )}
-
-            {/* Terminal Payoff Node Dot */}
-            <circle
-              cx={xEnd}
-              cy={yEnd}
-              r={payoffSpring * 9}
-              fill={tokens.accent.amber}
-              stroke="#fff"
-              strokeWidth="3"
-              filter="url(#glow)"
-            />
-          </svg>
-
-          {/* Floating Inflection Callout Badge */}
-          {hasMilestone && (
-            <div
-              style={{
-                position: "absolute",
-                left: `${(inflectionX / svgWidth) * 100}%`,
-                top: `${(inflectionY / svgHeight) * 100}%`,
-                transform: `translate(-50%, -125%) scale(${milestoneSpring})`,
-                opacity: milestoneSpring,
-                backgroundColor: "rgba(16, 185, 129, 0.16)",
-                border: "1px solid rgba(16, 185, 129, 0.5)",
-                padding: "8px 14px",
-                borderRadius: tokens.radius.chip,
-                backdropFilter: "blur(6px)",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                whiteSpace: "nowrap",
-                pointerEvents: "none",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 800,
-                  color: tokens.accent.emerald,
-                  letterSpacing: "0.04em",
-                }}
-              >
-                {milestoneValue || "TIPPING POINT"}
-              </span>
-              <span
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  color: tokens.text.secondary,
-                  marginTop: "2px",
-                }}
-              >
-                {milestoneLabel || "Returns begin compounding"}
-              </span>
-            </div>
-          )}
-
-          {/* Time Axis Labels along bottom of chart */}
           <div
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              width: "100%",
-              paddingLeft: "70px",
-              paddingRight: "70px",
-              marginTop: "8px",
               fontSize: "13px",
-              fontWeight: 600,
+              fontWeight: 800,
+              color: "#f8fafc",
+              letterSpacing: "0.06em",
               textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              color: tokens.text.muted,
             }}
           >
-            <span>Time: Start</span>
-            {hasMilestone && (
-              <span style={{ color: tokens.accent.emerald }}>
-                Growth Acceleration
-              </span>
-            )}
-            <span>{timeHorizon || "Target Horizon"}</span>
+            {milestonePrimaryText}
+          </div>
+          <div
+            style={{
+              fontSize: "12px",
+              fontWeight: 500,
+              color: "#94a3b8",
+              marginTop: "2px",
+            }}
+          >
+            {milestoneSecondaryText}
           </div>
         </div>
+      )}
 
-        {/* Right: Eventual Payoff / Climax Card */}
+      {/* C. TERMINAL PAYOFF CLIMAX (Tied directly to right terminus) */}
+      <div
+        style={{
+          position: "absolute",
+          left: `${xEnd - 320}px`,
+          top: isDeclining ? `${yEnd + 26}px` : `${yEnd - 180}px`,
+          width: "480px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-start",
+          opacity: endSpring,
+          transform: `translateY(${interpolate(endSpring, [0, 1], [isDeclining ? -20 : 20, 0])}px)`,
+          zIndex: 8,
+          pointerEvents: "none",
+        }}
+      >
+        {/* Terminal Category Tag */}
         <div
           style={{
-            opacity: payoffSpring,
-            transform: `translateX(${interpolate(payoffSpring, [0, 1], [35, 0])}px)`,
-            flex: 0.85,
-            maxWidth: "380px",
-            backgroundColor: tokens.bg.cardRight,
-            borderRadius: tokens.radius.card,
-            border: "1px solid rgba(245, 158, 11, 0.35)",
-            borderLeft: `4px solid ${tokens.accent.amber}`,
-            padding: "32px 28px",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            boxShadow: "0 20px 48px -12px rgba(245, 158, 11, 0.22)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            fontSize: "13px",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.14em",
+            color: accentColor,
+            marginBottom: "4px",
           }}
         >
-          <div>
-            <div
-              style={{
-                fontSize: "15px",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                color: tokens.accent.amber,
-                marginBottom: "8px",
-              }}
-            >
-              {endLabel}
-            </div>
-            <div
-              style={{
-                fontSize: displayEndValue.length > 14 ? "30px" : displayEndValue.length > 8 ? "40px" : "54px",
-                fontWeight: 800,
-                color: tokens.accent.amber,
-                lineHeight: 1.1,
-                marginBottom: "12px",
-              }}
-            >
-              {displayEndValue}
-            </div>
-            <div
-              style={{
-                fontSize: "15px",
-                color: tokens.text.secondary,
-                lineHeight: 1.4,
-              }}
-            >
-              {annotation ||
-                (growthType === "compound"
-                  ? "The compounding snowball drives exponential wealth expansion"
-                  : "Final accumulated wealth achieved over time")}
-            </div>
-          </div>
+          <span style={{ fontSize: "11px" }}>●</span>
+          <span>{endLabel.toUpperCase()}</span>
+        </div>
 
+        {/* Hero Climax Value */}
+        {endValue && (
           <div
             style={{
-              marginTop: "24px",
-              padding: "10px 14px",
-              borderRadius: tokens.radius.chip,
-              backgroundColor: "rgba(245, 158, 11, 0.12)",
-              border: "1px solid rgba(245, 158, 11, 0.3)",
-              fontSize: "14px",
-              fontWeight: 700,
-              color: tokens.accent.amber,
-              textAlign: "center",
+              fontSize: `${endFontSize}px`,
+              fontWeight: 800,
+              fontVariantNumeric: "tabular-nums",
+              color: isDeclining ? "#f43f5e" : "#f8fafc",
+              lineHeight: 1.02,
+              letterSpacing: "-0.03em",
+              textShadow: `0 0 35px rgba(${accentColorRgb}, 0.32)`,
             }}
           >
-            🚀 Payoff: Wealth Acceleration
+            {endValue}
           </div>
-        </div>
+        )}
+
+        {/* Editorial Annotation Subtitle */}
+        {annotation && (
+          <div
+            style={{
+              fontSize: "14px",
+              fontWeight: 500,
+              color: "#94a3b8",
+              marginTop: "10px",
+              maxWidth: "420px",
+              lineHeight: 1.45,
+              opacity: annotationSpring,
+              transform: `translateY(${interpolate(annotationSpring, [0, 1], [6, 0])}px)`,
+            }}
+          >
+            {annotation}
+          </div>
+        )}
+      </div>
+
+      {/* ----------------------------------------------------------------- */}
+      {/* 4. BASELINE HORIZONTAL TIMELINE LABELS                            */}
+      {/* ----------------------------------------------------------------- */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: "64px",
+          left: `${xStart}px`,
+          right: `${svgWidth - xEnd}px`,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          fontSize: "12px",
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.12em",
+          color: "#475569",
+          opacity: headerSpring,
+          zIndex: 6,
+          pointerEvents: "none",
+        }}
+      >
+        <span>T = 0 (ORIGIN)</span>
+        {displayMilestone && (
+          <span style={{ color: "rgba(148, 163, 184, 0.7)" }}>
+            {(() => {
+              const digits = timeHorizon?.replace(/[^0-9]/g, '');
+              if (digits && Number(digits) > 0) {
+                return `MIDPOINT (~${Math.round(Number(digits) / 2)} YRS)`;
+              }
+              return "INFLECTION PHASE";
+            })()}
+          </span>
+        )}
+        <span>{timeHorizon ? `MATURITY (${timeHorizon})` : "TERMINUS"}</span>
       </div>
     </AbsoluteFill>
   );

@@ -4,6 +4,79 @@ import { tokens } from '../design-tokens';
 import { CauseEffectProps } from '../types';
 import { safeAnimationWindow, safeSpringDelay } from '../animation-safety';
 
+// ---------------------------------------------------------------------------
+// Atmospheric Backdrop Component (Clean Editorial Style)
+// ---------------------------------------------------------------------------
+
+interface EditorialBackdropProps {
+  glowColor: string;
+  glowOpacity?: number;
+}
+
+function EditorialBackdrop({ glowColor, glowOpacity = 0.12 }: EditorialBackdropProps) {
+  return (
+    <AbsoluteFill
+      style={{
+        backgroundColor: "#060911",
+        overflow: "hidden",
+        pointerEvents: "none",
+        zIndex: 0,
+      }}
+    >
+      {/* Deep Multi-stop Cinematic Vignette */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "radial-gradient(ellipse 95% 75% at 50% 46%, #0b1222 0%, #060913 65%, #020408 100%)",
+        }}
+      />
+
+      {/* Atmospheric Soft Aura behind the outcome destination */}
+      <div
+        style={{
+          position: "absolute",
+          width: "980px",
+          height: "680px",
+          right: "100px",
+          top: "48%",
+          transform: "translateY(-50%)",
+          borderRadius: "50%",
+          background: `radial-gradient(ellipse at center, ${glowColor} 0%, transparent 68%)`,
+          filter: "blur(44px)",
+          opacity: glowOpacity,
+        }}
+      />
+
+      {/* Ultra-faint Editorial Datum Lines (<= 0.035 opacity) */}
+      <div
+        style={{
+          position: "absolute",
+          top: "84px",
+          left: "140px",
+          right: "140px",
+          height: "1px",
+          background: "linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.035) 15%, rgba(255, 255, 255, 0.035) 85%, transparent 100%)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          bottom: "84px",
+          left: "140px",
+          right: "140px",
+          height: "1px",
+          background: "linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.035) 15%, rgba(255, 255, 255, 0.035) 85%, transparent 100%)",
+        }}
+      />
+    </AbsoluteFill>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main CauseEffect Component
+// ---------------------------------------------------------------------------
+
 export function CauseEffect(props: CauseEffectProps | any) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -15,6 +88,8 @@ export function CauseEffect(props: CauseEffectProps | any) {
     ? resolvedProps.causes
     : [{ label: "Contributing Cause", value: null }];
   const causes = rawCauses.slice(0, 3);
+  const causeCount = causes.length;
+
   const connector = (resolvedProps.connector || "leads to").trim();
   const outcomeLabel = resolvedProps.outcomeLabel || "Outcome";
   const outcomeValue = resolvedProps.outcomeValue || null;
@@ -24,39 +99,25 @@ export function CauseEffect(props: CauseEffectProps | any) {
   const polarity = resolvedProps.polarity || outcomeSeverity;
   const headerLabel = resolvedProps.headerLabel || null;
 
-  // Determine severity aesthetics and colors
+  // Determine editorial color scheme
   const effectivePolarity = (polarity || outcomeSeverity || "neutral").toLowerCase();
 
-  let severityColor = tokens.accent.primary;
-  let severityBg = "rgba(99, 102, 241, 0.12)";
-  let severityBorder = "rgba(99, 102, 241, 0.40)";
-  let glowColor = "rgba(99, 102, 241, 0.25)";
-  let badgeText = "CAUSAL IMPACT";
+  let accentColor = tokens.accent.cyan || "#38bdf8";
+  let glowColorRgb = "56, 189, 248";
+  let badgeText = "RESULTING OUTCOME";
 
   if (effectivePolarity === "positive") {
-    severityColor = tokens.accent.emerald || "#10b981";
-    severityBg = "rgba(16, 185, 129, 0.12)";
-    severityBorder = "rgba(16, 185, 129, 0.45)";
-    glowColor = "rgba(16, 185, 129, 0.30)";
+    accentColor = tokens.accent.emerald || "#10b981";
+    glowColorRgb = "16, 185, 129";
     badgeText = "POSITIVE PAYOFF";
   } else if (effectivePolarity === "negative" || effectivePolarity === "critical") {
-    severityColor = tokens.accent.rose || "#f43f5e";
-    severityBg = "rgba(244, 63, 94, 0.12)";
-    severityBorder = "rgba(244, 63, 94, 0.45)";
-    glowColor = "rgba(244, 63, 94, 0.32)";
+    accentColor = tokens.accent.rose || "#f43f5e";
+    glowColorRgb = "244, 63, 94";
     badgeText = effectivePolarity === "critical" ? "CRITICAL OUTCOME" : "SYSTEMIC RISK";
   } else if (effectivePolarity === "warning") {
-    severityColor = tokens.accent.amber || "#f59e0b";
-    severityBg = "rgba(245, 158, 11, 0.12)";
-    severityBorder = "rgba(245, 158, 11, 0.45)";
-    glowColor = "rgba(245, 158, 11, 0.28)";
+    accentColor = tokens.accent.amber || "#f59e0b";
+    glowColorRgb = "245, 158, 11";
     badgeText = "DOWNSIDE EXPOSURE";
-  } else {
-    severityColor = tokens.accent.cyan || "#06b6d4";
-    severityBg = "rgba(6, 182, 212, 0.12)";
-    severityBorder = "rgba(6, 182, 212, 0.40)";
-    glowColor = "rgba(6, 182, 212, 0.25)";
-    badgeText = "RESULTING OUTCOME";
   }
 
   if (outcomeHeaderLabel) {
@@ -68,92 +129,144 @@ export function CauseEffect(props: CauseEffectProps | any) {
     frame,
     [0, Math.min(8, Math.max(1, duration_frames - 1))],
     [0, 1],
-    {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-    }
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
 
-  // Dynamic spline draw progress
-  const [arrowStart, arrowEnd] = safeAnimationWindow(22, 48, duration_frames);
-  const arrowProgress = interpolate(frame, [arrowStart, arrowEnd], [0, 1], {
+  // Sub-threshold camera motion: remains below noticeable threshold (1.000 -> 1.006)
+  const cameraScale = interpolate(
+    frame,
+    [0, Math.max(1, duration_frames)],
+    [1.000, 1.006],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+
+  // -------------------------------------------------------------------------
+  // Duration-Adaptive Choreography Windows (Target ratios scaled to duration)
+  // -------------------------------------------------------------------------
+  const [conduitStart, conduitEnd] = safeAnimationWindow(
+    Math.round(14 * Math.min(1, duration_frames / 120)),
+    Math.round(36 * Math.min(1, duration_frames / 120)),
+    duration_frames
+  );
+  const conduitProgress = interpolate(frame, [conduitStart, conduitEnd], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
-  // Connector pill fade
-  const pillOpacity = interpolate(frame, [arrowStart + 6, arrowEnd + 6], [0, 1], {
+  // Subtle pulse transmission along the conduit
+  const [pulseStart, pulseEnd] = safeAnimationWindow(
+    Math.round(18 * Math.min(1, duration_frames / 120)),
+    Math.round(42 * Math.min(1, duration_frames / 120)),
+    duration_frames
+  );
+  const pulseProgress = interpolate(frame, [pulseStart, pulseEnd], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
-  // Outcome card motion
-  const outcomeDelay = safeSpringDelay(36, duration_frames, 0.60);
+  // Pulse opacity: smooth fade in, high visibility during transit, gentle fade out at destination
+  const pulseOpacity = interpolate(
+    pulseProgress,
+    [0, 0.12, 0.88, 1],
+    [0, 0.85, 0.85, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+
+  // Connector verb label resolution
+  const [verbStart, verbEnd] = safeAnimationWindow(
+    Math.round(20 * Math.min(1, duration_frames / 120)),
+    Math.round(38 * Math.min(1, duration_frames / 120)),
+    duration_frames
+  );
+  const verbOpacity = interpolate(frame, [verbStart, verbEnd], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  // Outcome activation (spring triggers as pulse approaches destination)
+  const outcomeDelay = safeSpringDelay(
+    Math.round(28 * Math.min(1, duration_frames / 120)),
+    duration_frames,
+    0.50
+  );
   const outcomeSpring = spring({
     frame: Math.max(0, frame - outcomeDelay),
     fps,
-    config: { damping: 14, stiffness: 100 },
+    config: { damping: 18, stiffness: 120, mass: 0.95 },
   });
-  const outcomeX = interpolate(outcomeSpring, [0, 1], [40, 0]);
-  const outcomeScale = interpolate(outcomeSpring, [0, 1], [0.95, 1]);
+  const outcomeX = interpolate(outcomeSpring, [0, 1], [22, 0]);
   const outcomeOpacity = interpolate(outcomeSpring, [0, 1], [0, 1]);
 
-  // Stage geometry: H = 460px
-  const causeCount = causes.length;
-  let cardHeight = 190;
-  let cardGap = 0;
+  // Dynamic vertical metrics for causes column
+  const stageHeight = 500;
+  let causeRowPositions: number[] = [250]; // Y center coordinate
+  let causeCardHeight = 110;
+  let causeCardGap = 0;
+
   if (causeCount === 2) {
-    cardHeight = 135;
-    cardGap = 30;
+    causeRowPositions = [165, 335];
+    causeCardHeight = 110;
+    causeCardGap = 30;
   } else if (causeCount === 3) {
-    cardHeight = 105;
-    cardGap = 20;
+    causeRowPositions = [115, 250, 385];
+    causeCardHeight = 90;
+    causeCardGap = 20;
   }
+
+  // Calculate pulse position along the conduit
+  // Conduit width is 270px (from 0 to 250), merging at x=135, y=250
+  const pulsePositions = causes.map((_, idx) => {
+    const startY = causeRowPositions[idx];
+    if (causeCount === 1) {
+      return { x: pulseProgress * 248, y: 250 };
+    }
+    if (pulseProgress <= 0.5) {
+      const t = pulseProgress / 0.5;
+      const x = t * 135;
+      const y = startY + (250 - startY) * (t * t * (3 - 2 * t));
+      return { x, y };
+    } else {
+      const t = (pulseProgress - 0.5) / 0.5;
+      const x = 135 + t * 113;
+      return { x, y: 250 };
+    }
+  });
 
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: tokens.bg.base,
         fontFamily: tokens.font.family,
         opacity: sceneOpacity,
+        transform: `scale(${cameraScale})`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "60px 100px",
+        padding: "60px 120px",
         overflow: "hidden",
       }}
     >
-      {/* Background subtle radial ambient light */}
-      <div
-        style={{
-          position: "absolute",
-          width: "1200px",
-          height: "800px",
-          background: `radial-gradient(circle at 65% 50%, ${glowColor} 0%, rgba(10, 15, 29, 0) 65%)`,
-          pointerEvents: "none",
-          opacity: 0.6,
-        }}
-      />
+      <EditorialBackdrop glowColor={`rgba(${glowColorRgb}, 0.16)`} glowOpacity={0.6 + outcomeOpacity * 0.4} />
 
-      {/* Optional Top Eyebrow Header */}
+      {/* Top Editorial Eyebrow / Scene Header */}
       {headerLabel && (
         <div
           style={{
             position: "absolute",
-            top: "60px",
-            left: "100px",
+            top: "84px",
+            left: "140px",
             display: "flex",
             alignItems: "center",
             gap: "10px",
+            zIndex: 2,
           }}
         >
           <div
             style={{
-              fontSize: "14px",
+              fontSize: "15px",
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.14em",
-              color: tokens.text.muted,
+              color: "#64748b",
             }}
           >
             {headerLabel}
@@ -161,43 +274,46 @@ export function CauseEffect(props: CauseEffectProps | any) {
         </div>
       )}
 
-      {/* Main Causal Stage */}
+      {/* Main Causal Editorial Stage (16:9 Balanced) */}
       <div
         style={{
+          position: "relative",
+          zIndex: 1,
           display: "flex",
           flexDirection: "row",
           alignItems: "center",
-          justifyContent: "center",
+          justifyContent: "space-between",
           width: "100%",
-          maxWidth: "1560px",
-          height: "460px",
-          gap: "24px",
-          position: "relative",
-          zIndex: 1,
+          maxWidth: "1540px",
+          height: `${stageHeight}px`,
         }}
       >
         {/* ================================================================ */}
-        {/* LEFT: Causes Column                                              */}
+        {/* LEFT WING: Editorial Input Plaques (Causes)                      */}
         {/* ================================================================ */}
         <div
           style={{
             display: "flex",
             flexDirection: "column",
             justifyContent: "center",
-            gap: `${cardGap}px`,
-            width: "460px",
-            height: "460px",
+            gap: `${causeCardGap}px`,
+            width: "480px",
+            height: `${stageHeight}px`,
             flexShrink: 0,
           }}
         >
           {causes.map((cause, index) => {
-            const causeDelay = safeSpringDelay(6 + index * 10, duration_frames, 0.35);
+            const causeDelay = safeSpringDelay(
+              Math.round((6 + index * 9) * Math.min(1, duration_frames / 120)),
+              duration_frames,
+              0.35
+            );
             const causeSpring = spring({
               frame: Math.max(0, frame - causeDelay),
               fps,
-              config: { damping: 15, stiffness: 110 },
+              config: { damping: 18, stiffness: 120, mass: 0.95 },
             });
-            const cX = interpolate(causeSpring, [0, 1], [-40, 0]);
+            const cX = interpolate(causeSpring, [0, 1], [-24, 0]);
             const cOpacity = interpolate(causeSpring, [0, 1], [0, 1]);
 
             return (
@@ -206,16 +322,15 @@ export function CauseEffect(props: CauseEffectProps | any) {
                 style={{
                   opacity: cOpacity,
                   transform: `translateX(${cX}px)`,
-                  height: `${cardHeight}px`,
-                  backgroundColor: "rgba(17, 24, 39, 0.85)",
-                  borderRadius: tokens.radius.card || "16px",
-                  border: "1px solid rgba(255, 255, 255, 0.10)",
-                  borderLeft: `4px solid ${tokens.accent.primary || "#6366f1"}`,
-                  padding: causeCount === 3 ? "16px 24px" : causeCount === 2 ? "22px 28px" : "28px 32px",
+                  minHeight: `${causeCardHeight}px`,
+                  backgroundColor: "rgba(15, 23, 42, 0.65)",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  borderLeft: `4px solid ${accentColor}`,
+                  padding: causeCount === 3 ? "14px 22px" : "18px 26px",
                   display: "flex",
                   alignItems: "center",
-                  boxShadow: "0 12px 30px -8px rgba(0, 0, 0, 0.5)",
-                  backdropFilter: "blur(12px)",
+                  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.45)",
                   boxSizing: "border-box",
                 }}
               >
@@ -227,51 +342,36 @@ export function CauseEffect(props: CauseEffectProps | any) {
                     width: "100%",
                   }}
                 >
-                  {/* Number or Icon badge */}
+                  {/* Subtle Datum / Index Marker */}
                   <div
                     style={{
-                      width: causeCount === 3 ? "32px" : "38px",
-                      height: causeCount === 3 ? "32px" : "38px",
-                      borderRadius: "8px",
-                      backgroundColor: "rgba(255, 255, 255, 0.08)",
-                      border: "1px solid rgba(255, 255, 255, 0.12)",
+                      width: "34px",
+                      height: "34px",
+                      borderRadius: "6px",
+                      backgroundColor: "rgba(255, 255, 255, 0.05)",
+                      border: "1px solid rgba(255, 255, 255, 0.10)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: causeCount === 3 ? "14px" : "16px",
+                      fontSize: "14px",
                       fontWeight: 700,
-                      color: tokens.text.secondary,
+                      color: "#94a3b8",
+                      fontVariantNumeric: "tabular-nums lining-nums",
                       flexShrink: 0,
                     }}
                   >
-                    {cause.icon || `0${index + 1}`}
+                    {cause.icon && cause.icon.length <= 2 ? cause.icon : `0${index + 1}`}
                   </div>
 
-                  {/* Text content */}
+                  {/* Input Typography */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    {causeCount === 1 && (
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.10em",
-                          color: tokens.text.secondary,
-                          marginBottom: "6px",
-                        }}
-                      >
-                        PRIMARY DRIVER
-                      </div>
-                    )}
                     <div
                       style={{
-                        fontSize: causeCount === 3 ? "20px" : causeCount === 2 ? "22px" : "26px",
+                        fontSize: causeCount === 3 ? "20px" : "23px",
                         fontWeight: 600,
-                        color: tokens.text.primary,
+                        color: "#f1f5f9",
                         lineHeight: 1.25,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: causeCount === 3 ? "nowrap" : "normal",
+                        letterSpacing: "-0.01em",
                       }}
                     >
                       {cause.label}
@@ -279,11 +379,12 @@ export function CauseEffect(props: CauseEffectProps | any) {
                     {cause.value && (
                       <div
                         style={{
-                          fontSize: causeCount === 3 ? "16px" : "19px",
+                          fontSize: causeCount === 3 ? "16px" : "18px",
                           fontWeight: 700,
-                          color: tokens.accent.cyan || "#38bdf8",
+                          color: accentColor,
                           marginTop: "4px",
-                          letterSpacing: "0.02em",
+                          fontVariantNumeric: "tabular-nums lining-nums",
+                          letterSpacing: "-0.02em",
                         }}
                       >
                         {cause.value}
@@ -297,12 +398,12 @@ export function CauseEffect(props: CauseEffectProps | any) {
         </div>
 
         {/* ================================================================ */}
-        {/* CENTER: Dynamic Connector & Splines                              */}
+        {/* CENTER: Dynamic Kinetic Conduit & Mechanism                      */}
         {/* ================================================================ */}
         <div
           style={{
-            width: "280px",
-            height: "460px",
+            width: "270px",
+            height: `${stageHeight}px`,
             position: "relative",
             display: "flex",
             alignItems: "center",
@@ -312,164 +413,229 @@ export function CauseEffect(props: CauseEffectProps | any) {
         >
           {/* Dynamic Splines SVG */}
           <svg
-            width="280"
-            height="460"
-            viewBox="0 0 280 460"
+            width="270"
+            height={stageHeight}
+            viewBox={`0 0 270 ${stageHeight}`}
             style={{ overflow: "visible", position: "absolute", inset: 0 }}
           >
-            <defs>
-              <filter id="splineGlow" filterUnits="userSpaceOnUse" x="-50" y="-50" width="380" height="560">
-                <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor={severityColor} floodOpacity="0.55" />
-              </filter>
-            </defs>
-
-            {/* Case 1: Single Cause (Straight beam from y=230 to y=230) */}
+            {/* Guide tracks (subtle background path) */}
             {causeCount === 1 && (
-              <>
-                <path
-                  d="M 0 230 L 265 230"
-                  stroke={severityColor}
-                  strokeWidth="4"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeDasharray="270"
-                  strokeDashoffset={270 * (1 - arrowProgress)}
-                  filter="url(#splineGlow)"
-                />
-                <path
-                  d="M 252 221 L 266 230 L 252 239"
-                  stroke={severityColor}
-                  strokeWidth="3.5"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity={arrowProgress > 0.85 ? 1 : 0}
-                  filter="url(#splineGlow)"
-                />
-              </>
+              <line
+                x1="0"
+                y1="250"
+                x2="248"
+                y2="250"
+                stroke="rgba(255, 255, 255, 0.08)"
+                strokeWidth="2"
+              />
             )}
-
-            {/* Case 2: Dual Causes (Converging from y=148 and y=312 to y=230) */}
             {causeCount === 2 && (
               <>
                 <path
-                  d="M 0 148 C 60 148, 100 230, 140 230"
-                  stroke={severityColor}
-                  strokeWidth="3.5"
+                  d="M 0 165 C 65 165, 95 250, 135 250"
+                  stroke="rgba(255, 255, 255, 0.08)"
+                  strokeWidth="2"
                   fill="none"
-                  strokeLinecap="round"
-                  strokeDasharray="280"
-                  strokeDashoffset={280 * (1 - arrowProgress)}
-                  filter="url(#splineGlow)"
                 />
                 <path
-                  d="M 0 312 C 60 312, 100 230, 140 230"
-                  stroke={severityColor}
-                  strokeWidth="3.5"
+                  d="M 0 335 C 65 335, 95 250, 135 250"
+                  stroke="rgba(255, 255, 255, 0.08)"
+                  strokeWidth="2"
                   fill="none"
-                  strokeLinecap="round"
-                  strokeDasharray="280"
-                  strokeDashoffset={280 * (1 - arrowProgress)}
-                  filter="url(#splineGlow)"
                 />
-                <path
-                  d="M 140 230 L 265 230"
-                  stroke={severityColor}
-                  strokeWidth="3.5"
-                  fill="none"
-                  strokeLinecap="round"
-                  filter="url(#splineGlow)"
-                  opacity={arrowProgress > 0.65 ? 1 : 0}
-                />
-                <path
-                  d="M 252 221 L 266 230 L 252 239"
-                  stroke={severityColor}
-                  strokeWidth="3.5"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity={arrowProgress > 0.85 ? 1 : 0}
-                  filter="url(#splineGlow)"
+                <line
+                  x1="135"
+                  y1="250"
+                  x2="248"
+                  y2="250"
+                  stroke="rgba(255, 255, 255, 0.08)"
+                  strokeWidth="2"
                 />
               </>
             )}
-
-            {/* Case 3: Three Causes (Converging from y=106, y=230, y=354 to y=230) */}
             {causeCount === 3 && (
               <>
                 <path
-                  d="M 0 106 C 50 106, 95 230, 140 230"
-                  stroke={severityColor}
-                  strokeWidth="3"
+                  d="M 0 115 C 65 115, 95 250, 135 250"
+                  stroke="rgba(255, 255, 255, 0.08)"
+                  strokeWidth="2"
                   fill="none"
-                  strokeLinecap="round"
-                  strokeDasharray="290"
-                  strokeDashoffset={290 * (1 - arrowProgress)}
-                  filter="url(#splineGlow)"
+                />
+                <line
+                  x1="0"
+                  y1="250"
+                  x2="135"
+                  y2="250"
+                  stroke="rgba(255, 255, 255, 0.08)"
+                  strokeWidth="2"
                 />
                 <path
-                  d="M 0 230 L 140 230"
-                  stroke={severityColor}
-                  strokeWidth="3"
+                  d="M 0 385 C 65 385, 95 250, 135 250"
+                  stroke="rgba(255, 255, 255, 0.08)"
+                  strokeWidth="2"
                   fill="none"
-                  strokeLinecap="round"
-                  strokeDasharray="150"
-                  strokeDashoffset={150 * (1 - arrowProgress)}
-                  filter="url(#splineGlow)"
                 />
-                <path
-                  d="M 0 354 C 50 354, 95 230, 140 230"
-                  stroke={severityColor}
-                  strokeWidth="3"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeDasharray="290"
-                  strokeDashoffset={290 * (1 - arrowProgress)}
-                  filter="url(#splineGlow)"
-                />
-                <path
-                  d="M 140 230 L 265 230"
-                  stroke={severityColor}
-                  strokeWidth="3.5"
-                  fill="none"
-                  strokeLinecap="round"
-                  filter="url(#splineGlow)"
-                  opacity={arrowProgress > 0.65 ? 1 : 0}
-                />
-                <path
-                  d="M 252 221 L 266 230 L 252 239"
-                  stroke={severityColor}
-                  strokeWidth="3.5"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity={arrowProgress > 0.85 ? 1 : 0}
-                  filter="url(#splineGlow)"
+                <line
+                  x1="135"
+                  y1="250"
+                  x2="248"
+                  y2="250"
+                  stroke="rgba(255, 255, 255, 0.08)"
+                  strokeWidth="2"
                 />
               </>
             )}
+
+            {/* Active Drawing Paths */}
+            {causeCount === 1 && (
+              <>
+                <line
+                  x1="0"
+                  y1="250"
+                  x2="248"
+                  y2="250"
+                  stroke={accentColor}
+                  strokeWidth="2.5"
+                  strokeDasharray="248"
+                  strokeDashoffset={248 * (1 - conduitProgress)}
+                />
+                <path
+                  d="M 238 243 L 248 250 L 238 257"
+                  stroke={accentColor}
+                  strokeWidth="2.5"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={conduitProgress > 0.85 ? 1 : 0}
+                />
+              </>
+            )}
+            {causeCount === 2 && (
+              <>
+                <path
+                  d="M 0 165 C 65 165, 95 250, 135 250"
+                  stroke={accentColor}
+                  strokeWidth="2.5"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray="280"
+                  strokeDashoffset={280 * (1 - conduitProgress)}
+                />
+                <path
+                  d="M 0 335 C 65 335, 95 250, 135 250"
+                  stroke={accentColor}
+                  strokeWidth="2.5"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray="280"
+                  strokeDashoffset={280 * (1 - conduitProgress)}
+                />
+                <line
+                  x1="135"
+                  y1="250"
+                  x2="248"
+                  y2="250"
+                  stroke={accentColor}
+                  strokeWidth="2.5"
+                  opacity={conduitProgress > 0.6 ? 1 : 0}
+                />
+                <path
+                  d="M 238 243 L 248 250 L 238 257"
+                  stroke={accentColor}
+                  strokeWidth="2.5"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={conduitProgress > 0.85 ? 1 : 0}
+                />
+              </>
+            )}
+            {causeCount === 3 && (
+              <>
+                <path
+                  d="M 0 115 C 65 115, 95 250, 135 250"
+                  stroke={accentColor}
+                  strokeWidth="2"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray="290"
+                  strokeDashoffset={290 * (1 - conduitProgress)}
+                />
+                <line
+                  x1="0"
+                  y1="250"
+                  x2="135"
+                  y2="250"
+                  stroke={accentColor}
+                  strokeWidth="2"
+                  strokeDasharray="135"
+                  strokeDashoffset={135 * (1 - conduitProgress)}
+                />
+                <path
+                  d="M 0 385 C 65 385, 95 250, 135 250"
+                  stroke={accentColor}
+                  strokeWidth="2"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray="290"
+                  strokeDashoffset={290 * (1 - conduitProgress)}
+                />
+                <line
+                  x1="135"
+                  y1="250"
+                  x2="248"
+                  y2="250"
+                  stroke={accentColor}
+                  strokeWidth="2.5"
+                  opacity={conduitProgress > 0.6 ? 1 : 0}
+                />
+                <path
+                  d="M 238 243 L 248 250 L 238 257"
+                  stroke={accentColor}
+                  strokeWidth="2.5"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={conduitProgress > 0.85 ? 1 : 0}
+                />
+              </>
+            )}
+
+            {/* Traveling Restrained Editorial Pulse Dots */}
+            {pulsePositions.map((pos, pIdx) => (
+              <circle
+                key={pIdx}
+                cx={pos.x}
+                cy={pos.y}
+                r="3.5"
+                fill={accentColor}
+                opacity={pulseOpacity}
+                style={{
+                  filter: `drop-shadow(0 0 5px ${accentColor})`,
+                }}
+              />
+            ))}
           </svg>
 
-          {/* Central floating connector badge pill */}
+          {/* Central Connector Verb Label */}
           <div
             style={{
               position: "absolute",
-              left: "50%",
+              left: "48%",
               top: "50%",
               transform: "translate(-50%, -50%)",
-              padding: "6px 14px",
-              borderRadius: "20px",
-              backgroundColor: "rgba(15, 23, 42, 0.92)",
-              border: `1px solid ${severityBorder}`,
-              boxShadow: `0 4px 14px rgba(0, 0, 0, 0.5), 0 0 12px ${glowColor}`,
+              padding: "5px 14px",
+              borderRadius: "6px",
+              backgroundColor: "rgba(11, 18, 34, 0.94)",
+              border: `1px solid rgba(255, 255, 255, 0.12)`,
+              boxShadow: "0 4px 16px rgba(0, 0, 0, 0.6)",
               fontSize: "12px",
               fontWeight: 700,
               textTransform: "uppercase",
-              letterSpacing: "0.1em",
-              color: tokens.text.primary,
+              letterSpacing: "0.12em",
+              color: "#cbd5e1",
               whiteSpace: "nowrap",
-              opacity: pillOpacity,
-              backdropFilter: "blur(8px)",
+              opacity: verbOpacity,
               zIndex: 2,
             }}
           >
@@ -478,152 +644,119 @@ export function CauseEffect(props: CauseEffectProps | any) {
         </div>
 
         {/* ================================================================ */}
-        {/* RIGHT: Dominant Outcome Card                                     */}
+        {/* RIGHT WING: The Consequence Destination (Cardless Architecture)  */}
         {/* ================================================================ */}
         <div
           style={{
             position: "relative",
-            width: "640px",
-            minHeight: "460px",
+            width: "660px",
+            minHeight: "420px",
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "center",
+            opacity: outcomeOpacity,
+            transform: `translateX(${outcomeX}px)`,
             flexShrink: 0,
           }}
         >
-          {/* Atmospheric halo aura glow behind outcome card */}
+          {/* Subtle Vertical Editorial Gradient Divider */}
           <div
             style={{
-              position: "absolute",
-              inset: "-12px",
-              borderRadius: "28px",
-              background: `radial-gradient(ellipse at center, ${glowColor} 0%, rgba(0, 0, 0, 0) 70%)`,
-              filter: "blur(28px)",
-              opacity: outcomeOpacity,
-              pointerEvents: "none",
-              zIndex: 0,
+              width: "2px",
+              height: "280px",
+              background: `linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.18) 20%, rgba(255, 255, 255, 0.18) 80%, transparent 100%)`,
+              marginRight: "40px",
+              flexShrink: 0,
             }}
           />
 
-          {/* Outcome Card Container */}
+          {/* Destination Content */}
           <div
             style={{
-              position: "relative",
-              opacity: outcomeOpacity,
-              transform: `translateX(${outcomeX}px) scale(${outcomeScale})`,
-              width: "100%",
-              minHeight: "460px",
-              backgroundColor: "rgba(15, 23, 42, 0.90)",
-              borderRadius: "22px",
-              border: `2px solid ${severityBorder}`,
-              padding: "44px 44px",
               display: "flex",
               flexDirection: "column",
-              justifyContent: "space-between",
-              boxShadow: `0 25px 60px -12px rgba(0, 0, 0, 0.75), 0 0 35px ${glowColor}`,
-              backdropFilter: "blur(16px)",
-              boxSizing: "border-box",
-              zIndex: 1,
+              justifyContent: "center",
+              flex: 1,
             }}
           >
-            {/* Top Eyebrow Badge & Titles */}
-            <div>
-              <div
+            {/* Eyebrow Datum */}
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                marginBottom: "20px",
+              }}
+            >
+              <span
                 style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "6px 16px",
-                  borderRadius: "20px",
-                  backgroundColor: severityBg,
-                  border: `1px solid ${severityBorder}`,
-                  marginBottom: "20px",
+                  width: "7px",
+                  height: "7px",
+                  borderRadius: "50%",
+                  backgroundColor: accentColor,
+                  boxShadow: `0 0 10px ${accentColor}`,
+                }}
+              />
+              <span
+                style={{
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.12em",
+                  color: accentColor,
                 }}
               >
-                <span
-                  style={{
-                    width: "8px",
-                    height: "8px",
-                    borderRadius: "50%",
-                    backgroundColor: severityColor,
-                    boxShadow: `0 0 8px ${severityColor}`,
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    color: severityColor,
-                  }}
-                >
-                  {badgeText}
-                </span>
-              </div>
-
-              {/* Primary Outcome Label */}
-              <div
-                style={{
-                  fontSize: outcomeValue ? "36px" : "44px",
-                  fontWeight: 800,
-                  color: tokens.text.primary,
-                  lineHeight: 1.2,
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                {outcomeLabel}
-              </div>
-
-              {/* Dominant Outcome Value (if present) */}
-              {outcomeValue && (
-                <div
-                  style={{
-                    marginTop: "16px",
-                    display: "flex",
-                    alignItems: "baseline",
-                    gap: "12px",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "56px",
-                      fontWeight: 800,
-                      color: severityColor,
-                      letterSpacing: "-0.02em",
-                      lineHeight: 1.1,
-                      textShadow: `0 0 24px ${glowColor}`,
-                    }}
-                  >
-                    {outcomeValue}
-                  </div>
-                </div>
-              )}
+                {badgeText}
+              </span>
             </div>
 
-            {/* Bottom Mechanism Note / Explanation Chip (if present) */}
+            {/* Primary Outcome Statement */}
+            <div
+              style={{
+                fontSize: outcomeValue ? "42px" : "48px",
+                fontWeight: 800,
+                color: "#f8fafc",
+                lineHeight: 1.18,
+                letterSpacing: "-0.02em",
+                marginBottom: outcomeValue ? "18px" : "0",
+              }}
+            >
+              {outcomeLabel}
+            </div>
+
+            {/* Dominant Resulting Value (if present and meaningful) */}
+            {outcomeValue && (
+              <div
+                style={{
+                  fontSize: "58px",
+                  fontWeight: 800,
+                  color: accentColor,
+                  lineHeight: 1.05,
+                  letterSpacing: "-0.03em",
+                  fontVariantNumeric: "tabular-nums lining-nums",
+                  textShadow: `0 6px 28px rgba(0, 0, 0, 0.7), 0 0 45px rgba(${glowColorRgb}, 0.3)`,
+                  marginBottom: outcomeNote ? "22px" : "0",
+                }}
+              >
+                {outcomeValue}
+              </div>
+            )}
+
+            {/* Editorial Outcome Note / Footnote (if present) */}
             {outcomeNote && (
               <div
                 style={{
-                  marginTop: "24px",
-                  padding: "14px 20px",
-                  borderRadius: "12px",
-                  backgroundColor: "rgba(255, 255, 255, 0.04)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
-                  borderLeft: `3px solid ${severityColor}`,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
+                  fontSize: "17px",
+                  fontWeight: 500,
+                  color: "#94a3b8",
+                  lineHeight: 1.45,
+                  maxWidth: "580px",
+                  letterSpacing: "-0.01em",
+                  paddingTop: "14px",
+                  borderTop: "1px solid rgba(255, 255, 255, 0.08)",
                 }}
               >
-                <span style={{ fontSize: "16px", opacity: 0.85 }}>⚡</span>
-                <span
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: 500,
-                    color: tokens.text.secondary,
-                    lineHeight: 1.35,
-                  }}
-                >
-                  {outcomeNote}
-                </span>
+                {outcomeNote}
               </div>
             )}
           </div>
