@@ -18,7 +18,7 @@ export function TrajectoryDivergence(childProps: {
   const {
     headerLabel = 'WEALTH ACCUMULATION DIVERGENCE',
     timeHorizon = '10 Years',
-    baselineLabel = 'Starting Point',
+    baselineLabel,
     pathA,
     pathB,
     divergenceGap,

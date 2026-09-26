@@ -26,144 +26,177 @@ class AssetResolver:
         *,
         asset_id: str,
         preferred_component: str,
-        asset_query: str | None,
+        asset_query: str | None = None,
+        asset_queries: list[str] | None = None,
+        topic: str | None = None,
     ) -> AssetReference | None:
         # Only resolve stock media assets when component is StockVideo or StockImage (Mode A)
         if preferred_component not in ("StockVideo", "Stock Video", "StockImage", "Stock Image"):
             return None
 
         asset_type: Literal["image", "video"] = "image" if preferred_component in ("Stock Image", "StockImage") else "video"
-        query = asset_query.strip() if asset_query else "car finance paperwork"
-        q_lower = query.lower()
-        if (
-            any(pat in q_lower for pat in ("viewer ", "viewer's", "viewers", "understand", "realize", "grasp"))
-            or any(punct in query for punct in (".", ";", "?", "!"))
-            or len(query.split()) > 8
-        ):
-            query = "car finance paperwork"
-        
-        # 1. Check Cache first
-        sanitized_query = re.sub(r"[^\w\-]", "_", query.lower())
-        ext = "mp4" if asset_type == "video" else "jpg"
-        cache_filename = f"{sanitized_query}_{asset_type}.{ext}"
-        cache_path = self.cache_dir / cache_filename
 
-        if cache_path.exists():
-            try:
-                cached_bytes = cache_path.read_bytes()
-                is_valid = True
-                if asset_type == "video":
-                    if b"ftyp" not in cached_bytes[:24]:
-                        is_valid = False
-                    elif not self._is_video_compliant(cache_path):
-                        is_valid = False
-                elif asset_type == "image" and not (cached_bytes.startswith(b"\xff\xd8") or cached_bytes.startswith(b"\x89PNG") or cached_bytes.startswith(b"GIF")):
-                    is_valid = False
-                
-                if is_valid:
-                    return AssetReference(
-                        asset_id=asset_id,
-                        asset_type=asset_type,
-                        source="pexels",  
-                        query=query,
-                        local_path=str(cache_path),
-                        url=None,
-                        asset_status="cached"
-                    )
+        # Build clean candidate queries list (1 to 3 queries in priority order)
+        raw_queries: list[str] = []
+        if asset_queries and isinstance(asset_queries, list):
+            raw_queries.extend(asset_queries)
+        if asset_query and isinstance(asset_query, str):
+            raw_queries.append(asset_query)
+
+        candidate_queries: list[str] = []
+        for q in raw_queries:
+            if not q or not isinstance(q, str):
+                continue
+            q_clean = q.strip()
+            q_lower = q_clean.lower()
+            if (
+                any(pat in q_lower for pat in ("viewer ", "viewer's", "viewers", "understand", "realize", "grasp"))
+                or any(punct in q_clean for punct in (".", ";", "?", "!"))
+                or len(q_clean.split()) > 8
+                or len(q_clean) < 3
+            ):
+                continue
+            if q_clean not in candidate_queries:
+                candidate_queries.append(q_clean)
+
+        if not candidate_queries:
+            if topic and isinstance(topic, str) and topic.strip():
+                clean_topic = topic.strip().lower()
+                if any(k in clean_topic for k in ("car", "auto", "vehicle")):
+                    candidate_queries = ["car dealership showroom", "car driving on road"]
                 else:
-                    cache_path.unlink()
-            except Exception:
-                try:
-                    cache_path.unlink()
-                except Exception:
-                    pass
+                    words = clean_topic.split()[:3]
+                    candidate_queries = [f"{' '.join(words)} footage", "person reviewing financial documents"]
+            else:
+                candidate_queries = ["person reviewing financial documents"]
 
-        # 2. Look for API Keys in Environment (Raise error loudly if keys are missing)
+        # Look for API Keys in Environment (Raise error loudly if keys are missing)
         pexels_key = os.environ.get("PEXELS_API_KEY")
         pixabay_key = os.environ.get("PIXABAY_API_KEY")
 
         if not pexels_key and not pixabay_key:
             raise AssetResolverError(
-                f"Missing API keys. To resolve asset for query '{query}', PEXELS_API_KEY or PIXABAY_API_KEY must be set."
+                f"Missing API keys. To resolve asset for queries '{candidate_queries}', PEXELS_API_KEY or PIXABAY_API_KEY must be set."
             )
 
-        candidate_urls: list[tuple[str, Literal["pexels", "pixabay"]]] = []
-
-        # Try Pexels search
-        if pexels_key:
-            try:
-                for link in self._search_pexels(query, asset_type, pexels_key):
-                    candidate_urls.append((link, "pexels"))
-            except Exception as e:
-                logger.warning(f"Pexels search failed for query '{query}': {e}")
-
-        # Try Pixabay search (add as fallback or if Pexels returned no links)
-        if pixabay_key:
-            try:
-                for link in self._search_pixabay(query, asset_type, pixabay_key):
-                    candidate_urls.append((link, "pixabay"))
-            except Exception as e:
-                logger.warning(f"Pixabay search failed for query '{query}': {e}")
-
-        # Fail loudly if no links were returned by the stock APIs for the query
-        if not candidate_urls:
-            raise AssetResolverError(
-                f"No stock assets found matching query '{query}' (type: '{asset_type}') on Pexels or Pixabay."
-            )
-
-        # 3. Download the asset and save in cache (Iterate through candidates until one succeeds)
+        # Iterate through candidate queries up to 3
         last_error: Exception | None = None
-        for url_to_download, source in candidate_urls:
-            try:
-                headers = {
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    "Referer": "https://www.pexels.com/" if source == "pexels" else "https://pixabay.com/",
-                }
-                req = urllib.request.Request(url_to_download, headers=headers)
-                with urllib.request.urlopen(req, timeout=20) as response:
-                    content_bytes = response.read()
+        for query in candidate_queries[:3]:
+            # 1. Check Cache first
+            sanitized_query = re.sub(r"[^\w\-]", "_", query.lower())
+            ext = "mp4" if asset_type == "video" else "jpg"
+            cache_filename = f"{sanitized_query}_{asset_type}.{ext}"
+            cache_path = self.cache_dir / cache_filename
 
-                # Validate MP4 header and save native video directly
-                if asset_type == "video":
-                    if b"ftyp" not in content_bytes[:24]:
-                        raise ValueError("Downloaded file is not a valid MP4 video.")
-                    cache_path.write_bytes(content_bytes)
-                    fps = self._get_video_fps(cache_path)
-                    if fps and not (abs(fps - 29.97) < 0.5 or abs(fps - 30.0) < 0.5 or abs(fps - 60.0) < 0.5):
-                        self._smooth_interpolate_fps(cache_path)
-                    if not self._is_video_compliant(cache_path):
-                        raise ValueError("Downloaded video is not compliant or has invalid resolution.")
+            if cache_path.exists():
+                try:
+                    cached_bytes = cache_path.read_bytes()
+                    is_valid = True
+                    if asset_type == "video":
+                        if b"ftyp" not in cached_bytes[:24]:
+                            is_valid = False
+                        elif not self._is_video_compliant(cache_path):
+                            is_valid = False
+                    elif asset_type == "image" and not (cached_bytes.startswith(b"\xff\xd8") or cached_bytes.startswith(b"\x89PNG") or cached_bytes.startswith(b"GIF")):
+                        is_valid = False
 
-                # Validate image header
-                elif asset_type == "image":
-                    if not (content_bytes.startswith(b"\xff\xd8") or content_bytes.startswith(b"\x89PNG") or content_bytes.startswith(b"GIF")):
-                        raise ValueError("Downloaded file is not a valid image format.")
-                    cache_path.write_bytes(content_bytes)
-
-                return AssetReference(
-                    asset_id=asset_id,
-                    asset_type=asset_type,
-                    source=source,
-                    query=query,
-                    local_path=str(cache_path),
-                    url=url_to_download,
-                    asset_status="cached"
-                )
-            except Exception as e:
-                last_error = e
-                logger.warning(
-                    f"Candidate asset from {source} failed for query '{query}' ({url_to_download}): {e}. Trying next candidate..."
-                )
-                if cache_path.exists():
+                    if is_valid:
+                        return AssetReference(
+                            asset_id=asset_id,
+                            asset_type=asset_type,
+                            source="pexels",  
+                            query=query,
+                            local_path=str(cache_path),
+                            url=None,
+                            asset_status="cached"
+                        )
+                    else:
+                        cache_path.unlink()
+                except Exception:
                     try:
                         cache_path.unlink()
                     except Exception:
                         pass
+
+            candidate_urls: list[tuple[str, Literal["pexels", "pixabay"]]] = []
+
+            # Try Pexels search
+            if pexels_key:
+                try:
+                    for link in self._search_pexels(query, asset_type, pexels_key):
+                        candidate_urls.append((link, "pexels"))
+                except Exception as e:
+                    logger.warning(f"Pexels search failed for query '{query}': {e}")
+
+            # Try Pixabay search (add as fallback or if Pexels returned no links)
+            if pixabay_key:
+                try:
+                    for link in self._search_pixabay(query, asset_type, pixabay_key):
+                        candidate_urls.append((link, "pixabay"))
+                except Exception as e:
+                    logger.warning(f"Pixabay search failed for query '{query}': {e}")
+
+            if not candidate_urls:
+                logger.info(f"Query '{query}' returned no stock assets. Trying next candidate query...")
                 continue
 
-        raise AssetResolverError(
-            f"Failed to download or validate any stock asset for query '{query}' ({len(candidate_urls)} candidates tried): {last_error}"
-        ) from last_error
+            # Download the asset and save in cache (Iterate through candidates until one succeeds)
+            for url_to_download, source in candidate_urls:
+                try:
+                    headers = {
+                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                        "Referer": "https://www.pexels.com/" if source == "pexels" else "https://pixabay.com/",
+                    }
+                    req = urllib.request.Request(url_to_download, headers=headers)
+                    with urllib.request.urlopen(req, timeout=20) as response:
+                        content_bytes = response.read()
+
+                    # Validate MP4 header and save native video directly
+                    if asset_type == "video":
+                        if b"ftyp" not in content_bytes[:24]:
+                            raise ValueError("Downloaded file is not a valid MP4 video.")
+                        cache_path.write_bytes(content_bytes)
+                        fps = self._get_video_fps(cache_path)
+                        if fps and not (abs(fps - 29.97) < 0.5 or abs(fps - 30.0) < 0.5 or abs(fps - 60.0) < 0.5):
+                            self._smooth_interpolate_fps(cache_path)
+                        if not self._is_video_compliant(cache_path):
+                            raise ValueError("Downloaded video is not compliant or has invalid resolution.")
+
+                    # Validate image header
+                    elif asset_type == "image":
+                        if not (content_bytes.startswith(b"\xff\xd8") or content_bytes.startswith(b"\x89PNG") or content_bytes.startswith(b"GIF")):
+                            raise ValueError("Downloaded file is not a valid image format.")
+                        cache_path.write_bytes(content_bytes)
+
+                    return AssetReference(
+                        asset_id=asset_id,
+                        asset_type=asset_type,
+                        source=source,
+                        query=query,
+                        local_path=str(cache_path),
+                        url=url_to_download,
+                        asset_status="cached"
+                    )
+                except Exception as e:
+                    last_error = e
+                    logger.warning(
+                        f"Candidate asset from {source} failed for query '{query}' ({url_to_download}): {e}. Trying next candidate..."
+                    )
+                    if cache_path.exists():
+                        try:
+                            cache_path.unlink()
+                        except Exception:
+                            pass
+                    continue
+
+        if last_error:
+            raise AssetResolverError(
+                f"Failed to download or validate any stock asset for candidate queries {candidate_queries[:3]}: {last_error}"
+            ) from last_error
+        else:
+            raise AssetResolverError(
+                f"No stock assets found matching candidate queries: {candidate_queries[:3]} on Pexels or Pixabay."
+            )
 
     def _get_video_fps(self, path: Path) -> float | None:
         """Extracts the video framerate using ffprobe."""

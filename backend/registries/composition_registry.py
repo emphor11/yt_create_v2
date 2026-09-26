@@ -29,11 +29,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from domain.visual_intent import VisualIntent
 from registries.composition_builders import (
+    build_accumulation_decomposition_data,
     build_broll_caption_data,
     build_calculation_story_data,
     build_cash_flow_waterfall_data,
     build_cause_effect_data,
     build_comparison_split_data,
+    build_debt_amortization_schedule_data,
     build_growth_trajectory_data,
     build_metric_hero_data,
     build_multi_factor_pressure_data,
@@ -41,11 +43,13 @@ from registries.composition_builders import (
     build_ranked_list_data,
     build_time_decay_data,
     build_trajectory_divergence_data,
+    is_eligible_accumulation_decomposition,
     is_eligible_broll_caption,
     is_eligible_calculation_story,
     is_eligible_cash_flow_waterfall,
     is_eligible_cause_effect,
     is_eligible_comparison_split,
+    is_eligible_debt_amortization_schedule,
     is_eligible_growth_trajectory,
     is_eligible_metric_hero,
     is_eligible_multi_factor_pressure,
@@ -282,14 +286,14 @@ class GrowthTrajectoryData(StrictCompositionData):
     )
     start_value: str | None = Field(
         default=None,
-        description="Starting value or quantity, e.g. '₹0', '₹50,000/mo', '₹10 Lakh'",
+        description="Starting value or anchor, e.g. '₹0', '₹50,000/mo', '₹10 Lakh', or qualitative anchor like 'Base Salary Level' if non-numeric",
     )
     start_label: str = Field(
         description="Label for starting point, e.g. 'Initial Savings', 'Base Corpus', 'Monthly Contribution'",
     )
     end_value: str | None = Field(
         default=None,
-        description="Ending or target value, e.g. '₹10 Lakh', '₹1 Crore', '₹38 Lakh'",
+        description="Ending or target value, e.g. '₹10 Lakh', '₹1 Crore', '₹38 Lakh', or qualitative anchor like 'Peak Earnings' if non-numeric",
     )
     end_label: str = Field(
         description="Label for ending value, e.g. 'Target Corpus', 'Accumulated Wealth', 'Eventual Corpus'",
@@ -367,9 +371,9 @@ class TrajectoryDivergenceData(StrictCompositionData):
     time_horizon: str = Field(
         description="Duration over which the divergence unfolds, e.g. '10 Years', '7 Years', '20 Years'",
     )
-    baseline_label: str = Field(
-        default="Common Starting Point",
-        description="What both paths start from, e.g. '₹30,000 Monthly Commitment', 'Monthly Salary ₹50,000'",
+    baseline_label: str | None = Field(
+        default=None,
+        description="Optional starting baseline what both paths start from, e.g. '₹30,000 Monthly Commitment', 'Monthly Salary ₹50,000'. Omit if not stated in narration.",
     )
     path_a: TrajectoryPath = Field(
         description="First diverging path (typically the favorable/positive direction)",
@@ -451,6 +455,144 @@ class CashFlowWaterfallData(StrictCompositionData):
     )
 
 
+class AccumulationStream(StrictCompositionData):
+    """
+    A single contribution or return stream in an AccumulationDecomposition composition.
+    """
+    label: str = Field(
+        description="Name of contribution source or layer, e.g. 'Your Contributions', 'Compounded Returns', 'Employer Match'",
+    )
+    value: str = Field(
+        description="Value string, e.g. '₹12 Lakh', '₹18 Lakh'",
+    )
+    rate: str | None = Field(
+        default=None,
+        description="Optional rate or return percentage, e.g. '12% CAGR', '8% Interest'",
+    )
+    color_token: str | None = Field(
+        default=None,
+        description="Optional color hint: 'emerald' | 'cyan' | 'amber' | 'purple'",
+    )
+    numeric_amount: float | None = Field(
+        default=None,
+        description="Optional numeric amount for proportional visual stacking",
+    )
+
+
+class AccumulationDecompositionData(StrictCompositionData):
+    """
+    Shows a growing financial corpus/total composed over time of distinct contribution sources
+    (e.g., cumulative principal/contributions vs compound investment returns, or multi-source savings).
+
+    Use for: contributions vs returns, SIP wealth accumulation, retirement corpus decomposition,
+    employer match + personal savings, compounding breakdown over time.
+    relationship_types: accumulation
+    """
+    header_label: str = Field(
+        default="WEALTH ACCUMULATION",
+        description="Header label, e.g. 'CORPUS DECOMPOSITION', 'WEALTH ACCUMULATION', 'SIP RETURNS BREAKDOWN'",
+    )
+    total_value: str = Field(
+        description="The final accumulated total or target corpus, e.g. '₹30 Lakh', '₹1 Crore'",
+    )
+    total_label: str = Field(
+        default="Total Accumulated Corpus",
+        description="Label for total, e.g. 'Total Corpus', 'Final Wealth', 'Target Goal'",
+    )
+    time_horizon: str | None = Field(
+        default=None,
+        description="Time horizon, e.g. '10 Years', '15 Years', '25 Years'",
+    )
+    streams: list[AccumulationStream] = Field(
+        description="List of 2-4 distinct contribution streams composing the total (e.g. [Contributions, Returns])",
+    )
+    annotation: str | None = Field(
+        default=None,
+        description="Key insight note, e.g. 'Returns exceed contributions by year 8', 'Compounding does 60% of the heavy lifting'",
+    )
+    variant: str | None = Field(
+        default="standard",
+        description="'standard' | 'contributions_vs_returns' | 'milestone_layers'",
+    )
+
+
+class AmortizationPeriod(StrictCompositionData):
+    """
+    A single period breakdown in a DebtAmortizationSchedule composition.
+    """
+    period_label: str = Field(
+        description="Stage or period name, e.g. 'Year 1', 'Year 5', 'Year 15', 'Early Phase', 'Late Phase'",
+    )
+    principal_share: str = Field(
+        description="Amount or percentage paying down principal, e.g. '₹9,000 (30%)', '₹15,000'",
+    )
+    interest_share: str = Field(
+        description="Amount or percentage paid to interest, e.g. '₹21,000 (70%)', '₹15,000'",
+    )
+    remaining_balance: str | None = Field(
+        default=None,
+        description="Outstanding loan balance at this stage, e.g. '₹48 Lakh', '₹20 Lakh'",
+    )
+    principal_numeric: float | None = Field(
+        default=None,
+        description="Numeric principal portion for proportional stacked bar",
+    )
+    interest_numeric: float | None = Field(
+        default=None,
+        description="Numeric interest portion for proportional stacked bar",
+    )
+
+
+class DebtAmortizationScheduleData(StrictCompositionData):
+    """
+    Shows a loan balance declining over time, revealing the decomposition of payments into
+    principal reduction vs interest cost across the loan life (e.g. early interest drag vs late principal paydown).
+
+    Use for: loan repayment schedules, EMI principal vs interest split, mortgage amortization,
+    prepayment impact on tenure/interest, debt paydown trajectory.
+    relationship_types: amortization
+    """
+    header_label: str = Field(
+        default="LOAN AMORTIZATION SCHEDULE",
+        description="Header label, e.g. 'LOAN REPAYMENT BREAKDOWN', 'MORTGAGE AMORTIZATION', 'INTEREST VS PRINCIPAL'",
+    )
+    loan_amount: str = Field(
+        description="Initial loan or principal amount, e.g. '₹50 Lakh', '₹15 Lakh'",
+    )
+    loan_label: str = Field(
+        default="Original Principal",
+        description="Label for loan amount, e.g. 'Home Loan Amount', 'Total Borrowed', 'Principal'",
+    )
+    interest_rate: str | None = Field(
+        default=None,
+        description="Interest rate if stated, e.g. '8.5% p.a.', '9% Interest'. Never fabricate.",
+    )
+    tenure: str | None = Field(
+        default=None,
+        description="Loan duration or tenure, e.g. '20 Years', '15 Years', '7 Years'",
+    )
+    payment_amount: str | None = Field(
+        default=None,
+        description="Periodic payment or EMI, e.g. '₹30,000/month', '₹45,000 EMI'",
+    )
+    total_interest: str | None = Field(
+        default=None,
+        description="Total interest paid over loan life if stated, e.g. '₹54 Lakh Interest'",
+    )
+    periods: list[AmortizationPeriod] = Field(
+        default_factory=list,
+        description="Decomposition breakdown across 2-4 key periods (e.g. Early Phase vs Late Phase, or Year 1 vs Year 10)",
+    )
+    annotation: str | None = Field(
+        default=None,
+        description="Key financial insight, e.g. 'Early payments go almost entirely to interest', 'Tenure drops from 20 to 11 years with 1 extra EMI'",
+    )
+    variant: str | None = Field(
+        default="standard",
+        description="'standard' | 'interest_front_loaded' | 'prepayment_impact' | 'balance_paydown'",
+    )
+
+
 class FactorItem(StrictCompositionData):
     label: str = Field(description="Short label, e.g. 'High Inflation', 'Weak Returns'")
     value: str | None = Field(default=None, description="Optional value, e.g. '7%', '3%'")
@@ -510,6 +652,10 @@ class BrollCaptionData(StrictCompositionData):
     or when relationship_type is 'broll', 'statement', or 'quote'.
     """
     caption: str = Field(description="The main caption text shown on screen.")
+    asset_queries: list[str] = Field(
+        default_factory=list,
+        description="2-3 concrete stock media visual search queries (2-5 words each) matching this scene, ordered by preference. NEVER automotive queries unless scene is about cars.",
+    )
     emphasis_phrase: str | None = Field(
         default=None,
         description="Optional key phrase to emphasize visually within or below the caption.",
@@ -842,10 +988,15 @@ class CompositionRegistry:
                     "type": "string",
                     "description": (
                         "Concrete 2-6 word stock media visual search query containing physical nouns or visible actions "
-                        "(e.g. 'car dealership showroom', 'person reviewing loan documents', 'mechanic replacing tire'). "
+                        "(e.g. 'person checking bank account on phone', 'young professional in modern office', 'person reviewing financial documents'). "
                         "Used ONLY to search stock footage providers (Pexels/Pixabay). "
                         "Must NOT be null, must NOT be a full sentence, must NOT contain 'viewer', and must NOT explain concepts."
                     ),
+                }
+                asset_queries_prop: dict[str, Any] = {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "2-3 candidate stock media search queries ordered by preference.",
                 }
                 required_props = [
                     "status",
@@ -856,6 +1007,7 @@ class CompositionRegistry:
                 ]
             else:
                 asset_query_prop = {"type": "string", "nullable": True}
+                asset_queries_prop = {"type": "array", "items": {"type": "string"}, "nullable": True}
                 required_props = [
                     "status",
                     "composition_id",
@@ -878,6 +1030,7 @@ class CompositionRegistry:
                         "enum": [e.value for e in AssetRequirement],
                     },
                     "asset_query": asset_query_prop,
+                    "asset_queries": asset_queries_prop,
                     "trigger_word": {"type": "string", "nullable": True},
                     "visual_goal": {"type": "string"},
                 },
@@ -1099,6 +1252,38 @@ CompositionRegistry.register(
         fallback_component_id="Charts",
         builder=build_cash_flow_waterfall_data,
         is_eligible=is_eligible_cash_flow_waterfall,
+    )
+)
+
+CompositionRegistry.register(
+    CompositionDefinition(
+        composition_id="accumulation_decomposition",
+        display_name="Accumulation Decomposition",
+        description="Shows a growing total corpus composed of distinct contribution streams and returns over time.",
+        supported_relationship_types=["accumulation"],
+        data_model=AccumulationDecompositionData,
+        allowed_variants=["standard", "contributions_vs_returns", "milestone_layers"],
+        asset_requirement=AssetRequirement.NONE,
+        remotion_component_id="AccumulationDecomposition",
+        fallback_component_id="Charts",
+        builder=build_accumulation_decomposition_data,
+        is_eligible=is_eligible_accumulation_decomposition,
+    )
+)
+
+CompositionRegistry.register(
+    CompositionDefinition(
+        composition_id="debt_amortization_schedule",
+        display_name="Debt Amortization Schedule",
+        description="Shows loan principal declining over time with interest vs principal decomposition per period.",
+        supported_relationship_types=["amortization"],
+        data_model=DebtAmortizationScheduleData,
+        allowed_variants=["standard", "interest_front_loaded", "prepayment_impact", "balance_paydown"],
+        asset_requirement=AssetRequirement.NONE,
+        remotion_component_id="DebtAmortizationSchedule",
+        fallback_component_id="Charts",
+        builder=build_debt_amortization_schedule_data,
+        is_eligible=is_eligible_debt_amortization_schedule,
     )
 )
 

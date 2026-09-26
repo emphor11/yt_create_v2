@@ -23,6 +23,8 @@ import { MultiFactorPressure } from "./compositions/MultiFactorPressure";
 import { BrollCaption } from "./compositions/BrollCaption";
 import { TrajectoryDivergence } from "./compositions/TrajectoryDivergence";
 import { CashFlowWaterfall } from "./compositions/CashFlowWaterfall";
+import { AccumulationDecomposition } from "./compositions/AccumulationDecomposition";
+import { DebtAmortizationSchedule } from "./compositions/DebtAmortizationSchedule";
 import { VideoAssembly } from "./VideoAssembly";
 import { Thumbnail, defaultThumbnailProps } from "./Thumbnail";
 import { type SplitComparisonRenderSpec, type VideoAssemblyRenderSpec } from "./types";
@@ -259,6 +261,24 @@ export function RemotionRoot() {
       <Composition
         id="CashFlowWaterfall"
         component={CashFlowWaterfall as any}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{} as any}
+      />
+      <Composition
+        id="AccumulationDecomposition"
+        component={AccumulationDecomposition as any}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{} as any}
+      />
+      <Composition
+        id="DebtAmortizationSchedule"
+        component={DebtAmortizationSchedule as any}
         durationInFrames={180}
         fps={30}
         width={1920}

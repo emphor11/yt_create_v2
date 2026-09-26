@@ -143,8 +143,8 @@ export function GrowthTrajectory(childProps: {
     [yStart, inflectionY, yEnd]
   );
 
-  const displayStartValue = startValue || "₹0";
-  const displayEndValue = endValue || "Substantial Wealth";
+  const displayStartValue = startValue || startLabel || "";
+  const displayEndValue = endValue || endLabel || "";
 
   return (
     <AbsoluteFill
@@ -281,7 +281,7 @@ export function GrowthTrajectory(childProps: {
             </div>
             <div
               style={{
-                fontSize: displayStartValue.length > 8 ? "42px" : "54px",
+                fontSize: displayStartValue.length > 14 ? "30px" : displayStartValue.length > 8 ? "40px" : "54px",
                 fontWeight: 800,
                 color: tokens.text.primary,
                 lineHeight: 1.1,
@@ -573,7 +573,7 @@ export function GrowthTrajectory(childProps: {
             </div>
             <div
               style={{
-                fontSize: displayEndValue.length > 8 ? "42px" : "54px",
+                fontSize: displayEndValue.length > 14 ? "30px" : displayEndValue.length > 8 ? "40px" : "54px",
                 fontWeight: 800,
                 color: tokens.accent.amber,
                 lineHeight: 1.1,

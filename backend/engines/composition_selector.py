@@ -39,6 +39,8 @@ PRIMARY_RELATIONSHIP_MAP: dict[str, str] = {
     "broll": "broll_caption",
     "comparison": "comparison_split",
     "divergence": "trajectory_divergence",
+    "accumulation": "accumulation_decomposition",
+    "amortization": "debt_amortization_schedule",
 }
 
 
@@ -77,7 +79,7 @@ def select_composition_for_intent(intent: VisualIntent) -> str:
     if rel_type in PRIMARY_RELATIONSHIP_MAP:
         return PRIMARY_RELATIONSHIP_MAP[rel_type]
 
-    # 4. Unsupported or unmapped relationship types (e.g. amortization, accumulation)
+    # 4. Unsupported or unknown relationship types
     raise CompositionSelectionError(
         rel_type,
         f"relationship_type '{rel_type}' is unsupported or has no registered composition.",

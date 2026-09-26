@@ -6,6 +6,7 @@ Uses CompositionResolver for mapping composition beats into ComponentSpecs.
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from domain.hook import Hook
@@ -35,6 +36,7 @@ class CompositionAssemblyEngine:
         self,
         asset_query: str | None,
         narration_text: str | None,
+        topic: str | None = None,
     ) -> str:
         """
         Ensures that stock media queries sent to AssetResolver are concrete 2-6 word visual phrases.
@@ -47,34 +49,55 @@ class CompositionAssemblyEngine:
                 not any(pat in q_lower for pat in ("viewer ", "viewer's", "viewers", "understand", "realize", "grasp"))
                 and not any(punct in q for punct in (".", ";", "?", "!"))
                 and len(q.split()) <= 8
+                and len(q) >= 3
             ):
                 return q
 
         # Extract concrete physical phrase from narration if available
         if narration_text:
             nt = narration_text.lower()
-            if any(k in nt for k in ("tire", "tires", "mechanic", "servicing", "maintenance", "detailing")):
-                return "mechanic changing car tire"
-            if any(k in nt for k in ("dealership", "showroom", "salesperson", "sales pitch")):
-                return "car dealership showroom"
-            if any(k in nt for k in ("insurance", "totaled", "accident", "stolen")):
-                return "car insurance paperwork"
-            if any(k in nt for k in ("fuel", "gas station", "petrol")):
-                return "driver filling car fuel"
-            if any(k in nt for k in ("luxury", "valet", "lifestyle creep", "premium vehicle")):
-                return "luxury car interior"
-            if any(k in nt for k in ("pre-owned", "used car")):
-                return "used car showroom"
-            if any(k in nt for k in ("loan", "emi", "bank", "interest", "financing", "underwater")):
-                return "car loan paperwork"
-            if any(k in nt for k in ("invest", "portfolio", "index fund", "compound")):
-                return "person reviewing investments"
-            if any(k in nt for k in ("budget", "expenses", "cash flow", "cannibalize", "savings")):
-                return "person calculating expenses"
-            if any(k in nt for k in ("car", "vehicle", "drive", "driving", "road")):
+            topic_lower = (topic or "").lower()
+            # Automotive domain only if topic is automotive or narration explicitly specifies cars/dealerships
+            is_auto = any(k in topic_lower for k in ("car", "auto", "vehicle")) or bool(
+                re.search(r"\b(car|cars|vehicle|vehicles|automobile|automobiles|dealership|dealerships|showroom|showrooms|mechanic)\b", nt)
+            )
+            if is_auto:
+                if re.search(r"\b(tire|tires|mechanic|mechanics)\b", nt):
+                    return "mechanic changing car tire"
+                if re.search(r"\b(dealership|dealerships|showroom|showrooms|salesperson|salespeople|sales pitch)\b", nt):
+                    return "car dealership showroom"
+                if re.search(r"\b(insurance|totaled|accident|accidents)\b", nt):
+                    return "car insurance paperwork"
+                if re.search(r"\b(fuel|gas station|gas pump|petrol)\b", nt):
+                    return "driver filling car fuel"
+                if re.search(r"\b(luxury car|valet|premium vehicle)\b", nt):
+                    return "luxury car interior"
+                if re.search(r"\b(pre-owned|used car|second hand)\b", nt):
+                    return "used car showroom"
+                if re.search(r"\b(loan|loans|emi|financing|installment|installments)\b", nt):
+                    return "car loan paperwork"
                 return "car driving on road"
 
-        return "car finance paperwork"
+            # Finance / Career / Business / Personal development
+            if any(k in nt for k in ("salary", "paycheck", "payday", "checking account")):
+                return "person checking bank account on phone"
+            if any(k in nt for k in ("invest", "portfolio", "index fund", "compound", "mutual fund")):
+                return "person reviewing investments"
+            if any(k in nt for k in ("budget", "expenses", "cash flow", "spending", "bills")):
+                return "person calculating expenses"
+            if any(k in nt for k in ("corporate", "9-to-5", "office", "employee", "desk", "career")):
+                return "young professional working in modern office"
+            if any(k in nt for k in ("bank", "statement", "loan", "paperwork", "contract")):
+                return "person reviewing financial documents"
+
+        if topic and isinstance(topic, str) and topic.strip():
+            topic_lower = topic.strip().lower()
+            if any(k in topic_lower for k in ("car", "auto", "vehicle")):
+                return "car dealership showroom"
+            words = topic_lower.split()[:3]
+            return f"{' '.join(words)} footage"
+
+        return "person reviewing financial documents"
 
     def run(
         self,
@@ -114,11 +137,17 @@ class CompositionAssemblyEngine:
                     # Resolve asset if required
                     unique_asset_id = f"asset_comp_hook_{interval.beat_index}_{interval.beat_id}"
                     asset_component = "StockVideo" if comp_beat.asset_requirement != "none" else "Typography"
-                    safe_query = self._resolve_safe_stock_query(asset_query, narration_text)
+                    topic = getattr(composition_plan, "thesis", "") or getattr(strategy, "thesis", "")
+                    safe_query = self._resolve_safe_stock_query(asset_query, narration_text, topic)
+                    candidate_queries = list(comp_beat.asset_queries) if hasattr(comp_beat, "asset_queries") and comp_beat.asset_queries else []
+                    if safe_query and safe_query not in candidate_queries:
+                        candidate_queries.insert(0, safe_query)
                     asset_ref = self.asset_resolver.resolve_asset(
                         asset_id=unique_asset_id,
                         preferred_component=asset_component,
                         asset_query=safe_query,
+                        asset_queries=candidate_queries,
+                        topic=topic,
                     )
                     resolved_assets.append(asset_ref)
 
@@ -173,11 +202,17 @@ class CompositionAssemblyEngine:
                 # Resolve asset if required
                 unique_asset_id = f"asset_comp_{interval.section_index}_{interval.beat_index}_{interval.beat_id}"
                 asset_component = "StockVideo" if comp_beat.asset_requirement != "none" else "Typography"
-                safe_query = self._resolve_safe_stock_query(asset_query, narration_text)
+                topic = getattr(composition_plan, "thesis", "") or getattr(strategy, "thesis", "")
+                safe_query = self._resolve_safe_stock_query(asset_query, narration_text, topic)
+                candidate_queries = list(comp_beat.asset_queries) if hasattr(comp_beat, "asset_queries") and comp_beat.asset_queries else []
+                if safe_query and safe_query not in candidate_queries:
+                    candidate_queries.insert(0, safe_query)
                 asset_ref = self.asset_resolver.resolve_asset(
                     asset_id=unique_asset_id,
                     preferred_component=asset_component,
                     asset_query=safe_query,
+                    asset_queries=candidate_queries,
+                    topic=topic,
                 )
                 resolved_assets.append(asset_ref)
 

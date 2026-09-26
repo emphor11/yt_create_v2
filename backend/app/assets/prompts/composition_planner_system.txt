@@ -536,52 +536,47 @@ CRITICAL ARCHITECTURAL CONTEXT:
 
 MANDATORY RULES:
 
-A. Concrete visual language:
-The query MUST contain concrete visual nouns and/or visible actions.
+A. Concrete visual language grounded in the scene's actual domain:
+The queries MUST contain concrete visual nouns and visible actions matching what is actually happening in the scene.
+For personal finance, salary, career, investing, or budgeting topics:
 Prefer:
 - person
-- driver
-- mechanic
-- dealership
-- showroom
-- car
-- steering wheel
-- fuel pump
-- tire
-- paperwork
-- insurance document
-- calculator
-- payment
-- bank
+- young professional
+- employee
 - office
-- parking
-- road
-- family
-- used car
-- keys
+- desk
+- laptop
+- bank account on phone
+- currency notes
+- investment portfolio
+- stock market charts
+- bills
+- calculator
+- bank branch
+- signing contract
 
-B. Search-engine style:
-Target approximately 2–6 words.
+NEVER default to cars, mechanics, tires, or dealerships unless the video topic or scene is explicitly about automobiles!
+
+B. Search-engine style & multi-query candidates:
+Target approximately 2–6 words per query.
+Provide 2–3 distinct candidate queries in `asset_queries` ordered by preference, with the best candidate in `asset_query`.
 Natural, concise search phrases that match real footage in stock libraries.
 Examples:
-- "car dealership showroom"
-- "car finance paperwork"
-- "driver filling fuel"
-- "mechanic changing tire"
-- "person reviewing bank loan"
-- "used car showroom"
-- "luxury car interior"
-- "car insurance paperwork"
-- "person calculating expenses"
+- Personal finance / salary: ["person checking bank account on phone", "person calculating monthly expenses", "young professional in modern office"]
+- Investments / Compounding: ["person reviewing investments", "stock market charts on laptop", "person analyzing financial report"]
+- Budgeting / Debt / Expenses: ["person reviewing household bills", "person calculating expenses", "calculator with monthly budget"]
+- Career / Office: ["young professional working in modern office", "business colleagues talking in office", "person typing on laptop desk"]
+- Banking / Paperwork: ["person reviewing financial documents", "signing bank contract", "person inside modern bank"]
+- Automotive (ONLY if scene is about cars): ["car dealership showroom", "driver filling car fuel", "car driving on highway"]
 
 C. Search intent, not explanation:
 Do NOT write what the viewer should understand or realize.
 BAD: "Viewer understands the bank's risk perspective"
-GOOD: "bank reviewing loan application"
+GOOD: "person reviewing loan application documents"
 BAD: "Viewer recognizes lifestyle inflation"
-GOOD: "person shopping luxury car"
+GOOD: "person shopping in luxury store"
 BAD: "Viewer realizes hidden ongoing expenses"
-GOOD: "driver at fuel pump"
+GOOD: "person stressed reviewing monthly bills"
 
 D. No sentence fragments or full sentences:
 Never return:
@@ -594,9 +589,9 @@ Never return:
 
 E. No invisible concepts unless they have a concrete visual representation:
 For abstract concepts such as:
-- "opportunity cost" → "person comparing car payment investments"
-- "negative equity" → "car loan paperwork calculator"
-- "wealth pressure" → "person reviewing monthly bills"
+- "opportunity cost" → "person comparing investments on laptop"
+- "wealth erosion" → "person calculating monthly bills"
+- "financial discipline" → "person reviewing savings account on phone"
 Do NOT search the abstract phrase directly unless stock providers actually support that term usefully.
 Instead select a concrete visual representation grounded in the narration.
 Do NOT invent a visual situation that contradicts the narration.

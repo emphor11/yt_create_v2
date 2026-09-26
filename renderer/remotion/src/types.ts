@@ -474,4 +474,49 @@ export interface CashFlowWaterfallProps {
 
 export type CashFlowWaterfallRenderSpec = BaseRenderSpec<CashFlowWaterfallProps>;
 
+export interface AccumulationStreamProp {
+  label: string;
+  value: string;
+  rate?: string | null;
+  colorToken?: 'emerald' | 'cyan' | 'amber' | 'purple' | string | null;
+  numericAmount?: number | null;
+}
+
+export interface AccumulationDecompositionProps {
+  headerLabel?: string | null;
+  totalValue: string;
+  totalLabel?: string | null;
+  timeHorizon?: string | null;
+  streams: AccumulationStreamProp[];
+  annotation?: string | null;
+  variant?: string | null;
+}
+
+export type AccumulationDecompositionRenderSpec = BaseRenderSpec<AccumulationDecompositionProps>;
+
+export interface AmortizationPeriodProp {
+  periodLabel: string;
+  principalShare: string;
+  interestShare: string;
+  remainingBalance?: string | null;
+  principalNumeric?: number | null;
+  interestNumeric?: number | null;
+}
+
+export interface DebtAmortizationScheduleProps {
+  headerLabel?: string | null;
+  loanAmount: string;
+  loanLabel?: string | null;
+  interestRate?: string | null;
+  tenure?: string | null;
+  paymentAmount?: string | null;
+  totalInterest?: string | null;
+  periods?: AmortizationPeriodProp[];
+  annotation?: string | null;
+  variant?: string | null;
+}
+
+export type DebtAmortizationScheduleRenderSpec = BaseRenderSpec<DebtAmortizationScheduleProps>;
+
 export type VideoAssemblyRenderSpec = BaseRenderSpec<VideoAssemblyProps>;
+

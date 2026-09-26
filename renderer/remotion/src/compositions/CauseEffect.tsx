@@ -82,7 +82,7 @@ export function CauseEffect(props: CauseEffectProps | any) {
   });
 
   // Connector pill fade
-  const pillOpacity = interpolate(frame, [arrowStart + 6, arrowEnd], [0, 1], {
+  const pillOpacity = interpolate(frame, [arrowStart + 6, arrowEnd + 6], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });

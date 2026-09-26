@@ -23,6 +23,8 @@ import { MultiFactorPressure } from "./compositions/MultiFactorPressure";
 import { BrollCaption } from "./compositions/BrollCaption";
 import { TrajectoryDivergence } from "./compositions/TrajectoryDivergence";
 import { CashFlowWaterfall } from "./compositions/CashFlowWaterfall";
+import { AccumulationDecomposition } from "./compositions/AccumulationDecomposition";
+import { DebtAmortizationSchedule } from "./compositions/DebtAmortizationSchedule";
 import { type VideoAssemblyRenderSpec } from "./types";
 
 export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
@@ -99,6 +101,8 @@ export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
                   {compId === "BrollCaption" && <BrollCaption {...childProps} />}
                   {compId === "TrajectoryDivergence" && <TrajectoryDivergence {...childProps} />}
                   {compId === "CashFlowWaterfall" && <CashFlowWaterfall {...childProps} />}
+                  {compId === "AccumulationDecomposition" && <AccumulationDecomposition {...childProps} />}
+                  {compId === "DebtAmortizationSchedule" && <DebtAmortizationSchedule {...childProps} />}
                 </AbsoluteFill>
             </Series.Sequence>
           );

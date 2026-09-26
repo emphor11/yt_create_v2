@@ -1037,6 +1037,186 @@ def build_cash_flow_waterfall_data(intent: VisualIntent) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Accumulation Decomposition
+# ---------------------------------------------------------------------------
+
+def is_eligible_accumulation_decomposition(intent: VisualIntent) -> bool:
+    """
+    accumulation_decomposition requires:
+    - Exactly one final/total measurement (or role='result') with a valid label.
+    - At least one contribution stream measurement (role in ('input', 'baseline', 'delta', 'rate')).
+    """
+    total_m = next(
+        (m for m in intent.measurements if m.role in ("result", "final", "outcome", "target")),
+        None,
+    )
+    if not total_m or not total_m.raw_value:
+        return False
+
+    stream_candidates = [m for m in intent.measurements if m != total_m and m.raw_value]
+    return len(stream_candidates) >= 1
+
+
+def build_accumulation_decomposition_data(intent: VisualIntent) -> dict[str, Any]:
+    total_m = next(
+        (m for m in intent.measurements if m.role in ("result", "final", "outcome", "target")),
+        None,
+    )
+    if not total_m or not total_m.raw_value:
+        raise CompositionDataError(
+            "accumulation_decomposition",
+            "total_value",
+            "measurement with role in ('result', 'final', 'outcome', 'target')",
+            "Accumulation decomposition requires a target/total accumulated corpus.",
+        )
+
+    total_label = total_m.metric_name or total_m.entity_name or "Total Accumulated Corpus"
+
+    stream_measurements = [m for m in intent.measurements if m != total_m and m.raw_value]
+    if not stream_measurements:
+        raise CompositionDataError(
+            "accumulation_decomposition",
+            "streams",
+            "at least one stream measurement with role in ('input', 'baseline', 'delta', 'rate')",
+            "Accumulation decomposition requires distinct contribution streams composing the total.",
+        )
+
+    streams: list[dict[str, Any]] = []
+    for sm in stream_measurements:
+        lbl = sm.metric_name or sm.entity_name or "Contribution Stream"
+        st: dict[str, Any] = {
+            "label": lbl,
+            "value": sm.raw_value,
+        }
+        if sm.role == "rate" or "%" in sm.raw_value:
+            st["rate"] = sm.raw_value
+            st["color_token"] = "cyan"
+        elif sm.role in ("input", "baseline"):
+            st["color_token"] = "emerald"
+        if sm.numeric_value is not None:
+            st["numeric_amount"] = sm.numeric_value
+        streams.append(st)
+
+    # If only 1 input stream is present and both total & input have numeric values, derive returns stream
+    if len(streams) == 1 and total_m.numeric_value is not None and streams[0].get("numeric_amount") is not None:
+        derived_returns_num = total_m.numeric_value - streams[0]["numeric_amount"]
+        if derived_returns_num > 0:
+            unit = total_m.unit or "Lakh"
+            streams.append({
+                "label": "Investment Returns",
+                "value": f"₹{derived_returns_num:g} {unit}".strip() if "₹" in total_m.raw_value else f"{derived_returns_num:g} {unit}".strip(),
+                "numeric_amount": derived_returns_num,
+                "color_token": "cyan",
+            })
+
+    candidate: dict[str, Any] = {
+        "header_label": "WEALTH ACCUMULATION",
+        "total_value": total_m.raw_value,
+        "total_label": total_label,
+        "streams": streams,
+        "variant": "contributions_vs_returns" if len(streams) == 2 else "standard",
+    }
+
+    if intent.temporal and intent.temporal.horizon:
+        candidate["time_horizon"] = intent.temporal.horizon
+
+    if intent.visual_dynamics and intent.visual_dynamics.focal_point:
+        candidate["header_label"] = intent.visual_dynamics.focal_point
+
+    if intent.what_viewer_must_understand:
+        candidate["annotation"] = intent.what_viewer_must_understand
+
+    return candidate
+
+
+# ---------------------------------------------------------------------------
+# Debt Amortization Schedule
+# ---------------------------------------------------------------------------
+
+def is_eligible_debt_amortization_schedule(intent: VisualIntent) -> bool:
+    """
+    debt_amortization_schedule requires:
+    - A loan or principal amount (measurement with role in ('baseline', 'input') or metric containing loan/principal).
+    """
+    loan_m = next(
+        (m for m in intent.measurements if m.role in ("baseline", "input")),
+        None,
+    )
+    if not loan_m or not loan_m.raw_value:
+        loan_m = next(
+            (m for m in intent.measurements if m.raw_value and any(k in (m.metric_name or "").lower() or k in (m.entity_name or "").lower() for k in ("loan", "principal", "debt", "borrowed"))),
+            None,
+        )
+    return bool(loan_m)
+
+
+def build_debt_amortization_schedule_data(intent: VisualIntent) -> dict[str, Any]:
+    loan_m = next(
+        (m for m in intent.measurements if m.role in ("baseline", "input")),
+        None,
+    )
+    if not loan_m or not loan_m.raw_value:
+        loan_m = next(
+            (m for m in intent.measurements if m.raw_value and any(k in (m.metric_name or "").lower() or k in (m.entity_name or "").lower() for k in ("loan", "principal", "debt", "borrowed"))),
+            None,
+        )
+    if not loan_m or not loan_m.raw_value:
+        raise CompositionDataError(
+            "debt_amortization_schedule",
+            "loan_amount",
+            "measurement with role in ('baseline', 'input') or loan/principal metric",
+            "Debt amortization schedule requires an authoritative principal loan amount.",
+        )
+
+    loan_label = loan_m.metric_name or loan_m.entity_name or "Original Principal"
+
+    candidate: dict[str, Any] = {
+        "header_label": "LOAN AMORTIZATION SCHEDULE",
+        "loan_amount": loan_m.raw_value,
+        "loan_label": loan_label,
+        "periods": [],
+        "variant": "standard",
+    }
+
+    # Extract interest rate
+    rate_m = next((m for m in intent.measurements if m.role == "rate" or ("%" in m.raw_value and m != loan_m)), None)
+    if rate_m and rate_m.raw_value:
+        candidate["interest_rate"] = rate_m.raw_value
+
+    # Extract payment / EMI
+    payment_m = next(
+        (m for m in intent.measurements if m != loan_m and any(k in (m.metric_name or "").lower() or k in (m.raw_value.lower()) for k in ("emi", "payment", "/month", "/mo"))),
+        None,
+    )
+    if payment_m and payment_m.raw_value:
+        candidate["payment_amount"] = payment_m.raw_value
+
+    # Extract total interest
+    interest_m = next(
+        (m for m in intent.measurements if m not in (loan_m, rate_m, payment_m) and any(k in (m.metric_name or "").lower() for k in ("interest", "total interest"))),
+        None,
+    )
+    if interest_m and interest_m.raw_value:
+        candidate["total_interest"] = interest_m.raw_value
+
+    # Extract tenure
+    if intent.temporal and intent.temporal.horizon:
+        candidate["tenure"] = intent.temporal.horizon
+    else:
+        tenure_m = next((m for m in intent.measurements if m not in (loan_m, rate_m, payment_m) and any(u in (m.unit or "").lower() or u in m.raw_value.lower() for u in ("years", "year", "yr", "months"))), None)
+        if tenure_m and tenure_m.raw_value:
+            candidate["tenure"] = tenure_m.raw_value
+
+    if intent.visual_dynamics and intent.visual_dynamics.focal_point:
+        candidate["header_label"] = intent.visual_dynamics.focal_point
+
+    if intent.what_viewer_must_understand:
+        candidate["annotation"] = intent.what_viewer_must_understand
+
+    return candidate
+
+
+# ---------------------------------------------------------------------------
 # Broll Caption (Terminal Safe Fallback)
 # ---------------------------------------------------------------------------
 

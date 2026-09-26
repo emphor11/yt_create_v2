@@ -51,12 +51,18 @@ _FACTUAL_PATHS: dict[str, tuple[str, ...]] = {
         "growth_rate", "milestone_value", "milestone_label", "annotation",
     ),
     "trajectory_divergence": (
-        "time_horizon", "baseline_label", "path_a", "path_b", "divergence_gap",
-        "header_label",
+        "time_horizon", "path_a", "path_b", "divergence_gap",
     ),
     "cash_flow_waterfall": (
         "starting_label", "starting_value", "steps", "final_label", "final_value",
         "header_label",
+    ),
+    "accumulation_decomposition": (
+        "total_value", "total_label", "time_horizon", "streams", "annotation", "header_label",
+    ),
+    "debt_amortization_schedule": (
+        "loan_amount", "loan_label", "interest_rate", "tenure", "payment_amount",
+        "total_interest", "periods", "annotation", "header_label",
     ),
     "comparison_split": (
         "left_role", "left_value", "left_label", "left_unit", "right_role", "right_value",
@@ -81,13 +87,16 @@ _NON_FACTUAL_FIELDS = {
     "polarity", "variant", "emphasis", "show_chart", "decay_type", "growth_type",
     "operation_label", "operation_type", "direction", "tone", "winner", "header_label",
     "footer_label", "final_label", "baseline_label", "rank", "numeric_value", "badge",
-    "type", "layout", "show_bars",
+    "type", "layout", "show_bars", "color_token", "principal_numeric", "interest_numeric",
+    "asset_queries",
 }
 
 _COLLECTION_CONSTRAINTS: dict[str, dict[str, tuple[int, int | None]]] = {
     "cause_effect": {"causes": (1, 3)},
     "multi_factor_pressure": {"factors": (2, 4)},
     "cash_flow_waterfall": {"steps": (1, 6)},
+    "accumulation_decomposition": {"streams": (2, 4)},
+    "debt_amortization_schedule": {"periods": (0, 4)},
     "ranked_list": {"items": (2, 5)},
     "process_flow": {"steps": (2, 5)},
 }
@@ -102,6 +111,8 @@ def _iter_factual_values(data: dict[str, Any], composition_id: str) -> list[Any]
     values: list[Any] = []
 
     def collect(value: Any, field_name: str | None = None) -> None:
+        if field_name in _NON_FACTUAL_FIELDS:
+            return
         if isinstance(value, dict):
             for key, nested in value.items():
                 if key in _NON_FACTUAL_FIELDS:
@@ -114,6 +125,8 @@ def _iter_factual_values(data: dict[str, Any], composition_id: str) -> list[Any]
             values.append(value)
 
     for path in paths:
+        if path in _NON_FACTUAL_FIELDS:
+            continue
         if path in data:
             collect(data[path], path)
     return values

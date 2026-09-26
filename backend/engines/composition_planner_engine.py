@@ -128,9 +128,9 @@ def is_valid_asset_query(query: str | None) -> bool:
     return True
 
 
-def build_fallback_asset_query(intent: VisualIntent, topic: str = "") -> str:
+def build_fallback_asset_queries(intent: VisualIntent, topic: str = "") -> list[str]:
     """
-    Deterministically builds a concrete, search-friendly stock media query (2-5 words).
+    Deterministically builds 2-3 concrete, search-friendly stock media queries (2-5 words).
     Priority:
     1. Concrete physical entities from intent.entities
     2. Contextual physical action/object matching from narration and visual intent
@@ -138,72 +138,123 @@ def build_fallback_asset_query(intent: VisualIntent, topic: str = "") -> str:
 
     NEVER returns narration excerpts, truncated strings, or 'viewer understands...' phrases.
     """
-    # 1. Check intent.entities for concrete physical objects / roles
-    concrete_entity_map: list[tuple[str, str]] = [
-        ("mechanic", "mechanic repairing car"),
-        ("tire", "mechanic replacing tire"),
-        ("dealership", "car dealership showroom"),
-        ("showroom", "car dealership showroom"),
-        ("insurance", "car insurance paperwork"),
-        ("loan", "car loan paperwork"),
-        ("bank", "bank loan paperwork"),
-        ("fuel", "driver filling fuel"),
-        ("gas", "driver filling fuel"),
-        ("calculator", "person calculating expenses"),
-        ("budget", "person calculating expenses"),
-        ("bills", "person reviewing bills"),
-        ("investment", "person reviewing investments"),
-        ("portfolio", "person reviewing investments"),
-        ("index fund", "person reviewing investments"),
-        ("driver", "driver in car"),
-        ("car", "car driving on road"),
-        ("vehicle", "car driving on road"),
-    ]
+    combined_text = f"{intent.narration_excerpt or ''} {intent.what_viewer_must_understand or ''}".lower()
+    topic_lower = (topic or "").lower()
+    is_auto = any(k in topic_lower for k in ("car", "auto", "vehicle")) or bool(
+        re.search(r"\b(car|cars|vehicle|vehicles|automobile|dealership|dealerships|showroom|showrooms|mechanic)\b", combined_text)
+    )
 
+    queries: list[str] = []
+
+    # 1. Check intent.entities for concrete physical objects / roles
     entity_names = [e.name.lower() for e in (intent.entities or []) if e.name]
-    for ent_text in entity_names:
-        for keyword, mapped_query in concrete_entity_map:
-            if keyword in ent_text:
-                return mapped_query
+    if is_auto:
+        auto_entity_map: list[tuple[str, str]] = [
+            ("mechanic", "mechanic repairing car"),
+            ("tire", "mechanic replacing tire"),
+            ("dealership", "car dealership showroom"),
+            ("showroom", "car dealership showroom"),
+            ("insurance", "car insurance paperwork"),
+            ("loan", "car loan paperwork"),
+            ("fuel", "driver filling car fuel"),
+            ("gas", "driver filling car fuel"),
+            ("driver", "driver in car"),
+            ("car", "car driving on road"),
+            ("vehicle", "car driving on road"),
+        ]
+        for ent_text in entity_names:
+            for keyword, mapped_query in auto_entity_map:
+                if keyword in ent_text and mapped_query not in queries:
+                    queries.append(mapped_query)
+    else:
+        general_entity_map: list[tuple[str, str]] = [
+            ("calculator", "person calculating expenses"),
+            ("budget", "person calculating expenses"),
+            ("bills", "person reviewing bills"),
+            ("investment", "person reviewing investments"),
+            ("portfolio", "person reviewing investments"),
+            ("index fund", "person reviewing investments"),
+            ("salary", "person checking bank account on phone"),
+            ("paycheck", "person checking bank account on phone"),
+            ("office", "young professional working in modern office"),
+            ("desk", "young professional working in modern office"),
+            ("laptop", "person typing on laptop"),
+            ("computer", "person typing on laptop"),
+            ("bank", "person inside modern bank"),
+        ]
+        for ent_text in entity_names:
+            for keyword, mapped_query in general_entity_map:
+                if keyword in ent_text and mapped_query not in queries:
+                    queries.append(mapped_query)
 
     # 2. Text keyword scanning across narration_excerpt + what_viewer_must_understand
-    combined_text = f"{intent.narration_excerpt or ''} {intent.what_viewer_must_understand or ''}".lower()
+    # High-priority financial/investment concepts take precedence even within auto-financing topics
+    if any(k in combined_text for k in ("index fund", "invest", "investment", "portfolio", "compound", "mutual fund", "stock market")):
+        queries.append("person reviewing investments")
+        queries.extend(["stock market charts on screen", "financial portfolio analysis laptop"])
+    elif any(k in combined_text for k in ("budget", "expenses", "cash flow", "cannibalize", "savings", "spending", "bills")):
+        queries.append("person calculating expenses")
+        queries.extend(["person reviewing bills", "calculator with monthly budget"])
+    elif any(k in combined_text for k in ("salary", "paycheck", "payday", "checking account")):
+        queries.append("person checking bank account on phone")
+        queries.extend(["person calculating monthly salary", "young professional modern office"])
+    elif any(k in combined_text for k in ("corporate", "9-to-5", "office", "employee", "desk", "career", "promotion", "job")):
+        queries.append("young professional working in modern office")
+        queries.extend(["business colleagues talking in office", "person typing on laptop desk"])
 
-    text_match_rules: list[tuple[tuple[str, ...], str]] = [
-        # Repairs / Maintenance
-        (("tire", "tires", "mechanic", "servicing", "service", "maintenance", "detailing", "repairs"), "mechanic changing car tire"),
-        # Dealership / Showroom
-        (("dealership", "showroom", "salesperson", "sales pitch", "salesman"), "car dealership showroom"),
-        # Used / Pre-owned
-        (("pre-owned", "used car", "second hand"), "used car showroom"),
-        # Insurance / Totaled / Accidents
-        (("insurance", "totaled", "accident", "stolen", "write-off"), "car insurance paperwork"),
-        # Fuel / Gas / Commute
-        (("fuel", "gas station", "petrol", "filling"), "driver filling car fuel"),
-        # Luxury / Lifestyle creep
-        (("luxury", "valet", "lifestyle creep", "premium vehicle", "sports car"), "luxury car interior"),
-        # Loans / Financing / EMI / Banking
-        (("loan", "emi", "bank", "interest rate", "finance manager", "financing", "installment", "down payment", "negative equity", "underwater"), "car loan paperwork"),
-        # Investments / Opportunity Cost / Compounding
-        (("index fund", "invest", "investment", "portfolio", "compound", "mutual fund", "stock market"), "person reviewing investments"),
-        # Budget / Savings / Expenses / Cash flow
-        (("budget", "expenses", "cash flow", "cannibalize", "savings", "spending", "bills"), "person calculating expenses"),
-        # Commute / Driving / Highway
-        (("drive to work", "drive", "driving", "traffic", "highway", "commute", "road"), "car driving on road"),
-    ]
+    if is_auto and not queries:
+        if re.search(r"\b(tire|tires|mechanic|mechanics|servicing|service|repairs?)\b", combined_text):
+            queries.extend(["mechanic changing car tire", "car repair workshop", "mechanic working under vehicle"])
+        elif re.search(r"\b(dealership|dealerships|showroom|showrooms|salesperson|salespeople|sales pitch)\b", combined_text):
+            queries.extend(["car dealership showroom", "person buying new car", "car salesman handover keys"])
+        elif re.search(r"\b(insurance|totaled|accident|accidents|stolen|write-off)\b", combined_text):
+            queries.extend(["car insurance paperwork", "person reviewing vehicle policy", "driver holding car keys"])
+        elif re.search(r"\b(fuel|gas station|gas pump|petrol|filling)\b", combined_text):
+            queries.extend(["driver filling car fuel", "fuel pump gas station", "car refueling"])
+        elif re.search(r"\b(luxury car|valet|lifestyle creep|premium vehicle|sports car)\b", combined_text):
+            queries.extend(["luxury car interior", "person driving luxury car", "valet parking sports car"])
+        elif re.search(r"\b(pre-owned|used car|second hand)\b", combined_text):
+            queries.extend(["used car showroom", "person inspecting used car", "used car dealership lot"])
+        elif re.search(r"\b(loan|loans|emi|financing|installment|installments|interest rate|finance manager|down payment|negative equity|underwater)\b", combined_text):
+            queries.extend(["car loan paperwork", "signing car financing contract", "person reviewing monthly car emi"])
+        elif re.search(r"\b(drive to work|highway|traffic|commute|road|breakdown)\b", combined_text):
+            queries.extend(["car driving on road", "highway traffic driving", "modern car driving city"])
 
-    for keywords, mapped_query in text_match_rules:
-        if any(kw in combined_text for kw in keywords):
-            return mapped_query
+    if not is_auto and not queries:
+        if any(k in combined_text for k in ("bank", "statement", "loan", "paperwork", "contract", "mortgage")):
+            queries.extend(["person reviewing financial documents", "person signing bank contract", "person inside modern bank"])
+        elif any(k in combined_text for k in ("calculator", "tax", "accounting", "numbers")):
+            queries.extend(["person using calculator", "person analyzing financial spreadsheet", "tax calculation paperwork"])
 
     # 3. Domain Fallback
-    topic_lower = (topic or "").lower()
-    if any(k in topic_lower for k in ("car", "auto", "vehicle")):
-        return "car finance paperwork"
-    elif any(k in topic_lower for k in ("invest", "retire", "wealth", "money", "salary", "loan")):
-        return "person reviewing loan documents"
+    if is_auto and not queries:
+        queries.extend(["car driving on road", "highway traffic driving", "modern car driving city"])
 
-    return "person reviewing financial documents"
+    if topic and isinstance(topic, str) and topic.strip():
+        words = topic.strip().lower().split()[:3]
+        topic_phrase = f"{' '.join(words)} footage"
+        if topic_phrase not in queries:
+            queries.append(topic_phrase)
+
+    default_fallbacks = [
+        "person reviewing financial documents",
+        "young professional working in modern office",
+        "person typing on laptop desk",
+    ]
+    for df in default_fallbacks:
+        if df not in queries:
+            queries.append(df)
+
+    unique_queries: list[str] = []
+    for q in queries:
+        if q not in unique_queries:
+            unique_queries.append(q)
+    return unique_queries[:3]
+
+
+def build_fallback_asset_query(intent: VisualIntent, topic: str = "") -> str:
+    """Deterministically builds a single concrete stock media query (2-5 words)."""
+    return build_fallback_asset_queries(intent, topic=topic)[0]
 
 
 def _make_fallback_beat(
@@ -213,6 +264,7 @@ def _make_fallback_beat(
     topic: str = "",
 ) -> CompositionBeat:
     """Creates a safe broll_caption fallback beat for a given intent."""
+    queries = build_fallback_asset_queries(intent, topic=topic)
     return CompositionBeat(
         beat_id=beat_id,
         composition_id="broll_caption",
@@ -220,9 +272,11 @@ def _make_fallback_beat(
         composition_data={
             "caption": intent.what_viewer_must_understand,
             "emphasis_phrase": intent.key_values[0] if intent.key_values else None,
+            "asset_queries": queries,
         },
         asset_requirement="optional_broll",
-        asset_query=build_fallback_asset_query(intent, topic=topic),
+        asset_query=queries[0],
+        asset_queries=queries,
         trigger_word=intent.trigger_word,
         visual_goal=intent.what_viewer_must_understand,
         relationship_type=intent.relationship_type,
@@ -671,8 +725,6 @@ def build_candidate_composition_data(
             candidate["baseline_label"] = intent.comparison.comparison_dimension
         elif intent.entities:
             candidate["baseline_label"] = intent.entities[0].name
-        else:
-            candidate["baseline_label"] = "Common Starting Point"
 
         # Path A: from comparison.subject_a + value_a
         path_a: dict[str, Any] = {}
@@ -1271,10 +1323,21 @@ class CompositionPlannerEngine:
         # 7. Asset Query & Asset Requirement
         if selected_id == "broll_caption":
             asset_requirement = "optional_broll"
-            asset_query = build_fallback_asset_query(intent, topic=topic)
+            raw_queries = validated_data.get("asset_queries") or []
+            if isinstance(raw_queries, str):
+                raw_queries = [raw_queries]
+            valid_queries = [
+                q.strip() for q in raw_queries
+                if isinstance(q, str) and is_valid_asset_query(q)
+            ]
+            if not valid_queries:
+                valid_queries = build_fallback_asset_queries(intent, topic=topic)
+            asset_queries = valid_queries
+            asset_query = asset_queries[0]
         else:
             asset_requirement = defn.asset_requirement.value
             asset_query = None
+            asset_queries = []
 
         # 8. Construct Beat (Fail-fast deterministic path never uses fallback)
         beat = CompositionBeat(
@@ -1288,6 +1351,7 @@ class CompositionPlannerEngine:
             composition_data=validated_data,
             asset_requirement=asset_requirement,
             asset_query=asset_query,
+            asset_queries=asset_queries,
             trigger_word=intent.trigger_word,
             visual_goal=intent.what_viewer_must_understand,
             relationship_type=intent.relationship_type,
@@ -1451,15 +1515,25 @@ class CompositionPlannerEngine:
                 fallback_reason=fallback_reason,
             )
 
+        raw_asset_queries = raw.get("asset_queries")
         raw_asset_query = raw.get("asset_query")
+        asset_queries: list[str] = []
         if composition_id == "broll_caption":
-            if is_valid_asset_query(raw_asset_query):
-                asset_query = raw_asset_query.strip()
-            else:
-                asset_query = build_fallback_asset_query(intent, topic=topic)
+            if isinstance(raw_asset_queries, list):
+                for q in raw_asset_queries:
+                    if isinstance(q, str) and is_valid_asset_query(q):
+                        cleaned = q.strip()
+                        if cleaned not in asset_queries:
+                            asset_queries.append(cleaned)
+            if not asset_queries and is_valid_asset_query(raw_asset_query):
+                asset_queries.append(raw_asset_query.strip())
+            if not asset_queries:
+                asset_queries = build_fallback_asset_queries(intent, topic=topic)
+            asset_query = asset_queries[0]
             asset_requirement = "optional_broll"
         else:
             asset_query = None
+            asset_queries = []
             asset_requirement = "none"
 
         beat = CompositionBeat(
@@ -1469,6 +1543,7 @@ class CompositionPlannerEngine:
             composition_data=normalized_data,
             asset_requirement=asset_requirement,
             asset_query=asset_query,
+            asset_queries=asset_queries,
             trigger_word=raw.get("trigger_word"),
             visual_goal=raw.get("visual_goal", intent.what_viewer_must_understand),
             relationship_type=intent.relationship_type,

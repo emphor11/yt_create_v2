@@ -115,10 +115,11 @@ class ScriptVisualStrategyEngine:
                         f"--- STRICT RESEARCH CONTEXT & FACTS ---\n"
                         f"Verified Concepts: {research_packet.concepts}\n"
                         f"Verified Facts: {research_packet.verified_facts}\n"
-                        f"Verified Statistics: {research_packet.statistics}\n\n"
+                        f"Verified Statistics: {research_packet.statistics}\n"
+                        f"Examples: {research_packet.examples}\n\n"
                         f"CRITICAL INSTRUCTIONS:\n"
                         f"1. For each idea's 'focus_concept', you MUST choose exactly one concept from the 'Verified Concepts' list above. Do NOT make up new concepts or use phrasing not present in that list.\n"
-                        f"2. Any numbers or statistics you mention in the narration text MUST be strictly verified and present in 'Verified Facts' or 'Verified Statistics'. Do NOT invent or use any other numbers (except common small numbers/indexes like 1, 2, 3, etc.).\n"
+                        f"2. Any numbers, statistics, or figures you mention in the narration text MUST be strictly grounded in 'Verified Facts', 'Verified Statistics', or 'Examples'. You are explicitly permitted and encouraged to use the concrete numbers and calculations from 'Examples' (such as salary figures, percentage allocations, and timelines) in your narration. Do NOT invent or use any other numbers (except common small numbers/indexes like 1, 2, 3, etc.).\n"
                         f"3. You MUST generate exactly one output 'idea' in the 'ideas' array for every 'scene_beat' provided in the Narrative Plan. Maintain their exact chronological order, titles, focus concepts, and core teaching points, while filling in the 'narration' field.\n"
                         f"{budget_instructions}"
                     ),

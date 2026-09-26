@@ -283,3 +283,40 @@ def test_growth_and_decline_and_trend_routing() -> None:
     )
     assert select_composition_for_intent(trend_intent_down) == "time_decay"
 
+
+def test_accumulation_and_amortization_routing() -> None:
+    accum_intent = VisualIntent(
+        intent_id="intent_acc",
+        narration_excerpt="Corpus accumulates from savings plus compounding returns.",
+        what_viewer_must_understand="Accumulation",
+        relationship_type="accumulation",
+    )
+    assert select_composition_for_intent(accum_intent) == "accumulation_decomposition"
+
+    amort_intent = VisualIntent(
+        intent_id="intent_amort",
+        narration_excerpt="Debt principal amortizes over the 20-year term.",
+        what_viewer_must_understand="Amortization",
+        relationship_type="amortization",
+    )
+    assert select_composition_for_intent(amort_intent) == "debt_amortization_schedule"
+
+
+def test_all_eighteen_relationship_types_are_registered_and_route() -> None:
+    from domain.visual_intent import VALID_RELATIONSHIP_TYPES
+
+    assert len(VALID_RELATIONSHIP_TYPES) == 18
+
+    for rel_type in VALID_RELATIONSHIP_TYPES:
+        intent = VisualIntent(
+            intent_id=f"intent_{rel_type}",
+            narration_excerpt=f"Narration for {rel_type}",
+            what_viewer_must_understand=f"Meaning for {rel_type}",
+            relationship_type=rel_type,
+        )
+        selected_cid = select_composition_for_intent(intent)
+        assert selected_cid is not None and isinstance(selected_cid, str)
+        defn = CompositionRegistry.get(selected_cid)
+        assert defn is not None, f"Composition '{selected_cid}' selected for '{rel_type}' is not in CompositionRegistry"
+
+

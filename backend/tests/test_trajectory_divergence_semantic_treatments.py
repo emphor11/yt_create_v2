@@ -132,3 +132,34 @@ def test_composition_resolver_maps_trajectory_divergence_props() -> None:
     assert props["divergenceGap"] == "₹50 Lakh Wealth Gap"
     assert props["headerLabel"] == "TEN YEAR TRAJECTORY"
     assert props["variant"] == "wealth_gap"
+
+
+def test_trajectory_divergence_baseline_label_optional_and_safe() -> None:
+    """Verifies that baseline_label is optional, defaults to None, and passes data filler grounding."""
+    from engines.composition_data_filler_engine import _validate_grounding
+
+    data = TrajectoryDivergenceData(
+        time_horizon="10 Years",
+        path_a=TrajectoryPath(label="Investor", end_value="₹38 Lakh"),
+        path_b=TrajectoryPath(label="Spender", end_value="₹6 Lakh"),
+    )
+    assert data.baseline_label is None
+
+    # Verify validation passes when baseline_label is omitted
+    is_valid, errors, normalized = CompositionRegistry.validate_composition_data(
+        "trajectory_divergence",
+        data.model_dump(),
+    )
+    assert is_valid is True
+    assert errors == []
+    assert normalized.get("baseline_label") is None
+
+    # Verify grounding check passes with no placeholder error
+    intent = VisualIntent(
+        intent_id="intent_div",
+        narration_excerpt="Investing vs car emi divergence",
+        what_viewer_must_understand="Wealth gap widens over 10 years",
+        key_values=[],
+        relationship_type="divergence",
+    )
+    _validate_grounding(intent=intent, composition_id="trajectory_divergence", data=normalized)

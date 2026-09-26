@@ -164,7 +164,7 @@ class CompositionResolver:
             props = {
                 "headerLabel": data.get("header_label") or "COMPOUNDING DIVERGENCE",
                 "timeHorizon": data.get("time_horizon"),
-                "baselineLabel": data.get("baseline_label") or "Common Starting Point",
+                "baselineLabel": data.get("baseline_label"),
                 "pathA": path_a_props,
                 "pathB": path_b_props,
                 "divergenceGap": data.get("divergence_gap"),
@@ -190,6 +190,54 @@ class CompositionResolver:
                 "steps": steps_props,
                 "finalLabel": data.get("final_label") or "Remaining Balance",
                 "finalValue": data.get("final_value"),
+                "variant": data.get("variant") or variant or "standard",
+            }
+
+        elif cid == "accumulation_decomposition":
+            streams_raw = data.get("streams") or []
+            streams_props = [
+                {
+                    "label": s.get("label", "") if isinstance(s, dict) else getattr(s, "label", ""),
+                    "value": s.get("value", "") if isinstance(s, dict) else getattr(s, "value", ""),
+                    "rate": s.get("rate") if isinstance(s, dict) else getattr(s, "rate", None),
+                    "colorToken": s.get("color_token") if isinstance(s, dict) else getattr(s, "color_token", None),
+                    "numericAmount": s.get("numeric_amount") if isinstance(s, dict) else getattr(s, "numeric_amount", None),
+                }
+                for s in streams_raw
+            ]
+            props = {
+                "headerLabel": data.get("header_label") or "WEALTH ACCUMULATION",
+                "totalValue": data.get("total_value", ""),
+                "totalLabel": data.get("total_label") or "Total Accumulated Corpus",
+                "timeHorizon": data.get("time_horizon"),
+                "streams": streams_props,
+                "annotation": data.get("annotation"),
+                "variant": data.get("variant") or variant or "standard",
+            }
+
+        elif cid == "debt_amortization_schedule":
+            periods_raw = data.get("periods") or []
+            periods_props = [
+                {
+                    "periodLabel": p.get("period_label", "") if isinstance(p, dict) else getattr(p, "period_label", ""),
+                    "principalShare": p.get("principal_share", "") if isinstance(p, dict) else getattr(p, "principal_share", ""),
+                    "interestShare": p.get("interest_share", "") if isinstance(p, dict) else getattr(p, "interest_share", ""),
+                    "remainingBalance": p.get("remaining_balance") if isinstance(p, dict) else getattr(p, "remaining_balance", None),
+                    "principalNumeric": p.get("principal_numeric") if isinstance(p, dict) else getattr(p, "principal_numeric", None),
+                    "interestNumeric": p.get("interest_numeric") if isinstance(p, dict) else getattr(p, "interest_numeric", None),
+                }
+                for p in periods_raw
+            ]
+            props = {
+                "headerLabel": data.get("header_label") or "LOAN AMORTIZATION SCHEDULE",
+                "loanAmount": data.get("loan_amount", ""),
+                "loanLabel": data.get("loan_label") or "Original Principal",
+                "interestRate": data.get("interest_rate"),
+                "tenure": data.get("tenure"),
+                "paymentAmount": data.get("payment_amount"),
+                "totalInterest": data.get("total_interest"),
+                "periods": periods_props,
+                "annotation": data.get("annotation"),
                 "variant": data.get("variant") or variant or "standard",
             }
 

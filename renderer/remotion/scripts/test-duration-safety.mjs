@@ -172,6 +172,10 @@ const compositionModels = [
         extrapolateLeft: "clamp",
         extrapolateRight: "clamp",
       });
+      const pillOpacity = interpolate(frame, [arrowStart + 6, arrowEnd + 6], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
       const outcomeDelay = safeSpringDelay(46, duration_frames, 0.65);
       const outcomeSpring = spring({ frame: Math.max(0, frame - outcomeDelay), fps: 30, config: { damping: 14, stiffness: 105 } });
       const outcomeX = interpolate(outcomeSpring, [0, 1], [60, 0]);
@@ -181,7 +185,7 @@ const compositionModels = [
         const causeSpring = spring({ frame: Math.max(0, frame - causeDelay), fps: 30, config: { damping: 15, stiffness: 110 } });
         interpolate(causeSpring, [0, 1], [-50, 0]);
       }
-      return { sceneOpacity, arrowProgress, outcomeX };
+      return { sceneOpacity, arrowProgress, pillOpacity, outcomeX };
     },
   },
   {
@@ -885,6 +889,50 @@ const compositionModels = [
       const finalSpring = spring({ frame: Math.max(0, frame - finalDelay), fps: 30 });
       
       return { sceneOpacity, headerSpring, startingSpring, finalSpring };
+    },
+  },
+  {
+    name: "AccumulationDecomposition",
+    durations: [10, 15, 24, 34, 45, 60, 120, 180, 300],
+    simulateFrame: (frame, duration_frames) => {
+      const sceneOpacity = interpolate(
+        frame,
+        [0, Math.min(8, Math.max(1, duration_frames - 1))],
+        [0, 1],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+      );
+      const headerDelay = safeSpringDelay(4, duration_frames, 0.1);
+      const headerSpring = spring({ frame: Math.max(0, frame - headerDelay), fps: 30 });
+      const heroDelay = safeSpringDelay(10, duration_frames, 0.2);
+      const heroSpring = spring({ frame: Math.max(0, frame - heroDelay), fps: 30 });
+      for (let idx = 0; idx < 3; idx++) {
+        const streamDelay = safeSpringDelay(16 + idx * 10, duration_frames, 0.5);
+        spring({ frame: Math.max(0, frame - streamDelay), fps: 30 });
+      }
+      const annotationDelay = safeSpringDelay(50, duration_frames, 0.7);
+      const annotationSpring = spring({ frame: Math.max(0, frame - annotationDelay), fps: 30 });
+      return { sceneOpacity, headerSpring, heroSpring, annotationSpring };
+    },
+  },
+  {
+    name: "DebtAmortizationSchedule",
+    durations: [10, 15, 24, 34, 45, 60, 120, 180, 300],
+    simulateFrame: (frame, duration_frames) => {
+      const sceneOpacity = interpolate(
+        frame,
+        [0, Math.min(8, Math.max(1, duration_frames - 1))],
+        [0, 1],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+      );
+      const headerDelay = safeSpringDelay(4, duration_frames, 0.1);
+      const headerSpring = spring({ frame: Math.max(0, frame - headerDelay), fps: 30 });
+      const overviewDelay = safeSpringDelay(10, duration_frames, 0.2);
+      const overviewSpring = spring({ frame: Math.max(0, frame - overviewDelay), fps: 30 });
+      const centerDelay = safeSpringDelay(18, duration_frames, 0.35);
+      const centerSpring = spring({ frame: Math.max(0, frame - centerDelay), fps: 30 });
+      const annotationDelay = safeSpringDelay(32, duration_frames, 0.7);
+      const annotationSpring = spring({ frame: Math.max(0, frame - annotationDelay), fps: 30 });
+      return { sceneOpacity, headerSpring, overviewSpring, centerSpring, annotationSpring };
     },
   },
 ];
