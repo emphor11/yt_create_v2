@@ -101,6 +101,7 @@ def test_validate_time_decay_valid() -> None:
             "fixed_amount": "₹2 lakh",
             "amount_label": "Annual Withdrawal",
             "time_period": "15 years",
+            "end_value": "₹1.2 lakh",
             "emphasis": "purchasing_power_decline",
         },
     )
@@ -335,16 +336,14 @@ def test_time_decay_schema_properties() -> None:
     schema = CompositionRegistry.get_data_schema("time_decay")
     assert schema is not None
     required = schema["required"]
-    for field in ["amount_label", "time_period"]:
+    for field in ["fixed_amount", "amount_label", "time_period", "end_value"]:
         assert field in required
-    assert "fixed_amount" in schema["properties"]
-    assert "fixed_amount" not in required
     assert "decay_type" in schema["properties"]
     assert "emphasis" in schema["properties"]
 
 
-def test_validate_time_decay_valid_without_fixed_amount() -> None:
-    ok, errors, normalized = CompositionRegistry.validate_composition_data(
+def test_validate_time_decay_missing_fixed_amount_fails() -> None:
+    ok, errors, _ = CompositionRegistry.validate_composition_data(
         "time_decay",
         {
             "amount_label": "New Car Value",
@@ -355,11 +354,8 @@ def test_validate_time_decay_valid_without_fixed_amount() -> None:
             "decay_type": "single_period",
         },
     )
-    assert ok is True
-    assert errors == []
-    assert normalized["amount_label"] == "New Car Value"
-    assert normalized["drop_rate"] == "15%"
-    assert normalized["fixed_amount"] is None
+    assert ok is False
+    assert len(errors) > 0
 
 
 def test_multi_factor_pressure_schema_properties() -> None:

@@ -38,11 +38,12 @@ def test_time_decay_backward_compatibility() -> None:
         fixed_amount="₹2 lakh",
         amount_label="Annual Withdrawal",
         time_period="15 years",
+        end_value="₹1.2 lakh",
         emphasis="purchasing_power_decline",
     )
     assert data.fixed_amount == "₹2 lakh"
+    assert data.end_value == "₹1.2 lakh"
     assert data.show_chart is True
-    assert data.end_value is None
     assert data.severity is None
     assert data.variant is None
 
@@ -100,9 +101,10 @@ def test_time_decay_single_period_resolver_mapping() -> None:
     spec = resolver.resolve_composition(
         composition_id="time_decay",
         composition_data={
-            "fixed_amount": None,
+            "fixed_amount": "₹20 Lakh",
             "amount_label": "New Vehicle Value",
             "time_period": "First Year",
+            "end_value": "₹17 Lakh",
             "emphasis": "single_period_drop",
             "drop_rate": "15%",
             "variant": "single_period_drop",
@@ -112,9 +114,10 @@ def test_time_decay_single_period_resolver_mapping() -> None:
 
     assert spec.component_id == "TimeDecay"
     props = spec.props
-    assert props["fixedAmount"] == "Original Value"
+    assert props["fixedAmount"] == "₹20 Lakh"
     assert props["amountLabel"] == "New Vehicle Value"
     assert props["timePeriod"] == "First Year"
+    assert props["endValue"] == "₹17 Lakh"
     assert props["dropRate"] == "15%"
     assert props["decayType"] == "single_period"
     assert props["variant"] == "single_period_drop"

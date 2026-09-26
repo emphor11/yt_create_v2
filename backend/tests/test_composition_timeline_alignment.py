@@ -354,7 +354,7 @@ def test_composition_assembly_zero_legacy_components_in_body():
                         composition_id="time_decay",
                         composition_data={
                             "fixed_amount": "₹10L", "amount_label": "Value",
-                            "time_period": "10y", "emphasis": "value_erosion",
+                            "time_period": "10y", "end_value": "₹4L", "emphasis": "value_erosion",
                         },
                     ),
                     CompositionBeat(

@@ -222,9 +222,8 @@ class TimeDecayData(StrictCompositionData):
     Use for: inflation impact, currency erosion, purchasing power decay, real vs nominal value, single-period depreciation.
     relationship_types: decline, trend (strictly decline/erosion over time)
     """
-    fixed_amount: str | None = Field(
-        default=None,
-        description="The fixed nominal amount or baseline label, e.g. '₹2 lakh' or 'Original Value'. Optional if percentage drop is stated without nominal currency.",
+    fixed_amount: str = Field(
+        description="The fixed nominal amount before decay, e.g. '₹2 lakh', '₹1,00,000', '₹50 Lakh'",
     )
     amount_label: str = Field(description="Label for the amount or asset, e.g. 'Annual Withdrawal', 'New Car Value', 'Purchasing Power'")
     time_period: str = Field(description="Time horizon, e.g. '15 years', 'first year', 'over a decade'")
@@ -240,9 +239,8 @@ class TimeDecayData(StrictCompositionData):
         default=True,
         description="Whether to show a decline curve. False = text-only version.",
     )
-    end_value: str | None = Field(
-        default=None,
-        description="Optional terminal/ending value after decay, e.g. '₹26,000' or '85% Value'",
+    end_value: str = Field(
+        description="Terminal/ending value after decay, e.g. '₹26,000', '₹50,000', '26% Value'",
     )
     end_label: str | None = Field(
         default=None,
@@ -284,19 +282,17 @@ class GrowthTrajectoryData(StrictCompositionData):
         default="GROWTH TRAJECTORY",
         description="Header label, e.g. 'WEALTH ACCUMULATION', 'CORPUS GROWTH', 'COMPOUNDING TRAJECTORY'",
     )
-    start_value: str | None = Field(
-        default=None,
-        description="Starting value or anchor, e.g. '₹0', '₹50,000/mo', '₹10 Lakh', or qualitative anchor like 'Base Salary Level' if non-numeric",
+    start_value: str = Field(
+        description="Starting value or contribution anchor, e.g. '₹0', '₹5,000/mo', '₹10 Lakh', '₹15 Lakh'",
     )
     start_label: str = Field(
-        description="Label for starting point, e.g. 'Initial Savings', 'Base Corpus', 'Monthly Contribution'",
+        description="Label for starting point, e.g. 'Initial Savings', 'Invested Amount', 'Monthly Contribution'",
     )
-    end_value: str | None = Field(
-        default=None,
-        description="Ending or target value, e.g. '₹10 Lakh', '₹1 Crore', '₹38 Lakh', or qualitative anchor like 'Peak Earnings' if non-numeric",
+    end_value: str = Field(
+        description="Ending target or projected corpus, e.g. '₹10 Lakh', '₹95 Lakh', '₹1 Crore', '₹38 Lakh'",
     )
     end_label: str = Field(
-        description="Label for ending value, e.g. 'Target Corpus', 'Accumulated Wealth', 'Eventual Corpus'",
+        description="Label for ending value, e.g. 'Target Corpus', 'Projected Corpus', 'Accumulated Wealth'",
     )
     time_horizon: str | None = Field(
         default=None,
@@ -340,8 +336,7 @@ class TrajectoryPath(StrictCompositionData):
         default=None,
         description="Starting value if stated, e.g. '₹0', '₹15 Lakh Car'",
     )
-    end_value: str | None = Field(
-        default=None,
+    end_value: str = Field(
         description="Terminal value of this path, e.g. '₹38 Lakh', '₹6 Lakh Resale'",
     )
     rate: str | None = Field(
@@ -438,12 +433,10 @@ class CashFlowWaterfallData(StrictCompositionData):
         description="Ordered list of deductions/adjustments. Must follow narration order. 2–6 steps.",
     )
     final_label: str = Field(
-        default="Remaining Balance",
-        description="Label for the final remaining amount, e.g. 'Investable Surplus', 'Net Operating Cash'",
+        description="Label for the final remaining amount, e.g. 'Investable Surplus', 'Net Operating Cash', 'Remaining Balance'",
     )
-    final_value: str | None = Field(
-        default=None,
-        description="Final balance after all deductions. Only populate if derivable from source values or stated in narration.",
+    final_value: str = Field(
+        description="Final balance after all deductions, e.g. '₹25,000', '₹1.2 Lakh'",
     )
     header_label: str = Field(
         default="CASH FLOW BREAKDOWN",
@@ -496,8 +489,7 @@ class AccumulationDecompositionData(StrictCompositionData):
         description="The final accumulated total or target corpus, e.g. '₹30 Lakh', '₹1 Crore'",
     )
     total_label: str = Field(
-        default="Total Accumulated Corpus",
-        description="Label for total, e.g. 'Total Corpus', 'Final Wealth', 'Target Goal'",
+        description="Label for total, e.g. 'Total Corpus', 'Final Wealth', 'Target Goal', 'Total Accumulated Corpus'",
     )
     time_horizon: str | None = Field(
         default=None,
@@ -560,19 +552,15 @@ class DebtAmortizationScheduleData(StrictCompositionData):
         description="Initial loan or principal amount, e.g. '₹50 Lakh', '₹15 Lakh'",
     )
     loan_label: str = Field(
-        default="Original Principal",
         description="Label for loan amount, e.g. 'Home Loan Amount', 'Total Borrowed', 'Principal'",
     )
-    interest_rate: str | None = Field(
-        default=None,
-        description="Interest rate if stated, e.g. '8.5% p.a.', '9% Interest'. Never fabricate.",
+    interest_rate: str = Field(
+        description="Interest rate, e.g. '8.5% p.a.', '9% Interest'",
     )
-    tenure: str | None = Field(
-        default=None,
+    tenure: str = Field(
         description="Loan duration or tenure, e.g. '20 Years', '15 Years', '7 Years'",
     )
-    payment_amount: str | None = Field(
-        default=None,
+    payment_amount: str = Field(
         description="Periodic payment or EMI, e.g. '₹30,000/month', '₹45,000 EMI'",
     )
     total_interest: str | None = Field(

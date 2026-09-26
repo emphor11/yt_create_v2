@@ -150,6 +150,7 @@ def test_composition_path_produces_valid_renderspec(tmp_path: Path):
                             "fixed_amount": "₹2 lakh",
                             "amount_label": "Annual Withdrawal",
                             "time_period": "15 Years Later",
+                            "end_value": "₹1.04 lakh",
                             "emphasis": "purchasing_power_decline",
                             "annotation": "Purchasing power drops by 48%",
                             "show_chart": True,

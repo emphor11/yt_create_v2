@@ -63,9 +63,8 @@ def test_growth_trajectory_schema_properties() -> None:
     required = schema["required"]
     assert "start_label" in required
     assert "end_label" in required
-    # Values and rates MUST NOT be required so qualitative growth works without fake numbers
-    assert "start_value" not in required
-    assert "end_value" not in required
+    assert "start_value" in required
+    assert "end_value" in required
     assert "growth_rate" not in required
     assert "milestone_value" not in required
 
@@ -75,16 +74,30 @@ def test_validate_growth_trajectory_valid_minimal() -> None:
         "growth_trajectory",
         {
             "start_label": "Early Savings",
+            "start_value": "₹0",
             "end_label": "Accumulated Corpus",
+            "end_value": "₹50 Lakh",
         },
     )
     assert ok is True
     assert errors == []
     assert normalized["start_label"] == "Early Savings"
     assert normalized["end_label"] == "Accumulated Corpus"
-    assert normalized["start_value"] is None
-    assert normalized["end_value"] is None
+    assert normalized["start_value"] == "₹0"
+    assert normalized["end_value"] == "₹50 Lakh"
     assert normalized["growth_rate"] is None
+
+
+def test_validate_growth_trajectory_missing_values_fails() -> None:
+    ok, errors, _ = CompositionRegistry.validate_composition_data(
+        "growth_trajectory",
+        {
+            "start_label": "Early Savings",
+            "end_label": "Accumulated Corpus",
+        },
+    )
+    assert ok is False
+    assert len(errors) > 0
 
 
 def test_validate_growth_trajectory_valid_full() -> None:

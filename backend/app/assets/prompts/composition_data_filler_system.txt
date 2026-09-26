@@ -103,11 +103,10 @@ Fields designated for quantitative or metric values:
 - STRICT BAN ON QUALITATIVE WORDS IN VALUE SLOTS:
   Never put multi-word phrases or vague qualitative descriptors into quantitative value slots.
   Words like "Bulk", "Remainder", "Accumulated Wealth", "Initial Earnings", "Better Lifestyle", "More Savings" must NEVER appear in a value field.
-- CONCEPTUAL SCENES & ANCHORS:
-  If a scene describes a conceptual progression without explicit numbers:
-  1. Check the scene narration and broader context for scenario numbers established in the video (e.g., salary raise amounts, SIP allocations).
-  2. If the schema explicitly permits qualitative anchors (such as start_value/end_value in growth_trajectory), provide clean, compact structural anchors (e.g., "Starting Base", "Target Corpus").
-  3. Otherwise, ground the value in the closest scenario metric referenced in the narration.
+- MANDATORY QUANTITATIVE VALUES:
+  All quantitative value fields (e.g. value, start_value, end_value, fixed_amount, left_value, right_value, loan_amount) are strictly required.
+  1. Extract exact numerical metrics from the scene narration or scenario context.
+  2. Never leave them null, and never substitute qualitative phrases (e.g., "Target Corpus", "Base Level", "Flat Curve"). Always provide formatted quantitative values.
 
 B. LABEL FIELDS
 Fields designated for explanatory descriptions:

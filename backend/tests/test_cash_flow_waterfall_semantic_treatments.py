@@ -57,19 +57,17 @@ def test_cash_flow_waterfall_schema_accepts_valid_payload() -> None:
     assert data.steps[0].direction == "subtract"
 
 
-def test_cash_flow_waterfall_contract_final_value_not_required() -> None:
-    """CRITICAL CONTRACT: final_value must NOT be required in CashFlowWaterfallData."""
-    data = CashFlowWaterfallData(
-        starting_label="Total Inflow",
-        starting_value="₹3,00,000",
-        steps=[
-            WaterfallStep(label="Taxes", value="-₹60,000"),
-            WaterfallStep(label="Debt Service", value="-₹80,000"),
-        ],
-    )
-    assert data.starting_value == "₹3,00,000"
-    assert data.final_value is None
-    assert data.final_label == "Remaining Balance"
+def test_cash_flow_waterfall_contract_final_value_is_required() -> None:
+    """CRITICAL CONTRACT: final_value and final_label must be required in CashFlowWaterfallData."""
+    with pytest.raises(Exception):
+        CashFlowWaterfallData(
+            starting_label="Total Inflow",
+            starting_value="₹3,00,000",
+            steps=[
+                WaterfallStep(label="Taxes", value="-₹60,000"),
+                WaterfallStep(label="Debt Service", value="-₹80,000"),
+            ],
+        )
 
 
 def test_cash_flow_waterfall_registered_in_composition_registry() -> None:

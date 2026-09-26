@@ -79,6 +79,7 @@ def test_resolve_time_decay():
             "fixed_amount": "₹2 lakh",
             "amount_label": "Annual Withdrawal",
             "time_period": "15 years",
+            "end_value": "₹1.2 lakh",
             "emphasis": "purchasing_power_decline",
             "annotation": "Buys 40% less",
             "show_chart": True,
@@ -88,6 +89,7 @@ def test_resolve_time_decay():
     assert spec.props["fixedAmount"] == "₹2 lakh"
     assert spec.props["amountLabel"] == "Annual Withdrawal"
     assert spec.props["timePeriod"] == "15 years"
+    assert spec.props["endValue"] == "₹1.2 lakh"
     assert spec.props["emphasis"] == "purchasing_power_decline"
     assert spec.props["annotation"] == "Buys 40% less"
     assert spec.props["showChart"] is True
