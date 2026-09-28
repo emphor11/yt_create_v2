@@ -60,6 +60,8 @@ class HookHandler:
             hook = result.hook
             validation = self.hook_validator.validate(hook)
             payload_json = hook.model_dump()
+            if not hook.visual_directives:
+                payload_json.pop("visual_directives", None)
             payload_json["provider_metadata"] = asdict(result.provider_metadata)
 
             artifact = self.store.save_artifact(

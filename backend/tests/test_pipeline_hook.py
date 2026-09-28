@@ -120,18 +120,6 @@ def valid_hook_response_payload() -> dict:
     return {
         "conceptual_hook": "Anchor vs Engine comparison",
         "script_text": "Is renting really throwing money away? Let's check the numbers.",
-        "visual_directives": [
-            {
-                "beat_id": "beat_01",
-                "visual_instruction": "Show heavy ship anchor sinking",
-                "trigger_word": None,
-            },
-            {
-                "beat_id": "beat_02",
-                "visual_instruction": "Show rocket engine taking off",
-                "trigger_word": "numbers",
-            },
-        ],
     }
 
 
@@ -173,6 +161,8 @@ def test_hook_runs_successfully_and_updates_run_state(tmp_path) -> None:
     assert artifact["artifact_type"] == "hook"
     assert artifact["status"] == "valid"
     assert artifact["payload_json"]["conceptual_hook"] == "Anchor vs Engine comparison"
+    assert artifact["payload_json"]["script_text"] == "Is renting really throwing money away? Let's check the numbers."
+    assert "visual_directives" not in artifact["payload_json"]
 
     # Verify run state machine transitioned to 'running' (hook is followed by script_visual_strategy)
     run = store.get_run(project_id, run_id)

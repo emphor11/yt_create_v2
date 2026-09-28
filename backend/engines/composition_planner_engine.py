@@ -1205,58 +1205,48 @@ class CompositionPlannerEngine:
         source_visual_intent_artifact_id: str | None = None,
     ) -> CompositionPlannerResult:
         """
-        Selects a composition deterministically, then fills its exact schema
-        from the source VisualIntent. Unlinked calls retain the old
-        deterministic builder for compatibility with legacy callers; persisted
-        composition plans always pass source IDs and therefore require the
-        schema-scoped filler.
-        Fail-fast: raises CompositionPlannerEngineError on any ambiguity, missing data, or validation failure.
+        Fills the composition schema from the source VisualIntent.
+
+        Persisted path (source_idea_id + source_visual_intent_artifact_id provided):
+          - Trusts intent.composition_id, resolved authoritatively by Stage 5.
+          - No re-selection. Calls CompositionDataFillerEngine directly.
+          - Fail-fast: raises CompositionPlannerEngineError on missing data or validation failure.
+
+        Legacy path (no source IDs):
+          - Re-runs deterministic selector for backward compatibility with old callers.
+          - Uses legacy builders registered on CompositionDefinition.
         """
-        # 1. Deterministic Selection
-        try:
-            selected_id = select_composition_for_intent(intent)
-        except CompositionSelectionError as exc:
-            raise CompositionPlannerEngineError(
-                f"Failed selecting composition: {exc}",
-                beat_id=beat_id,
-                relationship_type=intent.relationship_type,
-                cause=exc,
-            ) from exc
-
-        # 2. Registry Lookup
-        defn = CompositionRegistry.get(selected_id)
-        if defn is None:
-            raise CompositionPlannerEngineError(
-                f"No definition registered for composition '{selected_id}'.",
-                beat_id=beat_id,
-                relationship_type=intent.relationship_type,
-                composition_id=selected_id,
-            )
-
-        # 3. Legacy builder eligibility. The persisted path deliberately does
-        # not use these VisualIntent-era guards: composition completeness is
-        # now owned by the selected schema and filler.
         is_persisted_path = source_idea_id is not None or source_visual_intent_artifact_id is not None
-        if not is_persisted_path and defn.is_eligible is not None and not defn.is_eligible(intent):
-            raise CompositionPlannerEngineError(
-                f"VisualIntent is not eligible for composition '{selected_id}'.",
-                beat_id=beat_id,
-                relationship_type=intent.relationship_type,
-                composition_id=selected_id,
-            )
 
-        # 4. New persisted path: the exact source IDs opt into LLM #2. The
-        # old builder remains only for callers that have not yet adopted the
-        # persisted VisualIntent contract.
-        if source_idea_id is not None or source_visual_intent_artifact_id is not None:
+        if is_persisted_path:
+            # Both IDs are required together — partial linkage is a programmer error.
             if source_idea_id is None or source_visual_intent_artifact_id is None:
                 raise CompositionPlannerEngineError(
                     "Persisted composition planning requires both source_idea_id and "
                     "source_visual_intent_artifact_id.",
                     beat_id=beat_id,
                     relationship_type=intent.relationship_type,
+                )
+
+            # Stage 5 resolved composition_id authoritatively. Trust it — do not re-select.
+            selected_id = intent.composition_id
+            if not selected_id:
+                raise CompositionPlannerEngineError(
+                    "intent.composition_id is not set. Stage 5 must resolve composition_id "
+                    "before composition planning.",
+                    beat_id=beat_id,
+                    relationship_type=intent.relationship_type,
+                )
+
+            defn = CompositionRegistry.get(selected_id)
+            if defn is None:
+                raise CompositionPlannerEngineError(
+                    f"No definition registered for composition '{selected_id}'.",
+                    beat_id=beat_id,
+                    relationship_type=intent.relationship_type,
                     composition_id=selected_id,
                 )
+
             try:
                 filled = self.filler_engine.fill(
                     intent=intent,
@@ -1272,10 +1262,40 @@ class CompositionPlannerEngine:
                     composition_id=selected_id,
                     cause=exc,
                 ) from exc
+
             validated_data = filled.composition_data
             provider_metadata = filled.provider_metadata
             raw_payload = filled.raw_payload
+
         else:
+            # Legacy path: re-select deterministically, use registered builders.
+            try:
+                selected_id = select_composition_for_intent(intent)
+            except CompositionSelectionError as exc:
+                raise CompositionPlannerEngineError(
+                    f"Failed selecting composition: {exc}",
+                    beat_id=beat_id,
+                    relationship_type=intent.relationship_type,
+                    cause=exc,
+                ) from exc
+
+            defn = CompositionRegistry.get(selected_id)
+            if defn is None:
+                raise CompositionPlannerEngineError(
+                    f"No definition registered for composition '{selected_id}'.",
+                    beat_id=beat_id,
+                    relationship_type=intent.relationship_type,
+                    composition_id=selected_id,
+                )
+
+            if defn.is_eligible is not None and not defn.is_eligible(intent):
+                raise CompositionPlannerEngineError(
+                    f"VisualIntent is not eligible for composition '{selected_id}'.",
+                    beat_id=beat_id,
+                    relationship_type=intent.relationship_type,
+                    composition_id=selected_id,
+                )
+
             if defn.builder is None:
                 raise CompositionPlannerEngineError(
                     f"No filler or legacy builder registered for composition '{selected_id}'.",
@@ -1301,6 +1321,7 @@ class CompositionPlannerEngine:
                     composition_id=selected_id,
                     cause=exc,
                 ) from exc
+
             is_valid, errors, validated_data = CompositionRegistry.validate_composition_data(
                 selected_id, candidate_data, visual_goal=intent.what_viewer_must_understand
             )
@@ -1315,12 +1336,12 @@ class CompositionPlannerEngine:
             provider_metadata = LLMProviderMetadata(provider="deterministic_python", model="legacy_builder_v1")
             raw_payload = validated_data
 
-        # 6. Variant Verification
+        # Variant verification — strip unrecognised variants rather than hard-failing.
         variant = validated_data.get("variant")
         if variant is not None and defn.allowed_variants and variant not in defn.allowed_variants:
             variant = None
 
-        # 7. Asset Query & Asset Requirement
+        # Asset queries — only broll_caption beats carry stock-footage search terms.
         if selected_id == "broll_caption":
             asset_requirement = "optional_broll"
             raw_queries = validated_data.get("asset_queries") or []
@@ -1339,10 +1360,9 @@ class CompositionPlannerEngine:
             asset_query = None
             asset_queries = []
 
-        # 8. Construct Beat (Fail-fast deterministic path never uses fallback)
         beat = CompositionBeat(
             beat_id=beat_id,
-            source_intent_id=intent.intent_id if source_idea_id is not None else None,
+            source_intent_id=intent.intent_id if is_persisted_path else None,
             source_idea_id=source_idea_id,
             source_visual_intent_artifact_id=source_visual_intent_artifact_id,
             source_narration_excerpt=intent.narration_excerpt,
@@ -1366,6 +1386,7 @@ class CompositionPlannerEngine:
             used_fallback=False,
             fallback_reason=None,
         )
+
 
     def _run_legacy_llm(
         self,

@@ -128,6 +128,10 @@ class ScriptVisualStrategyHandler:
                             topic=research_packet.topic,
                             audience=research_packet.audience,
                             is_hook=True,
+                            scene_role="hook",
+                            viewer_question=hook.conceptual_hook,
+                            focus_concept="Attention Capture & Core Tension",
+                            core_teaching_point="Engage the viewer immediately and establish the core curiosity gap.",
                         )
                         sequences.append(hook_intent_res.sequence)
                         provenance.extend(
@@ -144,6 +148,11 @@ class ScriptVisualStrategyHandler:
                             narration=idea.narration,
                             topic=research_packet.topic,
                             audience=research_packet.audience,
+                            scene_role=idea.scene_role,
+                            viewer_question=idea.viewer_question,
+                            focus_concept=idea.focus_concept,
+                            core_teaching_point=idea.core_teaching_point,
+                            key_evidence=idea.key_evidence,
                         )
                         sequences.append(intent_res.sequence)
                         provenance.extend(

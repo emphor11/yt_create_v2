@@ -20,6 +20,9 @@ NARRATIVE_PLAN_RESPONSE_SCHEMA: dict[str, Any] = {
     "properties": {
         "thesis": {"type": "string"},
         "target_pain_point": {"type": "string"},
+        "central_tension": {"type": "string"},
+        "starting_belief": {"type": "string"},
+        "ending_understanding": {"type": "string"},
         "conceptual_hook": {"type": "string"},
         "narrative_arc_type": {"type": "string"},
         "scene_beats": {
@@ -29,16 +32,33 @@ NARRATIVE_PLAN_RESPONSE_SCHEMA: dict[str, Any] = {
                 "properties": {
                     "scene_id": {"type": "string"},
                     "title": {"type": "string"},
+                    "scene_role": {"type": "string"},
                     "focus_concept": {"type": "string"},
+                    "viewer_question": {"type": "string"},
                     "core_teaching_point": {"type": "string"},
+                    "key_evidence": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
                 },
-                "required": ["scene_id", "title", "focus_concept", "core_teaching_point"],
+                "required": [
+                    "scene_id",
+                    "title",
+                    "scene_role",
+                    "focus_concept",
+                    "viewer_question",
+                    "core_teaching_point",
+                    "key_evidence",
+                ],
             },
         },
     },
     "required": [
         "thesis",
         "target_pain_point",
+        "central_tension",
+        "starting_belief",
+        "ending_understanding",
         "conceptual_hook",
         "narrative_arc_type",
         "scene_beats",
@@ -113,7 +133,7 @@ class NarrativePlanEngine:
                     ),
                 ),
             ],
-            temperature=0.2,
+            temperature=0.5,
             max_tokens=4000,
         )
 

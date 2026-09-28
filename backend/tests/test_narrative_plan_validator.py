@@ -52,3 +52,47 @@ def test_validator_rejects_insufficient_scene_beats() -> None:
     result = NarrativePlanValidator().validate(plan)
     assert result.status == "blocked"
     assert "must contain at least 3 scene beats" in result.errors[0]
+
+
+def test_validator_accepts_enhanced_plan_with_architectural_fields() -> None:
+    plan = NarrativePlan(
+        thesis="Renting is smarter than buying in high price-to-rent environments.",
+        target_pain_point="Fear of throwing money away on rent.",
+        central_tension="Why can renting build more net worth than buying?",
+        starting_belief="Buying is always an investment",
+        ending_understanding="Unrecoverable costs can exceed rent",
+        conceptual_hook="The 5% Rule of homeownership unrecoverable costs.",
+        narrative_arc_type="Problem-Agitation-Solution",
+        scene_beats=[
+            SceneBeat(
+                scene_id="scene_01",
+                title="The Rent Trap Myth",
+                scene_role="problem",
+                focus_concept="Opportunity Cost of Capital",
+                viewer_question="Why do people fear renting?",
+                core_teaching_point="Show that renting pays for shelter while buying locks up capital.",
+                key_evidence=["Fact 1"],
+            ),
+            SceneBeat(
+                scene_id="scene_02",
+                title="The 5% Rule Math",
+                scene_role="mechanism",
+                focus_concept="The 5% Rule",
+                viewer_question="How does unrecoverable cost work?",
+                core_teaching_point="Break down property tax, maintenance, and interest costs.",
+                key_evidence=["Stat 1"],
+            ),
+            SceneBeat(
+                scene_id="scene_03",
+                title="Relocation Agility",
+                scene_role="resolution",
+                focus_concept="Geographic Mobility",
+                viewer_question="What is the long term payoff?",
+                core_teaching_point="Explain the salary gains from being able to easily move.",
+                key_evidence=["Concept 2"],
+            ),
+        ],
+    )
+    result = NarrativePlanValidator().validate(plan)
+    assert result.status == "valid"
+    assert not result.errors

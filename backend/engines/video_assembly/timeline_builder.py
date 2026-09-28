@@ -1,14 +1,20 @@
+import logging
 import re
 from typing import Any, NamedTuple, Literal, TYPE_CHECKING
-from domain.hook import Hook
+from domain.hook import Hook, VisualDirective
 from domain.script_visual_strategy import ScriptVisualStrategy
 from domain.voice_track import VoiceTrack, WordTimestamp
 
 if TYPE_CHECKING:
     from domain.composition_plan import FullCompositionPlan
 
+logger = logging.getLogger(__name__)
+
 # Constant for minimum beat duration in frames (30fps: 15 frames = 0.5s)
 MIN_BEAT_DURATION_FRAMES = 15
+
+# Target maximum recommended beat duration in seconds (~6.0s)
+MAX_RECOMMENDED_BEAT_DURATION_SECONDS = 6.0
 
 
 def _is_word_match(polly_raw: str, trigger_raw: str) -> bool:
@@ -350,8 +356,16 @@ class TimelineBuilder:
         )
         if using_hook_comp_plan:
             hook_beats = composition_plan.hook_plan.beats
-        else:
+        elif hook.visual_directives:
             hook_beats = hook.visual_directives
+        else:
+            hook_beats = [
+                VisualDirective(
+                    beat_id="beat_hook_0",
+                    preferred_component="Typography",
+                    visual_goal="Hook Opening",
+                )
+            ]
 
         hook_beats_count = len(hook_beats)
         if hook_beats_count > 0:
@@ -489,7 +503,7 @@ class TimelineBuilder:
             for b_idx, comp_beat in enumerate(composition_plan.hook_plan.beats):
                 flat_beat_refs.append(("hook", 0, b_idx, comp_beat.beat_id))
         else:
-            for b_idx, directive in enumerate(hook.visual_directives):
+            for b_idx, directive in enumerate(hook_beats):
                 flat_beat_refs.append(("hook", 0, b_idx, directive.beat_id))
 
         if composition_plan is not None:
@@ -565,5 +579,43 @@ class TimelineBuilder:
                 beat_index=last.beat_index,
             )
 
+        # Pacing diagnostic: log any beats exceeding the recommended maximum duration (~6.0s)
+        max_beat_frames = int(round(MAX_RECOMMENDED_BEAT_DURATION_SECONDS * self.fps))
+        for interval in timed_intervals:
+            if interval.duration_frames > max_beat_frames:
+                dur_s = interval.duration_frames / self.fps
+                logger.warning(
+                    "TimelineBuilder: visual beat '%s' duration (%.1fs, %d frames) exceeds recommended maximum of %.1fs.",
+                    interval.beat_id,
+                    dur_s,
+                    interval.duration_frames,
+                    MAX_RECOMMENDED_BEAT_DURATION_SECONDS,
+                )
+
         return timed_intervals
+
+    def detect_oversized_beats(
+        self,
+        timed_intervals: list[TimedBeatInterval],
+        max_duration_seconds: float = MAX_RECOMMENDED_BEAT_DURATION_SECONDS,
+    ) -> list[dict[str, Any]]:
+        """
+        Detects visual beats exceeding the recommended maximum duration without blindly splitting them.
+        Returns diagnostic records for monitoring and evaluation.
+        """
+        threshold_frames = int(round(max_duration_seconds * self.fps))
+        oversized: list[dict[str, Any]] = []
+        for interval in timed_intervals:
+            if interval.duration_frames > threshold_frames:
+                oversized.append({
+                    "beat_id": interval.beat_id,
+                    "duration_frames": interval.duration_frames,
+                    "duration_seconds": round(interval.duration_frames / self.fps, 2),
+                    "start_frame": interval.start_frame,
+                    "end_frame": interval.end_frame,
+                    "section_type": interval.section_type,
+                    "section_index": interval.section_index,
+                    "beat_index": interval.beat_index,
+                })
+        return oversized
 

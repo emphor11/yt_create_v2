@@ -28,8 +28,14 @@ SCRIPT_VISUAL_STRATEGY_RESPONSE_SCHEMA: dict[str, Any] = {
                 "properties": {
                     "idea_id": {"type": "string"},
                     "title": {"type": "string"},
+                    "scene_role": {"type": "string"},
+                    "viewer_question": {"type": "string"},
                     "focus_concept": {"type": "string"},
                     "core_teaching_point": {"type": "string"},
+                    "key_evidence": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
                     "narration": {"type": "string"},
                 },
                 "required": [
@@ -95,6 +101,51 @@ class ScriptVisualStrategyEngine:
                 "5. Generate a highly detailed body script conforming exactly to the response schema and these requirements."
             )
 
+        user_prompt_lines = [
+            f"Topic: {research_packet.topic}",
+            f"Audience: {research_packet.audience}",
+            f"Channel: {research_packet.channel}",
+            f"Thesis: {narrative_plan.thesis}",
+        ]
+        if narrative_plan.central_tension:
+            user_prompt_lines.append(f"Central Tension: {narrative_plan.central_tension}")
+        if narrative_plan.starting_belief:
+            user_prompt_lines.append(f"Starting Belief: {narrative_plan.starting_belief}")
+        if narrative_plan.ending_understanding:
+            user_prompt_lines.append(f"Ending Understanding: {narrative_plan.ending_understanding}")
+        if narrative_plan.narrative_arc_type:
+            user_prompt_lines.append(f"Narrative Arc Type: {narrative_plan.narrative_arc_type}")
+
+        user_prompt_lines.append("\n--- SPOKEN OPENING HOOK (ALREADY WRITTEN - DO NOT REPEAT) ---")
+        user_prompt_lines.append(f"Conceptual Hook: {hook.conceptual_hook}")
+        user_prompt_lines.append(f'Spoken Hook Script: "{hook.script_text}"')
+
+        user_prompt_lines.append("\n--- NARRATIVE PLAN STORY ARCHITECTURE ---")
+        user_prompt_lines.append("Planned Scene Beats (Generate exactly one idea per scene beat in exact order):")
+        for idx, beat in enumerate(narrative_plan.scene_beats):
+            beat_desc = f"- Scene {idx + 1} ({beat.scene_id}): Title: \"{beat.title}\""
+            if beat.scene_role:
+                beat_desc += f" | Role: {beat.scene_role}"
+            if beat.viewer_question:
+                beat_desc += f" | Viewer Question: \"{beat.viewer_question}\""
+            beat_desc += f" | Focus Concept: \"{beat.focus_concept}\""
+            beat_desc += f" | Core Teaching Point: \"{beat.core_teaching_point}\""
+            if beat.key_evidence:
+                beat_desc += f" | Key Evidence: {beat.key_evidence}"
+            user_prompt_lines.append(beat_desc)
+
+        user_prompt_lines.append("\n--- STRICT RESEARCH CONTEXT & FACTS ---")
+        user_prompt_lines.append(f"Verified Concepts: {research_packet.concepts}")
+        user_prompt_lines.append(f"Verified Facts: {research_packet.verified_facts}")
+        user_prompt_lines.append(f"Verified Statistics: {research_packet.statistics}")
+        user_prompt_lines.append(f"Examples: {research_packet.examples}")
+
+        user_prompt_lines.append("\nCRITICAL INSTRUCTIONS:")
+        user_prompt_lines.append("1. For each idea's 'focus_concept', you MUST choose exactly one concept from the 'Verified Concepts' list above. Do NOT make up new concepts or use phrasing not present in that list.")
+        user_prompt_lines.append("2. Any numbers, statistics, or figures you mention in the narration text MUST be strictly grounded in 'Verified Facts', 'Verified Statistics', or 'Examples'. You are explicitly permitted and encouraged to use the concrete numbers and calculations from 'Examples' (such as salary figures, percentage allocations, and timelines) in your narration. Do NOT invent or use any other numbers (except common small numbers/indexes like 1, 2, 3, etc.).")
+        user_prompt_lines.append("3. You MUST generate exactly one output 'idea' in the 'ideas' array for every 'scene_beat' provided in the Narrative Plan. Maintain their exact chronological order, titles, focus concepts, and core teaching points, while filling in the 'narration' field.")
+        user_prompt_lines.append(budget_instructions)
+
         llm_request = LLMJsonRequest(
             schema_name="ScriptVisualStrategy",
             response_schema=SCRIPT_VISUAL_STRATEGY_RESPONSE_SCHEMA,
@@ -105,24 +156,7 @@ class ScriptVisualStrategyEngine:
                 ),
                 LLMMessage(
                     role="user",
-                    content=(
-                        f"Topic: {research_packet.topic}\n"
-                        f"Audience: {research_packet.audience}\n"
-                        f"Channel: {research_packet.channel}\n"
-                        f"Thesis: {narrative_plan.thesis}\n"
-                        f"Narrative Plan: {narrative_plan.model_dump()}\n"
-                        f"Hook: {hook.model_dump()}\n\n"
-                        f"--- STRICT RESEARCH CONTEXT & FACTS ---\n"
-                        f"Verified Concepts: {research_packet.concepts}\n"
-                        f"Verified Facts: {research_packet.verified_facts}\n"
-                        f"Verified Statistics: {research_packet.statistics}\n"
-                        f"Examples: {research_packet.examples}\n\n"
-                        f"CRITICAL INSTRUCTIONS:\n"
-                        f"1. For each idea's 'focus_concept', you MUST choose exactly one concept from the 'Verified Concepts' list above. Do NOT make up new concepts or use phrasing not present in that list.\n"
-                        f"2. Any numbers, statistics, or figures you mention in the narration text MUST be strictly grounded in 'Verified Facts', 'Verified Statistics', or 'Examples'. You are explicitly permitted and encouraged to use the concrete numbers and calculations from 'Examples' (such as salary figures, percentage allocations, and timelines) in your narration. Do NOT invent or use any other numbers (except common small numbers/indexes like 1, 2, 3, etc.).\n"
-                        f"3. You MUST generate exactly one output 'idea' in the 'ideas' array for every 'scene_beat' provided in the Narrative Plan. Maintain their exact chronological order, titles, focus concepts, and core teaching points, while filling in the 'narration' field.\n"
-                        f"{budget_instructions}"
-                    ),
+                    content="\n".join(user_prompt_lines),
                 ),
             ],
             temperature=0.5,
@@ -142,6 +176,17 @@ class ScriptVisualStrategyEngine:
                 raw_payload=response.payload,
                 provider_metadata=response.metadata,
             ) from error
+
+        # Backfill lineage metadata from NarrativePlan scene beats if absent
+        for idx, idea in enumerate(strategy.ideas):
+            if idx < len(narrative_plan.scene_beats):
+                beat = narrative_plan.scene_beats[idx]
+                if not idea.scene_role and beat.scene_role:
+                    idea.scene_role = beat.scene_role
+                if not idea.viewer_question and beat.viewer_question:
+                    idea.viewer_question = beat.viewer_question
+                if not idea.key_evidence and beat.key_evidence:
+                    idea.key_evidence = list(beat.key_evidence)
 
         return ScriptVisualStrategyResult(
             strategy=strategy,

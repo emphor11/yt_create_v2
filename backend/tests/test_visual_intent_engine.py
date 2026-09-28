@@ -2,7 +2,10 @@
 import pytest
 
 from domain.visual_intent import (
+    VALID_COMPOSITION_IDS,
+    VALID_EVIDENCE_MODES,
     VALID_RELATIONSHIP_TYPES,
+    VALID_VISUAL_REPRESENTATIONS,
     VisualIntent,
     VisualIntentSequence,
     CausalStructure,
@@ -40,8 +43,11 @@ def valid_payload(idea_id: str = "idea_01") -> dict:
                 "what_viewer_must_understand": "₹50 lakh is the starting retirement portfolio.",
                 "key_values": ["₹50 lakh"],
                 "relationship_type": "metric",
+                "visual_representation": "single_value",
+                "evidence_mode": "single_value",
                 "emphasis": "hero",
                 "trigger_word": None,
+                "visual_priority": "primary",
             },
             {
                 "intent_id": "intent_02",
@@ -49,8 +55,11 @@ def valid_payload(idea_id: str = "idea_01") -> dict:
                 "what_viewer_must_understand": "4% annual withdrawal strategy.",
                 "key_values": ["4%"],
                 "relationship_type": "statement",
+                "visual_representation": "statement",
+                "evidence_mode": "single_value",
                 "emphasis": "show_result",
                 "trigger_word": "withdraw",
+                "visual_priority": "secondary",
             },
         ],
     }
@@ -146,7 +155,9 @@ def test_engine_returns_valid_sequence() -> None:
     )
     assert result.sequence.idea_id == "idea_01"
     assert len(result.sequence.intents) == 2
+    assert result.sequence.intents[0].composition_id == "metric_hero"
     assert result.sequence.intents[0].relationship_type == "metric"
+    assert result.sequence.intents[1].composition_id == "broll_caption"
     assert result.sequence.intents[1].trigger_word == "withdraw"
 
 
@@ -168,6 +179,30 @@ def test_engine_rejects_invalid_relationship_type() -> None:
     provider = StaticLLMProvider(payload)
     engine = VisualIntentEngine(provider)
     with pytest.raises(VisualIntentEngineError, match="invalid relationship_type"):
+        engine.run(
+            idea_id="idea_01",
+            narration="Imagine you retire with ₹50 lakh. You withdraw 4% every year.",
+        )
+
+
+def test_engine_rejects_invalid_visual_representation() -> None:
+    payload = valid_payload()
+    payload["intents"][0]["visual_representation"] = "invalid_representation"
+    provider = StaticLLMProvider(payload)
+    engine = VisualIntentEngine(provider)
+    with pytest.raises(VisualIntentEngineError, match="invalid visual_representation"):
+        engine.run(
+            idea_id="idea_01",
+            narration="Imagine you retire with ₹50 lakh. You withdraw 4% every year.",
+        )
+
+
+def test_engine_rejects_invalid_evidence_mode() -> None:
+    payload = valid_payload()
+    payload["intents"][0]["evidence_mode"] = "invalid_mode"
+    provider = StaticLLMProvider(payload)
+    engine = VisualIntentEngine(provider)
+    with pytest.raises(VisualIntentEngineError, match="invalid evidence_mode"):
         engine.run(
             idea_id="idea_01",
             narration="Imagine you retire with ₹50 lakh. You withdraw 4% every year.",
@@ -255,32 +290,32 @@ def test_calculate_pacing_budget_all_lengths() -> None:
     b50 = calculate_pacing_budget(n50)
     assert b50["word_count"] == 50
     assert b50["estimated_seconds"] == 18.5
-    assert b50["target_beats_min"] == 3
-    assert b50["target_beats_max"] == 4
+    assert b50["target_beats_min"] == 4
+    assert b50["target_beats_max"] == 5
 
     # 4. Long: ~75 words
     n75 = " ".join(["word"] * 75)
     b75 = calculate_pacing_budget(n75)
     assert b75["word_count"] == 75
     assert b75["estimated_seconds"] == 27.8
-    assert b75["target_beats_min"] == 4
-    assert b75["target_beats_max"] == 6
+    assert b75["target_beats_min"] == 5
+    assert b75["target_beats_max"] == 7
 
     # 5. Very long: ~100 words
     n100 = " ".join(["word"] * 100)
     b100 = calculate_pacing_budget(n100)
     assert b100["word_count"] == 100
     assert b100["estimated_seconds"] == 37.0
-    assert b100["target_beats_min"] == 5
-    assert b100["target_beats_max"] == 8
+    assert b100["target_beats_min"] == 7
+    assert b100["target_beats_max"] == 10
 
     # 6. Extra long: ~150 words
     n150 = " ".join(["word"] * 150)
     b150 = calculate_pacing_budget(n150)
     assert b150["word_count"] == 150
     assert b150["estimated_seconds"] == 55.6
-    assert b150["target_beats_min"] == 7
-    assert b150["target_beats_max"] == 11
+    assert b150["target_beats_min"] == 10
+    assert b150["target_beats_max"] == 14
 
 
 def test_engine_injects_pacing_budget_for_body_idea() -> None:
@@ -326,14 +361,14 @@ def test_engine_preserves_hook_specific_constraints() -> None:
     assert provider.last_request is not None
     prompt_text = provider.last_request.messages[1].content
     assert "HOOK-SPECIFIC CONSTRAINTS:" in prompt_text
-    assert "Generate exactly 2 to 3 punchy, high-retention visual intents" in prompt_text
+    assert "Target approximately 3 to 5 punchy, high-retention visual intents" in prompt_text
     assert "PACING BUDGET:" not in prompt_text
     assert result.pacing_diagnostic is None
 
 
 def test_engine_pacing_diagnostic_detects_underproduction() -> None:
     """Verifies pacing_diagnostic flags below_min when generated beats are below target_beats_min."""
-    # 75 words expects min 4 beats, but payload only has 2
+    # 76 words expects min 5 beats, but payload only has 2
     provider = StaticLLMProvider(valid_payload())
     engine = VisualIntentEngine(provider)
     narration_75 = "Imagine you retire with ₹50 lakh. You withdraw 4% every year. " + " ".join(["word"] * 65)
@@ -344,16 +379,165 @@ def test_engine_pacing_diagnostic_detects_underproduction() -> None:
     )
 
     assert result.pacing_diagnostic is not None
-    assert result.pacing_diagnostic["target_beats_min"] == 4
+    assert result.pacing_diagnostic["target_beats_min"] == 5
     assert result.pacing_diagnostic["generated_beats"] == 2
     assert result.pacing_diagnostic["below_min"] is True
 
 
-def test_system_prompt_contains_progressive_visual_storytelling() -> None:
-    """Verifies system prompt asset contains Progressive Visual Storytelling rule."""
+def test_system_prompt_contains_semantic_visual_storytelling() -> None:
+    """Verifies system prompt asset contains semantic visual reasoning rules."""
     content = load_prompt("visual_intent_system.txt")
-    assert "PROGRESSIVE VISUAL STORYTELLING" in content
-    assert "The number of intents must be determined by **semantic progression**" in content
-    assert "RULE 1 — GROUP RELATED SENTENCES" not in content
+    assert "Visual Storytelling Analyst for Wealth Unpacked" in content
+    assert "SEMANTIC RELATIONSHIP ≠ VISUAL IMPLEMENTATION" in content
+    assert "NO COMPONENT SELECTION" in content
+
+
+def test_engine_formats_narrative_context() -> None:
+    """Verifies that scene pedagogical context is formatted in user prompt without component rules."""
+    provider = StaticLLMProvider(valid_payload("idea_03"))
+    engine = VisualIntentEngine(provider)
+    narration = "Imagine you retire with ₹50 lakh. You withdraw 4% every year."
+
+    engine.run(
+        idea_id="idea_03",
+        narration=narration,
+        topic="Gold Surges to ₹1.5 Lakh",
+        audience="corporate employees",
+        scene_role="mechanism",
+        viewer_question="What drives gold prices?",
+        focus_concept="Opportunity Cost",
+        core_teaching_point="Explain inverse relationship with real yields.",
+        key_evidence=["Gold has inverse relationship with real yields."],
+    )
+
+    assert provider.last_request is not None
+    prompt_text = provider.last_request.messages[1].content
+    assert "SCENE PEDAGOGICAL CONTEXT:" in prompt_text
+    assert "Scene Role: mechanism" in prompt_text
+    assert "Viewer Question: What drives gold prices?" in prompt_text
+    assert "Focus Concept: Opportunity Cost" in prompt_text
+    assert "Core Teaching Point: Explain inverse relationship with real yields." in prompt_text
+    assert "Key Evidence Grounded in this Scene:" in prompt_text
+    assert "Gold has inverse relationship with real yields." in prompt_text
+    assert "VISUAL COMPONENT SELECTION & DATA PREREQUISITE RULES:" not in prompt_text
+
+
+def test_engine_accepts_composition_id_directly() -> None:
+    """Verifies engine outputs sequence with direct composition_id."""
+    payload = valid_payload("idea_01")
+    payload["intents"][0]["composition_id"] = "metric_hero"
+    payload["intents"][1]["composition_id"] = "broll_caption"
+    provider = StaticLLMProvider(payload)
+    engine = VisualIntentEngine(provider)
+    narration = "Imagine you retire with ₹50 lakh. You withdraw 4% every year."
+
+    res = engine.run(idea_id="idea_01", narration=narration)
+    assert res.sequence.intents[0].composition_id == "metric_hero"
+    assert res.sequence.intents[1].composition_id == "broll_caption"
+
+
+def test_visual_intent_accepts_all_valid_composition_ids() -> None:
+    for cid in VALID_COMPOSITION_IDS:
+        intent = VisualIntent(
+            intent_id="intent_01",
+            narration_excerpt="Some text",
+            what_viewer_must_understand="Something",
+            composition_id=cid,
+        )
+        assert intent.composition_id == cid
+        assert intent.relationship_type is not None
+
+
+def test_visual_intent_rejects_invalid_composition_id() -> None:
+    with pytest.raises(Exception, match="composition_id"):
+        VisualIntent(
+            intent_id="intent_01",
+            narration_excerpt="Some text",
+            what_viewer_must_understand="Something",
+            composition_id="invented_composition",
+        )
+
+
+def test_engine_routes_growth_qualitative_to_broll_caption() -> None:
+    """Verifies that growth intent with qualitative evidence routes to broll_caption (zero hallucination)."""
+    payload = {
+        "idea_id": "idea_02",
+        "intents": [
+            {
+                "intent_id": "intent_01",
+                "narration_excerpt": "Gold has risen sharply over the last few years.",
+                "what_viewer_must_understand": "Gold price appreciation over recent years.",
+                "relationship_type": "growth",
+                "visual_representation": "trend",
+                "evidence_mode": "qualitative",
+                "key_values": [],
+                "trigger_word": None,
+            }
+        ],
+    }
+    provider = StaticLLMProvider(payload)
+    engine = VisualIntentEngine(provider)
+    res = engine.run(idea_id="idea_02", narration="Gold has risen sharply over the last few years.")
+    assert res.sequence.intents[0].composition_id == "broll_caption"
+    assert res.sequence.intents[0].relationship_type == "growth"
+    assert res.sequence.intents[0].evidence_mode == "qualitative"
+
+
+def test_engine_routes_growth_timeseries_to_growth_trajectory() -> None:
+    """Verifies that growth intent with time_series evidence routes to growth_trajectory."""
+    payload = {
+        "idea_id": "idea_02",
+        "intents": [
+            {
+                "intent_id": "intent_01",
+                "narration_excerpt": "Gold rose from ₹45,000 to ₹1,50,000 between 2020 and 2026.",
+                "what_viewer_must_understand": "Gold surged from 45k to 1.5 lakh.",
+                "relationship_type": "growth",
+                "visual_representation": "trend",
+                "evidence_mode": "time_series",
+                "key_values": ["₹45,000", "₹1,50,000"],
+                "trigger_word": None,
+                "measurements": [
+                    {"raw_value": "₹45,000"},
+                    {"raw_value": "₹1,50,000"},
+                ],
+            }
+        ],
+    }
+    provider = StaticLLMProvider(payload)
+    engine = VisualIntentEngine(provider)
+    res = engine.run(idea_id="idea_02", narration="Gold rose from ₹45,000 to ₹1,50,000 between 2020 and 2026.")
+    assert res.sequence.intents[0].composition_id == "growth_trajectory"
+    assert res.sequence.intents[0].relationship_type == "growth"
+    assert res.sequence.intents[0].evidence_mode == "time_series"
+
+
+def test_engine_routes_calculation_inputs_to_calculation_story() -> None:
+    """Verifies that calculation intent with calculation_inputs routes to calculation_story."""
+    payload = {
+        "idea_id": "idea_03",
+        "intents": [
+            {
+                "intent_id": "intent_01",
+                "narration_excerpt": "₹50 lakh multiplied by 4% gives ₹2 lakh.",
+                "what_viewer_must_understand": "4% of 50 lakh equals 2 lakh.",
+                "relationship_type": "calculation",
+                "visual_representation": "calculation",
+                "evidence_mode": "calculation_inputs",
+                "key_values": ["₹50 lakh", "4%", "₹2 lakh"],
+                "trigger_word": None,
+                "measurements": [
+                    {"raw_value": "₹50 lakh"},
+                    {"raw_value": "4%"},
+                    {"raw_value": "₹2 lakh"},
+                ],
+            }
+        ],
+    }
+    provider = StaticLLMProvider(payload)
+    engine = VisualIntentEngine(provider)
+    res = engine.run(idea_id="idea_03", narration="₹50 lakh multiplied by 4% gives ₹2 lakh.")
+    assert res.sequence.intents[0].composition_id == "calculation_story"
+
 
 

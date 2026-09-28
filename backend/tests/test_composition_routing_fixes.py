@@ -320,3 +320,90 @@ def test_all_eighteen_relationship_types_are_registered_and_route() -> None:
         assert defn is not None, f"Composition '{selected_cid}' selected for '{rel_type}' is not in CompositionRegistry"
 
 
+def test_evidence_mode_driven_routing() -> None:
+    # 1. Growth: qualitative -> broll_caption, time_series -> growth_trajectory
+    growth_qual = VisualIntent(
+        intent_id="i1",
+        narration_excerpt="Gold has risen sharply over recent years.",
+        what_viewer_must_understand="Gold rose",
+        relationship_type="growth",
+        evidence_mode="qualitative",
+    )
+    assert select_composition_for_intent(growth_qual) == "broll_caption"
+
+    growth_quant = VisualIntent(
+        intent_id="i2",
+        narration_excerpt="Gold rose from 45k to 1.5 lakh.",
+        what_viewer_must_understand="Gold surged",
+        relationship_type="growth",
+        evidence_mode="time_series",
+    )
+    assert select_composition_for_intent(growth_quant) == "growth_trajectory"
+
+    growth_single = VisualIntent(
+        intent_id="i2_single",
+        narration_excerpt="Inflows jumped 67 percent.",
+        what_viewer_must_understand="Inflows jumped",
+        relationship_type="growth",
+        evidence_mode="single_value",
+    )
+    assert select_composition_for_intent(growth_single) == "metric_hero"
+
+    # 2. Calculation: qualitative -> broll_caption, calculation_inputs -> calculation_story
+    calc_qual = VisualIntent(
+        intent_id="i3",
+        narration_excerpt="Your taxes will take a chunk.",
+        what_viewer_must_understand="Taxes reduce takehome",
+        relationship_type="calculation",
+        evidence_mode="qualitative",
+    )
+    assert select_composition_for_intent(calc_qual) == "broll_caption"
+
+    calc_inputs = VisualIntent(
+        intent_id="i4",
+        narration_excerpt="50 lakh times 4% gives 2 lakh.",
+        what_viewer_must_understand="4% of 50L is 2L",
+        relationship_type="calculation",
+        evidence_mode="calculation_inputs",
+    )
+    assert select_composition_for_intent(calc_inputs) == "calculation_story"
+
+    # 3. Decline: qualitative -> broll_caption, time_series -> time_decay
+    decline_qual = VisualIntent(
+        intent_id="i5",
+        narration_excerpt="Purchasing power erodes over time.",
+        what_viewer_must_understand="Inflation erosion",
+        relationship_type="decline",
+        evidence_mode="qualitative",
+    )
+    assert select_composition_for_intent(decline_qual) == "broll_caption"
+
+    decline_quant = VisualIntent(
+        intent_id="i6",
+        narration_excerpt="Value dropped by 50% in 10 years.",
+        what_viewer_must_understand="50% drop",
+        relationship_type="decline",
+        evidence_mode="time_series",
+    )
+    assert select_composition_for_intent(decline_quant) == "time_decay"
+
+    # 4. Metric: qualitative -> broll_caption, single_value -> metric_hero
+    metric_qual = VisualIntent(
+        intent_id="i7",
+        narration_excerpt="Returns were massive.",
+        what_viewer_must_understand="Massive returns",
+        relationship_type="metric",
+        evidence_mode="qualitative",
+    )
+    assert select_composition_for_intent(metric_qual) == "broll_caption"
+
+    metric_val = VisualIntent(
+        intent_id="i8",
+        narration_excerpt="Retire with 50 lakh.",
+        what_viewer_must_understand="50 lakh corpus",
+        relationship_type="metric",
+        evidence_mode="single_value",
+    )
+    assert select_composition_for_intent(metric_val) == "metric_hero"
+
+

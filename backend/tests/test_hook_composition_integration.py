@@ -422,3 +422,72 @@ def test_composition_assembly_engine_hook_fallback_when_hook_plan_is_none() -> N
     # Hook scene: falls back to legacy Typography without error
     assert scenes[0].component.component_id == "Typography"
     assert scenes[0].component.props["text"] == "Legacy Fallback Text"
+
+
+def test_composition_assembly_pure_hook_without_visual_directives_fallback() -> None:
+    """Verifies TimelineBuilder and CompositionAssemblyEngine gracefully handle a pure spoken Hook with NO visual directives."""
+    hook = Hook(
+        conceptual_hook="Concept",
+        script_text="Imagine losing 40% of your wealth.",
+        # visual_directives is omitted / empty
+    )
+    strategy = ScriptVisualStrategy(
+        schema_version="1",
+        thesis="Inflation destroys cash.",
+        ideas=[
+            VideoIdea(
+                idea_id="idea_01",
+                title="Idea 1",
+                focus_concept="Drag",
+                core_teaching_point="Drag point",
+                narration="Keep investing regularly.",
+            )
+        ],
+    )
+    comp_plan = FullCompositionPlan(
+        thesis="Inflation destroys cash.",
+        visual_mode="composition",
+        hook_plan=None,
+        ideas=[
+            IdeaCompositionPlan(
+                idea_id="idea_01",
+                narration="Keep investing regularly.",
+                beats=[
+                    CompositionBeat(
+                        beat_id="beat_01_01",
+                        composition_id="broll_caption",
+                        variant="statement",
+                        composition_data={"caption": "Keep investing regularly."},
+                        trigger_word=None,
+                    )
+                ],
+            )
+        ],
+    )
+
+    voice_track = VoiceTrack(
+        voice_id="Joanna",
+        audio_file_name="audio.mp3",
+        storage_key="audio.mp3",
+        duration_seconds=4.0,
+        full_script_text="Imagine losing 40% of your wealth. Keep investing regularly.",
+        word_timestamps=[
+            WordTimestamp(word="Imagine", start_ms=0, end_ms=1800),
+            WordTimestamp(word="Keep", start_ms=1900, end_ms=3800),
+        ],
+    )
+
+    engine = CompositionAssemblyEngine(fps=30)
+    render_spec = engine.run(
+        scene_id="test_scene_pure_hook",
+        hook=hook,
+        strategy=strategy,
+        composition_plan=comp_plan,
+        voice_track=voice_track,
+    )
+
+    scenes = render_spec.props.scenes
+    assert len(scenes) == 2
+    # Hook scene: gracefully synthesized fallback beat
+    assert scenes[0].component.component_id == "Typography"
+    assert scenes[0].component.props["text"] == "Imagine losing 40% of your wealth."

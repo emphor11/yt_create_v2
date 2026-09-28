@@ -17,7 +17,17 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from domain.visual_intent import VALID_RELATIONSHIP_TYPES, VisualIntent, VisualIntentSequence
+from domain.visual_intent import (
+    VALID_COMPOSITION_IDS,
+    VALID_EVIDENCE_MODES,
+    VALID_RELATIONSHIP_TYPES,
+    VALID_VISUAL_REPRESENTATIONS,
+    VisualIntent,
+    VisualIntentSequence,
+    COMPOSITION_TO_RELATIONSHIP_MAP,
+    RELATIONSHIP_TO_COMPOSITION_MAP,
+)
+from engines.composition_selector import select_composition_for_intent
 from providers.llm_provider import (
     LLMJsonRequest,
     LLMMessage,
@@ -38,17 +48,17 @@ def calculate_pacing_budget(narration: str) -> dict[str, Any]:
     """
     Computes a pacing budget guideline for a narration segment.
 
-    Formula:
-        word_count = number of spoken words
-        estimated_seconds = word_count / 2.7
-        target_beats_min = max(2, ceil(word_count / 22))
-        target_beats_max = max(3, ceil(word_count / 14))
+    Pacing relationship:
+        spoken_words -> estimated_duration -> target_visual_beats
+        At a standard narration speed of ~2.7 words/second:
+        - A ~5.5-second beat corresponds to ~15-16 words (target_beats_min).
+        - A ~4.0-second beat corresponds to ~11 words (target_beats_max).
     """
     words = [w for w in re.split(r"\s+", narration.strip()) if w]
     word_count = len(words)
     estimated_seconds = word_count / 2.7
-    target_beats_min = max(2, math.ceil(word_count / 22))
-    target_beats_max = max(3, math.ceil(word_count / 14))
+    target_beats_min = max(2, math.ceil(word_count / 16))
+    target_beats_max = max(3, math.ceil(word_count / 11))
     return {
         "word_count": word_count,
         "estimated_seconds": round(estimated_seconds, 1),
@@ -58,7 +68,7 @@ def calculate_pacing_budget(narration: str) -> dict[str, Any]:
 
 
 # JSON Schema for LLM structured output.
-# relationship_type is a closed enum — LLM cannot invent new values.
+# Tripartite semantic visual model: relationship_type + visual_representation + evidence_mode.
 VISUAL_INTENT_RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -71,16 +81,34 @@ VISUAL_INTENT_RESPONSE_SCHEMA: dict[str, Any] = {
                     "intent_id": {"type": "string"},
                     "narration_excerpt": {"type": "string"},
                     "what_viewer_must_understand": {"type": "string"},
-                    "key_values": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                    },
                     "relationship_type": {
                         "type": "string",
                         "enum": VALID_RELATIONSHIP_TYPES,
                     },
+                    "visual_representation": {
+                        "type": "string",
+                        "enum": VALID_VISUAL_REPRESENTATIONS,
+                    },
+                    "evidence_mode": {
+                        "type": "string",
+                        "enum": VALID_EVIDENCE_MODES,
+                    },
+                    "key_values": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "composition_id": {
+                        "type": "string",
+                        "enum": VALID_COMPOSITION_IDS,
+                        "nullable": True,
+                    },
                     "emphasis": {"type": "string", "nullable": True},
                     "trigger_word": {"type": "string", "nullable": True},
+                    "visual_priority": {
+                        "type": "string",
+                        "enum": ["primary", "secondary", "context"],
+                        "nullable": True,
+                    },
                     "entities": {
                         "type": "array",
                         "items": {
@@ -178,6 +206,8 @@ VISUAL_INTENT_RESPONSE_SCHEMA: dict[str, Any] = {
                     "narration_excerpt",
                     "what_viewer_must_understand",
                     "relationship_type",
+                    "visual_representation",
+                    "evidence_mode",
                 ],
             },
         },
@@ -225,14 +255,24 @@ class VisualIntentEngine:
         topic: str = "",
         audience: str = "",
         is_hook: bool = False,
+        scene_role: str | None = None,
+        viewer_question: str | None = None,
+        focus_concept: str | None = None,
+        core_teaching_point: str | None = None,
+        key_evidence: list[str] | None = None,
     ) -> VisualIntentResult:
         """
         Args:
-            idea_id:   The idea_id from the ScriptVisualStrategy (e.g. "idea_01") or "hook".
-            narration: The full narration text for this idea or hook.
-            topic:     Optional — injected into the prompt for context.
-            audience:  Optional — injected into the prompt for context.
-            is_hook:   Optional — if True, applies hook-specific pacing (2-3 beats max, immediate engagement).
+            idea_id:             The idea_id from the ScriptVisualStrategy (e.g. "idea_01") or "hook".
+            narration:           The full narration text for this idea or hook.
+            topic:               Optional — injected into the prompt for context.
+            audience:            Optional — injected into the prompt for context.
+            is_hook:             Optional — if True, applies hook-specific pacing (2-3 beats max, immediate engagement).
+            scene_role:          Optional — the pedagogical role of this scene (e.g. 'problem', 'mechanism', 'contradiction').
+            viewer_question:     Optional — curiosity question driving this scene.
+            focus_concept:       Optional — financial concept focused on in this scene.
+            core_teaching_point: Optional — core takeaway that must be visually understood.
+            key_evidence:        Optional — verbatim research facts/statistics that must be anchored.
 
         Returns:
             VisualIntentResult containing the validated VisualIntentSequence.
@@ -250,7 +290,8 @@ class VisualIntentEngine:
             hook_instructions = (
                 "\nHOOK-SPECIFIC CONSTRAINTS:\n"
                 "- This is the opening HOOK of the video (15-25 seconds total).\n"
-                "- Generate exactly 2 to 3 punchy, high-retention visual intents (never more than 3).\n"
+                "- Target approximately 3 to 5 punchy, high-retention visual intents (typically 3-5 beats).\n"
+                "- Each beat must represent a distinct visual idea (e.g. hook premise -> bold baseline metric -> sharp contrast/split -> core curiosity gap).\n"
                 "- The first intent MUST have immediate first-frame engagement (starts immediately at frame 0).\n"
                 "- Focus on high visual contrast: bold metric, startling comparison, multi-factor convergence, or key claim.\n"
             )
@@ -265,10 +306,28 @@ class VisualIntentEngine:
                 f"Prioritize meaningful semantic transitions. Do not create filler intents just to reach the target count.\n"
             )
 
+        scene_context_parts = []
+        if scene_role:
+            scene_context_parts.append(f"- Scene Role: {scene_role}")
+        if viewer_question:
+            scene_context_parts.append(f"- Viewer Question: {viewer_question}")
+        if focus_concept:
+            scene_context_parts.append(f"- Focus Concept: {focus_concept}")
+        if core_teaching_point:
+            scene_context_parts.append(f"- Core Teaching Point: {core_teaching_point}")
+        if key_evidence:
+            ev_list = "\n".join(f"  * {e}" for e in key_evidence)
+            scene_context_parts.append(f"- Key Evidence Grounded in this Scene:\n{ev_list}")
+
+        scene_context_section = ""
+        if scene_context_parts:
+            scene_context_section = "\nSCENE PEDAGOGICAL CONTEXT:\n" + "\n".join(scene_context_parts) + "\n"
+
         user_content = (
             f"Topic: {topic}\n"
             f"Audience: {audience}\n"
             f"Idea ID: {idea_id}\n"
+            f"{scene_context_section}"
             f"{hook_instructions}"
             f"{pacing_instructions}\n"
             f"NARRATION:\n{narration}\n\n"
@@ -293,17 +352,47 @@ class VisualIntentEngine:
 
         raw = response.payload
 
-        # Validate relationship_type values before Pydantic — gives clearer errors
+        # 1. Validate relationship_type values before Pydantic
         bad_types: list[str] = []
         for item in raw.get("intents", []):
             rt = item.get("relationship_type", "")
             if rt not in VALID_RELATIONSHIP_TYPES:
-                bad_types.append(rt)
+                bad_types.append(str(rt))
 
         if bad_types:
             raise VisualIntentEngineError(
                 f"LLM returned invalid relationship_type values: {bad_types}. "
                 f"Allowed: {VALID_RELATIONSHIP_TYPES}",
+                raw_payload=raw,
+                provider_metadata=response.metadata,
+            )
+
+        # 2. Validate visual_representation values
+        bad_reps: list[str] = []
+        for item in raw.get("intents", []):
+            vr = item.get("visual_representation")
+            if vr and vr not in VALID_VISUAL_REPRESENTATIONS:
+                bad_reps.append(str(vr))
+
+        if bad_reps:
+            raise VisualIntentEngineError(
+                f"LLM returned invalid visual_representation values: {bad_reps}. "
+                f"Allowed: {VALID_VISUAL_REPRESENTATIONS}",
+                raw_payload=raw,
+                provider_metadata=response.metadata,
+            )
+
+        # 3. Validate evidence_mode values
+        bad_ev: list[str] = []
+        for item in raw.get("intents", []):
+            em = item.get("evidence_mode")
+            if em and em not in VALID_EVIDENCE_MODES:
+                bad_ev.append(str(em))
+
+        if bad_ev:
+            raise VisualIntentEngineError(
+                f"LLM returned invalid evidence_mode values: {bad_ev}. "
+                f"Allowed: {VALID_EVIDENCE_MODES}",
                 raw_payload=raw,
                 provider_metadata=response.metadata,
             )
@@ -451,10 +540,17 @@ class VisualIntentEngine:
         try:
             # Ensure idea_id is set correctly (LLM might echo it back incorrectly)
             raw["idea_id"] = idea_id
+            intents = []
+            for i in intents_raw:
+                intent_obj = VisualIntent.model_validate(i)
+                if not intent_obj.composition_id:
+                    intent_obj.composition_id = select_composition_for_intent(intent_obj)
+                intents.append(intent_obj)
+
             sequence = VisualIntentSequence(
                 idea_id=idea_id,
                 narration=narration,
-                intents=[VisualIntent.model_validate(i) for i in intents_raw],
+                intents=intents,
             )
         except ValidationError as error:
             # Surface the model_validator messages directly — they are already

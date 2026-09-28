@@ -161,12 +161,19 @@ class CompositionAssemblyEngine:
                     resolved_components.append(comp_spec)
                 else:
                     # Legacy hook fallback
-                    directive = hook.visual_directives[interval.beat_index]
-                    preferred_component = directive.preferred_component or "Typography"
-                    visual_goal = directive.visual_goal or directive.visual_instruction or ""
-                    asset_query = directive.asset_query
-                    notes = directive.notes or visual_goal
-                    component_data = directive.component_data
+                    if hook.visual_directives and interval.beat_index < len(hook.visual_directives):
+                        directive = hook.visual_directives[interval.beat_index]
+                        preferred_component = directive.preferred_component or "Typography"
+                        visual_goal = directive.visual_goal or directive.visual_instruction or ""
+                        asset_query = directive.asset_query
+                        notes = directive.notes or visual_goal
+                        component_data = directive.component_data
+                    else:
+                        preferred_component = "Typography"
+                        visual_goal = "Hook Opening"
+                        asset_query = None
+                        notes = "Hook Opening"
+                        component_data = {"text": hook.script_text}
                     narration_text = hook.script_text
 
                     unique_asset_id = f"asset_hook_0_{interval.beat_index}_{interval.beat_id}"

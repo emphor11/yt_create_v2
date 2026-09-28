@@ -17,6 +17,13 @@ class VisualDirective(BaseModel):
 
 
 class Hook(BaseModel):
+    """Domain model representing the spoken opening hook of the video.
+    
+    Under the locked pipeline architecture:
+    - Hook is responsible exclusively for the spoken script (`script_text`) and conceptual framing (`conceptual_hook`).
+    - Hook is NOT responsible for visual directives, component selection, or trigger words.
+    - `visual_directives` is retained strictly for backward compatibility when reading legacy artifacts.
+    """
     schema_version: str = "1"
     conceptual_hook: str
     script_text: str

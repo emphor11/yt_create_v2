@@ -49,6 +49,16 @@ def select_composition_for_intent(intent: VisualIntent) -> str:
     Deterministically selects the authoritative composition_id for a given VisualIntent.
     Fails fast with CompositionSelectionError if selection is ambiguous, incomplete, or unsupported.
 
+    Evidence-Mode Aware Routing:
+    - growth + qualitative/none -> broll_caption (prevents demanding absent start/end numbers)
+    - growth + time_series/multiple_values -> growth_trajectory
+    - decline + qualitative/none -> broll_caption
+    - decline + time_series/multiple_values -> time_decay
+    - calculation + calculation_inputs -> calculation_story
+    - calculation + qualitative/none -> broll_caption
+    - metric + single_value/multiple_values -> metric_hero
+    - metric + qualitative/none -> broll_caption
+
     Returns:
         composition_id (str)
 
@@ -56,8 +66,51 @@ def select_composition_for_intent(intent: VisualIntent) -> str:
         CompositionSelectionError: If relationship is unsupported or required disambiguation data is absent.
     """
     rel_type = intent.relationship_type
+    evidence_mode = getattr(intent, "evidence_mode", None)
 
-    # 'trend' is deprecated in favor of explicit 'growth' and 'decline'.
+    # 1. Evidence-Mode Driven Selection (tripartite semantic model)
+    if evidence_mode is not None:
+        if rel_type == "growth":
+            if evidence_mode in ("qualitative", "none"):
+                return "broll_caption"
+            if evidence_mode == "single_value":
+                return "metric_hero"
+            return "growth_trajectory"
+
+        if rel_type == "decline":
+            if evidence_mode in ("qualitative", "none"):
+                return "broll_caption"
+            if evidence_mode == "single_value":
+                return "metric_hero"
+            return "time_decay"
+
+        if rel_type == "calculation":
+            if evidence_mode in ("qualitative", "none"):
+                return "broll_caption"
+            if evidence_mode == "single_value":
+                return "metric_hero"
+            return "calculation_story"
+
+        if rel_type == "metric":
+            if evidence_mode in ("qualitative", "none"):
+                return "broll_caption"
+            return "metric_hero"
+
+        if rel_type == "comparison":
+            if evidence_mode == "none":
+                return "broll_caption"
+            return "comparison_split"
+
+        if rel_type == "divergence":
+            if evidence_mode == "none":
+                return "broll_caption"
+            return "trajectory_divergence"
+
+    # 2. Existing explicit composition_id
+    if getattr(intent, "composition_id", None) and intent.composition_id in PRIMARY_RELATIONSHIP_MAP.values():
+        return intent.composition_id
+
+    # 3. 'trend' is deprecated in favor of explicit 'growth' and 'decline'.
     # For backward compatibility with existing artifacts, resolve trend deterministically:
     if rel_type == "trend":
         has_decay = bool(intent.temporal and intent.temporal.is_decay_over_time)
@@ -75,7 +128,7 @@ def select_composition_for_intent(intent: VisualIntent) -> str:
         # If not downward, resolve to growth_trajectory
         return "growth_trajectory"
 
-    # 3. Direct Primary Mappings
+    # 4. Direct Primary Mappings
     if rel_type in PRIMARY_RELATIONSHIP_MAP:
         return PRIMARY_RELATIONSHIP_MAP[rel_type]
 

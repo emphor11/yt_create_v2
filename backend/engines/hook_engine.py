@@ -13,25 +13,23 @@ from providers.llm_provider import (
     LLMProviderError,
     LLMProviderMetadata,
 )
-from registries.component_registry import ComponentRegistry
 from app.assets import load_prompt
 
 HOOK_RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
-        "conceptual_hook": {"type": "string"},
-        "script_text": {"type": "string"},
-        "visual_directives": {
-            "type": "array",
-            "items": {
-                "anyOf": ComponentRegistry.get_polymorphic_beat_schema(is_hook=True),
-            },
+        "conceptual_hook": {
+            "type": "string",
+            "description": "Refined conceptual hook idea or analogy connecting the opening to the narrative thesis.",
+        },
+        "script_text": {
+            "type": "string",
+            "description": "The exact spoken opening hook script for narration.",
         },
     },
     "required": [
         "conceptual_hook",
         "script_text",
-        "visual_directives",
     ],
 }
 
@@ -62,6 +60,38 @@ class HookEngine:
 
     def run(self, request: GenerateVideoRequest, narrative_plan: NarrativePlan) -> HookResult:
         system_content = load_prompt("hook_system.txt")
+        first_scene = narrative_plan.scene_beats[0] if narrative_plan.scene_beats else None
+        user_lines = [
+            f"Topic: {request.topic}",
+            f"Angle: {request.angle}",
+            f"Audience: {request.audience}",
+            f"Channel: {request.channel}",
+            f"Thesis: {narrative_plan.thesis}",
+            f"Target Pain Point: {narrative_plan.target_pain_point}",
+        ]
+        if narrative_plan.central_tension:
+            user_lines.append(f"Central Tension: {narrative_plan.central_tension}")
+        if narrative_plan.starting_belief:
+            user_lines.append(f"Starting Belief: {narrative_plan.starting_belief}")
+        if narrative_plan.ending_understanding:
+            user_lines.append(f"Ending Understanding: {narrative_plan.ending_understanding}")
+        if narrative_plan.conceptual_hook:
+            user_lines.append(f"Conceptual Hook: {narrative_plan.conceptual_hook}")
+        if narrative_plan.narrative_arc_type:
+            user_lines.append(f"Narrative Arc Type: {narrative_plan.narrative_arc_type}")
+
+        if first_scene:
+            user_lines.append(f"Scene 01 Title: {first_scene.title}")
+            if first_scene.scene_role:
+                user_lines.append(f"Scene 01 Role: {first_scene.scene_role}")
+            if first_scene.viewer_question:
+                user_lines.append(f"Scene 01 Viewer Question: {first_scene.viewer_question}")
+            user_lines.append(f"Scene 01 Core Teaching Point: {first_scene.core_teaching_point}")
+            if first_scene.key_evidence:
+                user_lines.append(f"Scene 01 Key Evidence: {', '.join(first_scene.key_evidence)}")
+
+        user_lines.append("Generate a highly engaging opening hook script matching the narrative plan's conceptual hook and tension.")
+
         llm_request = LLMJsonRequest(
             schema_name="Hook",
             response_schema=HOOK_RESPONSE_SCHEMA,
@@ -72,20 +102,10 @@ class HookEngine:
                 ),
                 LLMMessage(
                     role="user",
-                    content=(
-                        f"Topic: {request.topic}\n"
-                        f"Angle: {request.angle}\n"
-                        f"Audience: {request.audience}\n"
-                        f"Channel: {request.channel}\n"
-                        f"Thesis: {narrative_plan.thesis}\n"
-                        f"Target Pain Point: {narrative_plan.target_pain_point}\n"
-                        f"Conceptual Hook Analogy: {narrative_plan.conceptual_hook}\n"
-                        f"First Scene Beat Focus: {narrative_plan.scene_beats[0].core_teaching_point if narrative_plan.scene_beats else ''}\n"
-                        "Generate a highly engaging opening hook script and matching visual directives."
-                    ),
+                    content="\n".join(user_lines),
                 ),
             ],
-            temperature=0.3,
+            temperature=0.5,
             max_tokens=4096,
         )
 

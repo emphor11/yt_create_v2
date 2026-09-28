@@ -15,6 +15,13 @@ class NarrativePlanValidator:
         if not plan.narrative_arc_type.strip():
             errors.append("Narrative arc type is required.")
 
+        if plan.central_tension and not plan.central_tension.strip():
+            errors.append("Central tension cannot be empty whitespace.")
+        if plan.starting_belief and not plan.starting_belief.strip():
+            errors.append("Starting belief cannot be empty whitespace.")
+        if plan.ending_understanding and not plan.ending_understanding.strip():
+            errors.append("Ending understanding cannot be empty whitespace.")
+
         if len(plan.scene_beats) < 3:
             errors.append("Narrative plan must contain at least 3 scene beats (e.g. Hook, Body, Conclusion).")
 
@@ -27,6 +34,10 @@ class NarrativePlanValidator:
                 errors.append(f"Scene beat '{beat.scene_id}' requires a focus concept.")
             if not beat.core_teaching_point.strip():
                 errors.append(f"Scene beat '{beat.scene_id}' requires a core teaching point.")
+            if beat.scene_role and not beat.scene_role.strip():
+                errors.append(f"Scene beat '{beat.scene_id}' requires a non-empty scene_role.")
+            if beat.viewer_question and not beat.viewer_question.strip():
+                errors.append(f"Scene beat '{beat.scene_id}' requires a non-empty viewer_question.")
 
         if errors:
             return ValidationResult(status="blocked", errors=errors)

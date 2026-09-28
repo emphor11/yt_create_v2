@@ -84,26 +84,38 @@ def valid_narrative_plan_response_payload() -> dict:
     return {
         "thesis": "Renting is smarter in high-cost cities",
         "target_pain_point": "Fear of renting",
+        "central_tension": "Why can renting build more net worth than buying?",
+        "starting_belief": "Buying is always an investment while renting throws money away",
+        "ending_understanding": "Unrecoverable capital costs can exceed rent over long horizons",
         "conceptual_hook": "The 5% Rule analogy",
         "narrative_arc_type": "Problem-Agitation-Solution",
         "scene_beats": [
             {
                 "scene_id": "scene_01",
                 "title": "Introduction",
+                "scene_role": "problem",
                 "focus_concept": "Opportunity Cost",
+                "viewer_question": "Why do people fear renting?",
                 "core_teaching_point": "Show unrecoverable costs of buying vs renting",
+                "key_evidence": ["Fact 1"],
             },
             {
                 "scene_id": "scene_02",
                 "title": "Deep Dive",
+                "scene_role": "mechanism",
                 "focus_concept": "The 5% Rule",
+                "viewer_question": "How does the unrecoverable cost math work?",
                 "core_teaching_point": "Math behind renting superiority",
+                "key_evidence": ["Stat 1"],
             },
             {
                 "scene_id": "scene_03",
                 "title": "Conclusion",
+                "scene_role": "resolution",
                 "focus_concept": "Mobility Benefit",
+                "viewer_question": "What is the long-term payoff?",
                 "core_teaching_point": "Relocate for 30% higher salary",
+                "key_evidence": ["Concept 2"],
             },
         ],
     }

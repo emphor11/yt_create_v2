@@ -39,12 +39,19 @@ class VideoAssemblyEngine:
 
         for interval in timed_intervals:
             if interval.section_type == "hook":
-                directive = hook.visual_directives[interval.beat_index]
-                preferred_component = directive.preferred_component
-                visual_goal = directive.visual_goal or directive.visual_instruction or ""
-                asset_query = directive.asset_query
-                notes = directive.notes or visual_goal
-                component_data = directive.component_data
+                if hook.visual_directives and interval.beat_index < len(hook.visual_directives):
+                    directive = hook.visual_directives[interval.beat_index]
+                    preferred_component = directive.preferred_component
+                    visual_goal = directive.visual_goal or directive.visual_instruction or ""
+                    asset_query = directive.asset_query
+                    notes = directive.notes or visual_goal
+                    component_data = directive.component_data
+                else:
+                    preferred_component = "Typography"
+                    visual_goal = "Hook Opening"
+                    asset_query = None
+                    notes = "Hook Opening"
+                    component_data = {"text": hook.script_text}
                 narration_text = hook.script_text
             else:
                 idea = strategy.ideas[interval.section_index]

@@ -174,3 +174,59 @@ def test_strategy_engine_5min_profile_prompts_budget_and_beats() -> None:
     assert "5-MINUTE BUDGET" in user_msg_long
     assert "85 to 95 words" in user_msg_long
     assert "700-800 narration words" in user_msg_long
+
+
+def test_strategy_engine_preserves_narrative_lineage_and_hook_context() -> None:
+    provider = StaticTestLLMProvider(valid_strategy_payload())
+    engine = ScriptVisualStrategyEngine(provider)
+
+    packet = ResearchPacket(
+        topic="Gold Investment Risks",
+        audience="salaried professionals",
+        channel="MindshiftFinance",
+        verified_facts=["Gold hit ₹1.5 lakh per 10g", "Gold-ETF inflows surged 67%"],
+        statistics=["Domestic CAGR 10.2%"],
+        concepts=["Opportunity Cost", "Safe-Haven Asset"],
+    )
+    plan = NarrativePlan(
+        thesis="Gold preserves capital but lags equities in the long run",
+        target_pain_point="FOMO buying at peak prices",
+        central_tension="Investors rush into gold at all-time highs when safety margin is lowest",
+        starting_belief="Gold is guaranteed to make you rich quickly",
+        ending_understanding="Gold is portfolio insurance, not a wealth multiplier",
+        conceptual_hook="The Golden Anchor",
+        narrative_arc_type="paradox_resolution",
+        scene_beats=[
+            SceneBeat(
+                scene_id="scene_01",
+                title="The Record Price Shock",
+                scene_role="problem",
+                viewer_question="Why are retail investors pouring billions into gold right now?",
+                focus_concept="Safe-Haven Asset",
+                core_teaching_point="Explain the milestone price and surge in ETF inflows",
+                key_evidence=["Gold hit ₹1.5 lakh per 10g", "Gold-ETF inflows surged 67%"],
+            )
+        ],
+    )
+    hook = Hook(
+        conceptual_hook="The Golden Anchor",
+        script_text="When gold crosses one-and-a-half lakh rupees, panic sets in.",
+    )
+
+    result = engine.run(packet, plan, hook)
+
+    # 1. Assert prompt formatting
+    assert provider.last_request is not None
+    prompt = provider.last_request.messages[1].content
+    assert "Central Tension: Investors rush into gold at all-time highs" in prompt
+    assert 'Spoken Hook Script: "When gold crosses one-and-a-half lakh rupees, panic sets in."' in prompt
+    assert "DO NOT REPEAT" in prompt
+    assert 'Role: problem' in prompt
+    assert 'Viewer Question: "Why are retail investors pouring billions into gold right now?"' in prompt
+    assert 'Key Evidence: [\'Gold hit ₹1.5 lakh per 10g\', \'Gold-ETF inflows surged 67%\']' in prompt
+
+    # 2. Assert lineage backfilled onto VideoIdea
+    idea = result.strategy.ideas[0]
+    assert idea.scene_role == "problem"
+    assert idea.viewer_question == "Why are retail investors pouring billions into gold right now?"
+    assert idea.key_evidence == ["Gold hit ₹1.5 lakh per 10g", "Gold-ETF inflows surged 67%"]

@@ -2,7 +2,37 @@ from domain.hook import Hook, VisualDirective
 from domain.validators.hook_validator import HookValidator
 
 
-def test_validator_accepts_valid_hook() -> None:
+def test_validator_accepts_clean_spoken_hook() -> None:
+    hook = Hook(
+        conceptual_hook="Anchor vs Engine comparison",
+        script_text="Are you renting? You might think you're throwing money away. You're not.",
+    )
+    result = HookValidator().validate(hook)
+    assert result.status == "valid"
+    assert not result.errors
+
+
+def test_validator_rejects_missing_required_fields() -> None:
+    # 1. Missing conceptual_hook
+    hook_no_concept = Hook(
+        conceptual_hook="",
+        script_text="Intro spoken script",
+    )
+    result = HookValidator().validate(hook_no_concept)
+    assert result.status == "blocked"
+    assert "Hook conceptual description is required" in result.errors[0]
+
+    # 2. Missing script_text
+    hook_no_script = Hook(
+        conceptual_hook="Concept Description",
+        script_text="   ",
+    )
+    result2 = HookValidator().validate(hook_no_script)
+    assert result2.status == "blocked"
+    assert "Hook script spoken text is required" in result2.errors[0]
+
+
+def test_validator_accepts_legacy_hook_with_directives() -> None:
     hook = Hook(
         conceptual_hook="Anchor vs Engine comparison",
         script_text="Are you renting? You might think you're throwing money away. You're not.",
@@ -14,19 +44,6 @@ def test_validator_accepts_valid_hook() -> None:
     result = HookValidator().validate(hook)
     assert result.status == "valid"
     assert not result.errors
-
-
-def test_validator_rejects_insufficient_visual_directives() -> None:
-    hook = Hook(
-        conceptual_hook="Concept Description",
-        script_text="Intro spoken script",
-        visual_directives=[
-            VisualDirective(beat_id="beat_01", visual_instruction="Only one visual instruction beat")
-        ],
-    )
-    result = HookValidator().validate(hook)
-    assert result.status == "blocked"
-    assert "must contain at least 2 visual directives" in result.errors[0]
 
 
 def test_validator_rejects_invalid_trigger_word() -> None:
