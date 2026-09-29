@@ -25,6 +25,11 @@ import { TrajectoryDivergence } from "./compositions/TrajectoryDivergence";
 import { CashFlowWaterfall } from "./compositions/CashFlowWaterfall";
 import { AccumulationDecomposition } from "./compositions/AccumulationDecomposition";
 import { DebtAmortizationSchedule } from "./compositions/DebtAmortizationSchedule";
+import { ValueFlowNetwork } from "./compositions/ValueFlowNetwork";
+import { CausalChain } from "./compositions/CausalChain";
+import { StateTransition } from "./compositions/StateTransition";
+import { RangeThreshold } from "./compositions/RangeThreshold";
+import { TimelineMilestone } from "./compositions/TimelineMilestone";
 import { VideoAssembly } from "./VideoAssembly";
 import { Thumbnail, defaultThumbnailProps } from "./Thumbnail";
 import { type SplitComparisonRenderSpec, type VideoAssemblyRenderSpec } from "./types";
@@ -306,6 +311,51 @@ export function RemotionRoot() {
       <Composition
         id="BrollCaption"
         component={BrollCaption as any}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{} as any}
+      />
+      <Composition
+        id="ValueFlowNetwork"
+        component={ValueFlowNetwork as any}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{} as any}
+      />
+      <Composition
+        id="CausalChain"
+        component={CausalChain as any}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{} as any}
+      />
+      <Composition
+        id="StateTransition"
+        component={StateTransition as any}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{} as any}
+      />
+      <Composition
+        id="RangeThreshold"
+        component={RangeThreshold as any}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{} as any}
+      />
+      <Composition
+        id="TimelineMilestone"
+        component={TimelineMilestone as any}
         durationInFrames={180}
         fps={30}
         width={1920}

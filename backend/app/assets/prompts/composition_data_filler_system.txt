@@ -231,6 +231,58 @@ Null is correct when no evidence exists. Never manufacture a value to fill a slo
 - steps: 2–5 steps from intent.entities[] in sequential order. Each: {"title": entity.name, "subtitle": entity.role if descriptive, "type": "step"}.
 - header_label: From intent.visual_dynamics.focal_point or derived from narration.
 
+### value_flow_network
+- nodes: 2–5 actor nodes. For each actor in the narration, create a node with: id (short snake_case), label (display name), value (the monetary amount at that node, if present), role ("source" | "destination" | "intermediary" | "fee").
+- flows: Directed edges from source to destination. For each money movement: from_node (source id), to_node (destination id), label (the value or percentage being transferred, e.g. "₹3,500" or "0.4% MDR"), polarity ("positive" for receiving, "negative" for cost/fee, "neutral" otherwise).
+- headline: From intent.what_viewer_must_understand — reframe as a question if appropriate, e.g. "Who absorbs the cost?"
+- Extract all actors and money flows from intent.entities[], intent.measurements[], and intent.causal.
+- Do NOT invent actors or flows not in the narration.
+
+### causal_chain
+- steps: 3–6 ordered stages from intent.causal.causes[] or the narration's sequential mechanism. Each: {"label": "...", "value": null_or_measurement_raw_value}.
+  * Use label = the cause/stage verbatim or condensed to 3–5 words.
+  * Use value = the corresponding measurement raw_value if a number annotates that stage. Otherwise null.
+- connectors: List of transition verbs, one less than the number of steps. Derive from the narration's causal language: "causes", "leads to", "drives", "results in", "allows", "triggers". If not specified, omit entirely (the component defaults to "→").
+- headline: From intent.what_viewer_must_understand.
+- polarity: From intent.causal.outcome_severity — "negative" for harmful chains, "positive" for beneficial, "neutral" for explanatory.
+
+### state_transition
+- initial_state: {"label": "...", "description": "...", "value": null_or_measurement}
+  * label = the name of the initial state (3–5 words)
+  * description = what this state means in one short sentence
+  * value = the metric that characterizes this state, if present (e.g. "6.5%" for a repo rate state)
+- transition: {"label": "...", "description": null, "value": null}
+  * label = the trigger or catalyst (3–5 words)
+- final_state: {"label": "...", "description": "...", "value": null_or_measurement}
+  * label = the name of the resulting state
+  * description = what this state means
+  * value = the metric characterizing the final state, if present
+- consequence: Optional — the downstream consequence of the final state.
+- polarity: Sentiment of the final state's outcome — "positive" | "negative" | "neutral" | "warning".
+
+### range_threshold
+- mode: Select based on what is present: "target_vs_actual" if both a current value and a target are named; "range" or "band" if a lower AND upper bound are named; "threshold" if only a threshold and condition are named.
+- label: What is being measured (e.g. "Inflation Rate", "Credit Growth").
+- current_value: The observed/actual value from measurements. null if absent.
+- target_value: The target or goal value. null if absent.
+- lower_bound: Lower boundary of the safe zone. null if absent.
+- upper_bound: Upper boundary of the safe zone. null if absent.
+- threshold: The specific trigger value (for threshold mode). null otherwise.
+- condition: "above" | "below" | "at" | "crossing" — relative to threshold. null if not threshold mode.
+- consequence: What applies when the threshold/boundary is crossed. From narration or intent.causal.
+- unit: "%" | "₹" | "bps" — from context.
+- polarity: "positive" if within safe zone is good, "negative" if above/crossing is dangerous, "warning" for caution.
+
+### timeline_milestone
+- events: 2–7 chronologically ordered events from intent.temporal and intent.measurements. For each: {"date": "...", "label": "...", "value": null_or_measurement, "polarity": null_or_sentiment}.
+  * date = the date or period label (e.g. "May 2022", "FY23")
+  * label = short description of the event (3–5 words)
+  * value = the metric value at that event point, e.g. "4.00%" or "6.50%". null if not present.
+  * polarity = "positive" for rate cuts/positive events, "negative" for hikes/negative events, "neutral" for neutral events.
+- title: Optional title for the overall timeline. From intent.what_viewer_must_understand condensed.
+- time_span: The overall range: "May 2022 – Feb 2023" — extract from intent.temporal.
+- metric_label: The tracked metric label, e.g. "Repo Rate", "ETF AUM". From measurements[].metric_name.
+
 ==================================================
 7. ENUM COMPLIANCE
 ==================================================

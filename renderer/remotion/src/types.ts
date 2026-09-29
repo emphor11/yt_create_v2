@@ -520,3 +520,100 @@ export type DebtAmortizationScheduleRenderSpec = BaseRenderSpec<DebtAmortization
 
 export type VideoAssemblyRenderSpec = BaseRenderSpec<VideoAssemblyProps>;
 
+// ---------------------------------------------------------------------------
+// New Composition Types (P0 / P1)
+// ---------------------------------------------------------------------------
+
+export interface FlowNodeProp {
+  id: string;
+  label: string;
+  value?: string | null;
+  role?: 'source' | 'destination' | 'intermediary' | 'fee' | string | null;
+}
+
+export interface FlowEdgeProp {
+  from_node: string;
+  to_node: string;
+  label?: string | null;
+  polarity?: 'positive' | 'negative' | 'neutral' | string | null;
+}
+
+export interface ValueFlowNetworkProps {
+  nodes: FlowNodeProp[];
+  flows: FlowEdgeProp[];
+  headline?: string | null;
+  variant?: 'linear_chain' | 'network' | 'fee_allocation' | 'fund_flow' | 'standard' | string | null;
+  header_label?: string | null;
+}
+
+export type ValueFlowNetworkRenderSpec = BaseRenderSpec<ValueFlowNetworkProps>;
+
+export interface CausalStepProp {
+  label: string;
+  value?: string | null;
+}
+
+export interface CausalChainProps {
+  steps: CausalStepProp[];
+  connectors?: string[] | null;
+  headline?: string | null;
+  polarity?: 'positive' | 'negative' | 'neutral' | 'warning' | string | null;
+  header_label?: string | null;
+  variant?: 'linear' | 'branching' | 'cyclical' | 'standard' | string | null;
+}
+
+export type CausalChainRenderSpec = BaseRenderSpec<CausalChainProps>;
+
+export interface StateNodeProp {
+  label: string;
+  description?: string | null;
+  value?: string | null;
+}
+
+export interface StateTransitionProps {
+  initial_state: StateNodeProp;
+  transition: StateNodeProp;
+  final_state: StateNodeProp;
+  consequence?: string | null;
+  polarity?: 'positive' | 'negative' | 'neutral' | 'warning' | string | null;
+  header_label?: string | null;
+  variant?: 'policy_shift' | 'habit_change' | 'risk_event' | 'standard' | string | null;
+}
+
+export type StateTransitionRenderSpec = BaseRenderSpec<StateTransitionProps>;
+
+export interface RangeThresholdProps {
+  mode: 'range' | 'threshold' | 'target_vs_actual' | 'band' | string;
+  label: string;
+  current_value?: string | null;
+  target_value?: string | null;
+  lower_bound?: string | null;
+  upper_bound?: string | null;
+  threshold?: string | null;
+  condition?: 'above' | 'below' | 'at' | 'crossing' | string | null;
+  consequence?: string | null;
+  unit?: string | null;
+  polarity?: 'positive' | 'negative' | 'neutral' | 'warning' | string | null;
+  header_label?: string | null;
+  variant?: 'range_band' | 'threshold_crossing' | 'target_vs_actual' | 'standard' | string | null;
+}
+
+export type RangeThresholdRenderSpec = BaseRenderSpec<RangeThresholdProps>;
+
+export interface TimelineMilestoneEventProp {
+  date: string;
+  label: string;
+  value?: string | null;
+  polarity?: 'positive' | 'negative' | 'neutral' | 'warning' | string | null;
+}
+
+export interface TimelineMilestoneProps {
+  events: TimelineMilestoneEventProp[];
+  title?: string | null;
+  header_label?: string | null;
+  time_span?: string | null;
+  metric_label?: string | null;
+  variant?: 'rate_cycle' | 'policy_history' | 'market_events' | 'fiscal_year' | 'standard' | string | null;
+}
+
+export type TimelineMilestoneRenderSpec = BaseRenderSpec<TimelineMilestoneProps>;

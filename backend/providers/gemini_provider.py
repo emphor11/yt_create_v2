@@ -28,7 +28,7 @@ class GeminiProvider:
         model: str | None = None,
         api_base_url: str = "https://generativelanguage.googleapis.com/v1beta",
         timeout_seconds: int = 120,
-        max_retries: int = 5,
+        max_retries: int = 8,
     ):
         normalized_api_key = api_key.strip()
         if not normalized_api_key:
@@ -282,10 +282,19 @@ class GeminiProvider:
                 response_body = http_error.read().decode("utf-8", errors="replace")
                 if http_error.code in (429, 500, 502, 503, 504) and attempt < self.max_retries:
                     retry_seconds = self._extract_retry_delay(response_body, attempt)
-                    if http_error.code != 429:
-                        retry_seconds = max(retry_seconds, 3.0 * attempt)
+                    if http_error.code in (502, 503, 504):
+                        # Exponential backoff for capacity/availability errors.
+                        # 503 "high demand" spikes typically last 30–120 seconds;
+                        # linear backoff exhausts retries too quickly.
+                        # Schedule: 10s, 20s, 40s, 80s, 90s, 90s, 90s (capped)
+                        exp_delay = min(90.0, 10.0 * (2.0 ** (attempt - 1)))
+                        retry_seconds = max(retry_seconds, exp_delay)
+                    elif http_error.code == 500:
+                        retry_seconds = max(retry_seconds, 5.0 * attempt)
                     logger.warning(
-                        f"Gemini API transient error {http_error.code} hit. Waiting {retry_seconds:.1f}s before retry (attempt {attempt}/{self.max_retries})..."
+                        "Gemini API transient error %d on attempt %d/%d. "
+                        "Waiting %.1fs before retry...",
+                        http_error.code, attempt, self.max_retries, retry_seconds,
                     )
                     time.sleep(retry_seconds)
                     continue

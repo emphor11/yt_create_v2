@@ -255,22 +255,32 @@ class AudioMerger:
         self,
         chunk_paths: list[Path],
         output_path: Path,
+        loudnorm: bool = True,
     ) -> tuple[float, int]:
         """
         Concatenates chunk audio files into a single master audio file using
-        FFmpeg stream copy demuxer (-f concat -safe 0 -c copy).
-        Returns (duration_seconds, duration_ms) measured from the merged output.
+        FFmpeg stream copy demuxer (-f concat -safe 0 -c copy), then applies
+        loudness normalization (loudnorm=I=-14:TP=-1.5:LRA=11) to bring the
+        output to YouTube broadcast standard (-14 LUFS / -1.5 dBFS true peak).
+
+        Returns (duration_seconds, duration_ms) measured from the normalized output.
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         if len(chunk_paths) == 1:
+            # Single-chunk: apply loudnorm directly instead of raw copy.
             single_path = chunk_paths[0]
-            if single_path != output_path:
+            if loudnorm:
+                self._normalize_audio(single_path, output_path)
+            elif single_path != output_path:
                 shutil.copyfile(single_path, output_path)
             return self._measure_duration(output_path)
 
         # Write FFmpeg concat list file
         concat_list_path = output_path.parent / f"{output_path.stem}_concat_list.txt"
+        # Intermediate raw-concat output (before normalization)
+        raw_output_path = output_path.parent / f"{output_path.stem}_raw.mp3"
+
         try:
             with open(concat_list_path, "w", encoding="utf-8") as f:
                 for path in chunk_paths:
@@ -284,7 +294,7 @@ class AudioMerger:
                 "-safe", "0",
                 "-i", str(concat_list_path),
                 "-c", "copy",
-                str(output_path),
+                str(raw_output_path),
             ]
             res = subprocess.run(
                 cmd,
@@ -304,7 +314,75 @@ class AudioMerger:
                 except OSError:
                     pass
 
+        # Apply loudness normalization on the merged file
+        if loudnorm:
+            self._normalize_audio(raw_output_path, output_path)
+            try:
+                raw_output_path.unlink()
+            except OSError:
+                pass
+        else:
+            shutil.move(str(raw_output_path), str(output_path))
+
         return self._measure_duration(output_path)
+
+    def _normalize_audio(self, input_path: Path, output_path: Path) -> None:
+        """
+        Applies EBU R128 loudness normalization using FFmpeg's loudnorm filter.
+        Target: -14 LUFS integrated / -1.5 dBFS true peak / LRA 11 LU.
+        This matches YouTube's audio normalization standard and ensures
+        professional broadcast volume without clipping.
+        Preserves the original sample rate and channel layout from the input.
+
+        Skips normalization for audio shorter than 1.5 seconds — the loudnorm
+        filter requires a minimum duration to accurately measure integrated
+        loudness. Very short clips fall back to a direct copy.
+        """
+        # Guard: measure input duration before normalizing.
+        # loudnorm needs enough audio frames; very short clips cause libmp3lame
+        # assertion errors (calc_energy) in FFmpeg 8.x.
+        try:
+            probe = subprocess.run(
+                [
+                    "ffprobe", "-v", "error",
+                    "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    str(input_path),
+                ],
+                capture_output=True, text=True, timeout=10, check=False,
+            )
+            if probe.returncode == 0 and probe.stdout.strip():
+                dur = float(probe.stdout.strip())
+                if dur < 1.5:
+                    # Too short to normalize safely — copy as-is.
+                    if input_path != output_path:
+                        shutil.copyfile(input_path, output_path)
+                    return
+        except Exception:
+            pass  # If probe fails, proceed with normalization attempt anyway.
+
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i", str(input_path),
+            "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
+            str(output_path),
+        ]
+        res = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        if res.returncode != 0:
+            raise AudioMergeError(
+                f"FFmpeg loudnorm normalization failed (return code {res.returncode}): {res.stderr.strip()}"
+            )
+
+
+
+
 
     def _measure_duration(self, audio_path: Path) -> tuple[float, int]:
         """Measures duration of audio file using ffprobe."""

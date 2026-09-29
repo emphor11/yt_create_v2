@@ -27,7 +27,7 @@ class HookHandler:
 
     def run(self, project_id: str, run_id: str) -> ArtifactRecord:
         existing = self.store.find_artifact_by_type(project_id, run_id, "hook")
-        if existing is not None:
+        if existing is not None and existing.status not in ("failed", "error"):
             return existing
 
         start = self.stage_logger.log_start(project_id, run_id, "hook")

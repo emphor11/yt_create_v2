@@ -43,7 +43,13 @@ VALID_RELATIONSHIP_TYPES: list[str] = [
     "quote",          # attributed quote from a person
     "definition",     # explain what X is / means
     "broll",          # atmospheric/contextual moment — no infographic appropriate
+    "value_flow",     # value/money moves between distinct actors: source → transaction → destination
+    "causal_chain",   # sequential causal mechanism with 3+ ordered stages: A → B → C → D
+    "state_transition", # a system changes state: initial state → trigger → final state (regime change, policy shift, habit)
+    "range_threshold",  # a value relative to a band, target, floor, or threshold (inside/outside/crossing)
+    "timeline_milestone", # dated historical events, rate cycles, policy dates on a time axis
 ]
+
 
 VALID_COMPOSITION_IDS: list[str] = [
     "metric_hero",
@@ -60,7 +66,13 @@ VALID_COMPOSITION_IDS: list[str] = [
     "accumulation_decomposition",
     "debt_amortization_schedule",
     "broll_caption",
+    "value_flow_network",
+    "causal_chain",
+    "state_transition",
+    "range_threshold",
+    "timeline_milestone",
 ]
+
 
 # Closed set of semantic visual representations.
 VALID_VISUAL_REPRESENTATIONS: list[str] = [
@@ -106,6 +118,11 @@ COMPOSITION_TO_RELATIONSHIP_MAP: dict[str, str] = {
     "accumulation_decomposition": "accumulation",
     "debt_amortization_schedule": "amortization",
     "broll_caption": "broll",
+    "value_flow_network": "value_flow",
+    "causal_chain": "causal_chain",
+    "state_transition": "state_transition",
+    "range_threshold": "range_threshold",
+    "timeline_milestone": "timeline_milestone",
 }
 
 RELATIONSHIP_TO_COMPOSITION_MAP: dict[str, str] = {
@@ -127,7 +144,13 @@ RELATIONSHIP_TO_COMPOSITION_MAP: dict[str, str] = {
     "quote": "broll_caption",
     "definition": "broll_caption",
     "trend": "growth_trajectory",
+    "value_flow": "value_flow_network",
+    "causal_chain": "causal_chain",
+    "state_transition": "state_transition",
+    "range_threshold": "range_threshold",
+    "timeline_milestone": "timeline_milestone",
 }
+
 
 
 class SemanticEntity(BaseModel):

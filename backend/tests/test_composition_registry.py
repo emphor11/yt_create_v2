@@ -409,6 +409,8 @@ def test_fallback_component_ids_are_legacy_components() -> None:
         "NumberCounter", "Charts", "SplitComparison", "KPIGrid", "Typography",
         "ProcessFlow", "ProgressiveList", "Timeline", "RankedList", "DataTable",
         "BeforeAfter", "QuoteCallout", "IconAnimation", "StockVideo", "StockImage",
+        # Also accepted as fallbacks for new compositions:
+        "MetricHero",
     }
     for cid in CompositionRegistry.all_ids():
         defn = CompositionRegistry.get(cid)

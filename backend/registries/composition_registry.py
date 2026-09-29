@@ -764,10 +764,236 @@ class ProcessFlowData(StrictCompositionData):
 
 
 # ---------------------------------------------------------------------------
+# New Composition Schemas (P0 / P1)
+# ---------------------------------------------------------------------------
+
+class FlowNode(StrictCompositionData):
+    """A node (actor/entity) in a ValueFlowNetwork."""
+    id: str = Field(description="Unique node identifier, e.g. 'customer', 'merchant'")
+    label: str = Field(description="Display label, e.g. 'Customer', 'Merchant'")
+    value: str | None = Field(default=None, description="Optional value at this node, e.g. '₹14'")
+    role: str | None = Field(default=None, description="Role: 'source' | 'destination' | 'intermediary' | 'fee'")
+
+
+class FlowEdge(StrictCompositionData):
+    """A directed edge between two nodes in a ValueFlowNetwork."""
+    from_node: str = Field(description="Source node id")
+    to_node: str = Field(description="Destination node id")
+    label: str | None = Field(default=None, description="Value or label on the edge, e.g. '₹3,500', '0.4% MDR'")
+    polarity: str | None = Field(default=None, description="'positive' | 'negative' | 'neutral'")
+
+
+class ValueFlowNetworkData(StrictCompositionData):
+    """
+    Shows value/money/data flowing between distinct actors.
+    Different from CashFlowWaterfall: represents movement between separate entities, not deductions from one total.
+
+    Use for: payment flows, fee allocations, fund flows between investors, UPI/banking transaction networks.
+    relationship_types: value_flow
+    """
+    nodes: list[FlowNode] = Field(
+        description="2–5 actor nodes. Each is a participant in the flow network.",
+    )
+    flows: list[FlowEdge] = Field(
+        description="Directed edges showing value movement. At least one flow required.",
+    )
+    headline: str | None = Field(
+        default=None,
+        description="Optional central question or title, e.g. 'Who absorbs the cost?'",
+    )
+    variant: str | None = Field(
+        default=None,
+        description="'linear_chain' | 'network' | 'fee_allocation' | 'fund_flow' | 'standard'",
+    )
+    header_label: str | None = Field(
+        default=None,
+        description="Optional header label, e.g. 'PAYMENT NETWORK', 'FUND FLOW'",
+    )
+
+
+class CausalStepItem(StrictCompositionData):
+    """A single step in an ordered causal mechanism."""
+    label: str = Field(description="Short description of this stage, e.g. 'Market correction'")
+    value: str | None = Field(default=None, description="Optional quantitative value at this stage, e.g. '-8%'")
+
+
+class CausalChainData(StrictCompositionData):
+    """
+    Shows a sequential causal mechanism with 3 or more ordered stages.
+    Each stage causes the next, creating a visible mechanism from trigger to outcome.
+
+    Use for: multi-stage economic mechanisms, policy transmission chains, behavioral cascades.
+    Do NOT use for a simple cause → single effect (use cause_effect instead).
+    relationship_types: causal_chain
+    """
+    steps: list[CausalStepItem] = Field(
+        description="3–6 ordered mechanism stages from trigger to ultimate outcome.",
+    )
+    connectors: list[str] | None = Field(
+        default=None,
+        description="Transition verbs between steps (length = steps - 1). e.g. ['causes', 'leads to', 'drives']. Falls back to '→' if absent.",
+    )
+    headline: str | None = Field(
+        default=None,
+        description="Optional central description, e.g. 'The mechanism'",
+    )
+    polarity: str | None = Field(
+        default=None,
+        description="'positive' | 'negative' | 'neutral' | 'warning' — overall outcome sentiment",
+    )
+    header_label: str | None = Field(
+        default=None,
+        description="Optional header label, e.g. 'CAUSAL MECHANISM', 'TRANSMISSION CHAIN'",
+    )
+    variant: str | None = Field(
+        default=None,
+        description="'linear' | 'branching' | 'cyclical' | 'standard'",
+    )
+
+
+class StateNode(StrictCompositionData):
+    """A state in a StateTransition composition."""
+    label: str = Field(description="State label, e.g. 'Rate Pause', 'Higher for Longer'")
+    description: str | None = Field(default=None, description="Optional one-line description of what this state means")
+    value: str | None = Field(default=None, description="Optional metric value characterising this state, e.g. '6.5%'")
+
+
+class StateTransitionData(StrictCompositionData):
+    """
+    Shows a system changing from one state to another, driven by a trigger or event.
+    Creates a clear 'before → trigger → after' visual story.
+
+    Use for: policy regime changes, habit shifts, financial state changes, risk events.
+    Do NOT use for simple two-value comparisons (use comparison_split) or numeric growth (use growth_trajectory).
+    relationship_types: state_transition
+    """
+    initial_state: StateNode = Field(description="The starting state before the transition.")
+    transition: StateNode = Field(description="The trigger or catalyst causing the change.")
+    final_state: StateNode = Field(description="The resulting state after the transition.")
+    consequence: str | None = Field(
+        default=None,
+        description="Optional downstream consequence of the final state, e.g. 'Higher borrowing costs for households'",
+    )
+    polarity: str | None = Field(
+        default=None,
+        description="'positive' | 'negative' | 'neutral' | 'warning' — sentiment of the transition outcome",
+    )
+    header_label: str | None = Field(
+        default=None,
+        description="Optional header, e.g. 'REGIME SHIFT', 'POLICY CHANGE', 'STATE CHANGE'",
+    )
+    variant: str | None = Field(
+        default=None,
+        description="'policy_shift' | 'habit_change' | 'risk_event' | 'standard'",
+    )
+
+
+class RangeThresholdData(StrictCompositionData):
+    """
+    Shows a value positioned relative to a range, target, band, or threshold.
+    Makes 'inside/outside the safe zone' and 'crossing the threshold' visually clear.
+
+    Use for: inflation vs target, credit growth bands, repo rate ranges, regulatory thresholds.
+    Do NOT use for a single isolated metric (use metric_hero) or two unrelated values (use comparison_split).
+    relationship_types: range_threshold
+    """
+    mode: str = Field(
+        description="'range' | 'threshold' | 'target_vs_actual' | 'band'",
+    )
+    label: str = Field(description="What is being measured, e.g. 'Inflation', 'Credit Growth', 'Repo Rate'")
+    current_value: str | None = Field(
+        default=None,
+        description="The observed / actual value, e.g. '3.65%', '6.50%', '13%'",
+    )
+    target_value: str | None = Field(
+        default=None,
+        description="The target or reference value, e.g. '4%', '15%'",
+    )
+    lower_bound: str | None = Field(
+        default=None,
+        description="Lower bound of the range or safe zone, e.g. '11%'",
+    )
+    upper_bound: str | None = Field(
+        default=None,
+        description="Upper bound of the range or safe zone, e.g. '15%'",
+    )
+    threshold: str | None = Field(
+        default=None,
+        description="The threshold value for threshold mode, e.g. '₹2,000'",
+    )
+    condition: str | None = Field(
+        default=None,
+        description="Condition relative to threshold: 'above' | 'below' | 'at' | 'crossing'",
+    )
+    consequence: str | None = Field(
+        default=None,
+        description="What happens when the threshold/boundary is crossed, e.g. '0.4% MDR applies'",
+    )
+    unit: str | None = Field(
+        default=None,
+        description="Unit of measurement, e.g. '%', '₹', 'bps'",
+    )
+    polarity: str | None = Field(
+        default=None,
+        description="'positive' | 'negative' | 'neutral' | 'warning'",
+    )
+    header_label: str | None = Field(
+        default=None,
+        description="Optional header, e.g. 'INFLATION TARGET', 'REGULATORY THRESHOLD'",
+    )
+    variant: str | None = Field(
+        default=None,
+        description="'range_band' | 'threshold_crossing' | 'target_vs_actual' | 'standard'",
+    )
+
+
+class TimelineMilestoneEvent(StrictCompositionData):
+    """A single event on a timeline."""
+    date: str = Field(description="Date or period label, e.g. 'May 2022', 'FY22', 'Q1 2023'")
+    label: str = Field(description="Short event description, e.g. 'Rate hike begins', 'FII outflows peak'")
+    value: str | None = Field(default=None, description="Optional quantitative value at this event, e.g. '4.00%', '6.50%'")
+    polarity: str | None = Field(default=None, description="'positive' | 'negative' | 'neutral' | 'warning'")
+
+
+class TimelineMilestoneData(StrictCompositionData):
+    """
+    Shows dated historical events, rate cycles, policy dates, or fiscal-year comparisons on a time axis.
+
+    Use for: rate hike/cut cycles, historical market events, policy timelines, fiscal-year progressions.
+    Do NOT use for sequential procedural steps without dates (use process_flow).
+    relationship_types: timeline_milestone
+    """
+    events: list[TimelineMilestoneEvent] = Field(
+        description="2–7 dated milestone events in chronological order.",
+    )
+    title: str | None = Field(
+        default=None,
+        description="Optional timeline title, e.g. 'RBI Rate Cycle', 'FII Flow History'",
+    )
+    header_label: str | None = Field(
+        default=None,
+        description="Optional header label, e.g. 'RATE CYCLE', 'POLICY TIMELINE'",
+    )
+    time_span: str | None = Field(
+        default=None,
+        description="Overall time span shown, e.g. 'May 2022 – Feb 2023', 'FY22 to FY25'",
+    )
+    metric_label: str | None = Field(
+        default=None,
+        description="Optional label for the tracked metric, e.g. 'Repo Rate', 'ETF AUM'",
+    )
+    variant: str | None = Field(
+        default=None,
+        description="'rate_cycle' | 'policy_history' | 'market_events' | 'fiscal_year' | 'standard'",
+    )
+
+
+# ---------------------------------------------------------------------------
 # CompositionDefinition
 # ---------------------------------------------------------------------------
 
 class CompositionDefinition(BaseModel):
+
     """Describes a registered composition in the catalog."""
 
     composition_id: str
@@ -1291,5 +1517,85 @@ CompositionRegistry.register(
         fallback_component_id="Typography",
         builder=build_broll_caption_data,
         is_eligible=is_eligible_broll_caption,
+    )
+)
+
+CompositionRegistry.register(
+    CompositionDefinition(
+        composition_id="value_flow_network",
+        display_name="Value Flow Network",
+        description="Shows value, money, or data flowing directionally between distinct actor nodes (source → transaction → destination). Use for payment flows, fee allocation, and fund movement between entities.",
+        supported_relationship_types=["value_flow"],
+        data_model=ValueFlowNetworkData,
+        allowed_variants=["linear_chain", "network", "fee_allocation", "fund_flow", "standard"],
+        asset_requirement=AssetRequirement.NONE,
+        remotion_component_id="ValueFlowNetwork",
+        fallback_component_id="ProcessFlow",
+        builder=None,
+        is_eligible=None,
+    )
+)
+
+CompositionRegistry.register(
+    CompositionDefinition(
+        composition_id="causal_chain",
+        display_name="Causal Chain",
+        description="Shows a sequential causal mechanism with 3–6 ordered stages where each stage causes the next (A → B → C → D). Use for multi-stage economic mechanisms and policy transmission chains.",
+        supported_relationship_types=["causal_chain"],
+        data_model=CausalChainData,
+        allowed_variants=["linear", "branching", "cyclical", "standard"],
+        asset_requirement=AssetRequirement.NONE,
+        remotion_component_id="CausalChain",
+        fallback_component_id="ProcessFlow",
+        builder=None,
+        is_eligible=None,
+    )
+)
+
+CompositionRegistry.register(
+    CompositionDefinition(
+        composition_id="state_transition",
+        display_name="State Transition",
+        description="Shows a system changing from one state to another through a trigger event (initial state → trigger → final state). Use for policy regime changes, habit shifts, and financial state changes.",
+        supported_relationship_types=["state_transition"],
+        data_model=StateTransitionData,
+        allowed_variants=["policy_shift", "habit_change", "risk_event", "standard"],
+        asset_requirement=AssetRequirement.NONE,
+        remotion_component_id="StateTransition",
+        fallback_component_id="SplitComparison",
+        builder=None,
+        is_eligible=None,
+    )
+)
+
+CompositionRegistry.register(
+    CompositionDefinition(
+        composition_id="range_threshold",
+        display_name="Range & Threshold",
+        description="Shows a value positioned relative to a range, target, band, or threshold — making inside/outside/crossing visually clear. Use for inflation vs target, rate ranges, and regulatory thresholds.",
+        supported_relationship_types=["range_threshold"],
+        data_model=RangeThresholdData,
+        allowed_variants=["range_band", "threshold_crossing", "target_vs_actual", "standard"],
+        asset_requirement=AssetRequirement.NONE,
+        remotion_component_id="RangeThreshold",
+        fallback_component_id="MetricHero",
+        builder=None,
+        is_eligible=None,
+    )
+)
+
+CompositionRegistry.register(
+    CompositionDefinition(
+        composition_id="timeline_milestone",
+        display_name="Timeline Milestone",
+        description="Shows dated historical events, rate cycles, policy dates, or fiscal-year comparisons on a time axis. Use for rate hike/cut cycles, historical market events, and policy timelines.",
+        supported_relationship_types=["timeline_milestone"],
+        data_model=TimelineMilestoneData,
+        allowed_variants=["rate_cycle", "policy_history", "market_events", "fiscal_year", "standard"],
+        asset_requirement=AssetRequirement.NONE,
+        remotion_component_id="TimelineMilestone",
+        fallback_component_id="ProcessFlow",
+        builder=None,
+        is_eligible=None,
     )
 )

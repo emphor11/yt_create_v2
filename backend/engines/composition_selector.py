@@ -41,7 +41,14 @@ PRIMARY_RELATIONSHIP_MAP: dict[str, str] = {
     "divergence": "trajectory_divergence",
     "accumulation": "accumulation_decomposition",
     "amortization": "debt_amortization_schedule",
+    # New compositions — direct routing
+    "value_flow": "value_flow_network",
+    "causal_chain": "causal_chain",
+    "state_transition": "state_transition",
+    "range_threshold": "range_threshold",
+    "timeline_milestone": "timeline_milestone",
 }
+
 
 
 def select_composition_for_intent(intent: VisualIntent) -> str:

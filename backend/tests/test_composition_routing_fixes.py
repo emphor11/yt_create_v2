@@ -305,7 +305,7 @@ def test_accumulation_and_amortization_routing() -> None:
 def test_all_eighteen_relationship_types_are_registered_and_route() -> None:
     from domain.visual_intent import VALID_RELATIONSHIP_TYPES
 
-    assert len(VALID_RELATIONSHIP_TYPES) == 18
+    assert len(VALID_RELATIONSHIP_TYPES) == 23
 
     for rel_type in VALID_RELATIONSHIP_TYPES:
         intent = VisualIntent(

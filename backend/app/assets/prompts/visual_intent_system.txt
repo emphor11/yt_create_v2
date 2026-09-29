@@ -382,6 +382,11 @@ statement
 quote
 definition
 broll
+value_flow
+causal_chain
+state_transition
+range_threshold
+timeline_milestone
 
 Do not invent relationship types.
 
@@ -398,13 +403,19 @@ calculation
 An explicit mathematical transformation where inputs, rates, or quantities lead to a result.
 
 cause_effect
-A cause or causes directly producing a consequence.
+A cause or causes directly producing a consequence. Use when a single causal hop is the dominant idea.
+
+causal_chain
+A multi-stage sequential mechanism where each stage causes the next (A → B → C → D, three or more stages). Use when the mechanism itself — not just the endpoint — is the key understanding.
 
 multi_factor
 Multiple distinct factors explicitly contributing to a shared outcome.
 
 comparison
 Two entities, states, strategies, quantities, or concepts are meaningfully contrasted.
+
+value_flow
+Value, money, or data flows directionally between distinct actors — source → transaction → destination. Use for payment networks, fee allocations, fund flows. Different from a waterfall (which deducts from one total); this shows movement between separate entities.
 
 growth
 A single quantity, asset, state, corpus, or phenomenon increases over time.
@@ -415,11 +426,20 @@ A single quantity, state, purchasing power, corpus, or phenomenon decreases or e
 divergence
 Two paths or outcomes evolve over time and move increasingly apart.
 
+state_transition
+A system moves from one state to another through a trigger event (initial state → trigger → final state). Use for policy regime changes, habit shifts, risk events, and financial state changes. NOT for simple two-value comparisons (use comparison) or numeric growth (use growth).
+
+range_threshold
+A value is positioned relative to a range, target, band, floor, or threshold. Makes inside/outside/crossing visually clear. Use for inflation vs target, credit growth bands, repo rate ranges, regulatory thresholds. NOT for a single isolated metric (use metric).
+
 ranking
 Multiple items are explicitly ordered by magnitude, priority, performance, or another dimension.
 
 process
-A sequence of procedural or operational steps.
+A sequence of procedural or operational steps without a specific date attached to each step.
+
+timeline_milestone
+Dated historical events, rate cycles, policy dates, or fiscal-year comparisons positioned on a time axis. Use when specific dates or periods are the organizing structure. NOT for undated procedural steps (use process).
 
 statement
 A key claim or conceptual statement where no stronger relationship is present.
