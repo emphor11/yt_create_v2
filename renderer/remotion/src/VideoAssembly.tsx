@@ -1,4 +1,4 @@
-import { AbsoluteFill, Series, Audio, OffthreadVideo, Img, staticFile } from "remotion";
+import { AbsoluteFill, Series, Audio, Loop, OffthreadVideo, Img, staticFile, useVideoConfig, useCurrentFrame, interpolate } from "remotion";
 import { SplitComparison } from "./SplitComparison";
 import { Timeline } from "./Timeline";
 import { ProcessFlow } from "./ProcessFlow";
@@ -26,17 +26,43 @@ import { CashFlowWaterfall } from "./compositions/CashFlowWaterfall";
 import { AccumulationDecomposition } from "./compositions/AccumulationDecomposition";
 import { DebtAmortizationSchedule } from "./compositions/DebtAmortizationSchedule";
 import { type VideoAssemblyRenderSpec } from "./types";
+import { getMediaLoopDurationInFrames } from "./media-playback";
 
 export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
   const { props, frame_spans = [] } = renderSpec;
   const { scenes, audio } = props;
 
+  const frame = useCurrentFrame();
+  const { durationInFrames, fps } = useVideoConfig();
+
+  // --- Background Music ---
+  // Professional standard: BGM at ~8% volume sits as texture under narration.
+  // Fades in over 1s at start, fades out over 1.5s before the end.
+  const BGM_VOLUME = 0.08;
+  const FADE_IN_FRAMES = Math.round(fps * 4.0);   // 4 second fade in
+  const FADE_OUT_FRAMES = Math.round(fps * 4.0);  // 4 second fade out
+  const fadeOutStart = durationInFrames - FADE_OUT_FRAMES;
+
+  const bgmVolume = interpolate(
+    frame,
+    [0, FADE_IN_FRAMES, fadeOutStart, durationInFrames],
+    [0, BGM_VOLUME, BGM_VOLUME, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
-      {/* Play the narration audio track directly using the static file resolver */}
+      {/* Narration voice track */}
       {audio && audio.local_path && (
         <Audio src={staticFile(audio.local_path)} />
       )}
+
+      {/* Background music — looped, subtle, fades in/out */}
+      <Audio
+        src={staticFile("music/Voxscape.mp3")}
+        loop
+        volume={bgmVolume}
+      />
 
       <Series>
         {scenes.map((scene) => {
@@ -52,6 +78,17 @@ export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
             props: scene.component.props,
             frame_spans: frame_spans
           };
+          const assetLoopDurationInFrames = getMediaLoopDurationInFrames(
+            scene.asset?.asset_type === "video" ? scene.asset.duration_seconds : null,
+            fps,
+          );
+          const sceneVideo = scene.asset && scene.asset.local_path ? (
+            <OffthreadVideo
+              src={staticFile(scene.asset.local_path)}
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 1.0 }}
+              muted
+            />
+          ) : null;
 
           return (
             <Series.Sequence
@@ -61,11 +98,11 @@ export function VideoAssembly(renderSpec: VideoAssemblyRenderSpec) {
                 {/* Render full-screen media at 100% opacity when this scene has an asset */}
                 {scene.asset && scene.asset.local_path && (
                   scene.asset.asset_type === "video" ? (
-                    <OffthreadVideo
-                      src={staticFile(scene.asset.local_path)}
-                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 1.0 }}
-                      muted
-                    />
+                    assetLoopDurationInFrames ? (
+                      <Loop durationInFrames={assetLoopDurationInFrames}>
+                        {sceneVideo}
+                      </Loop>
+                    ) : sceneVideo
                   ) : (
                     <Img
                       src={staticFile(scene.asset.local_path)}

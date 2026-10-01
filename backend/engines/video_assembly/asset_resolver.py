@@ -108,7 +108,12 @@ class AssetResolver:
                             query=query,
                             local_path=str(cache_path),
                             url=None,
-                            asset_status="cached"
+                            asset_status="cached",
+                            duration_seconds=(
+                                self._get_video_duration(cache_path)
+                                if asset_type == "video"
+                                else None
+                            ),
                         )
                     else:
                         cache_path.unlink()
@@ -175,7 +180,12 @@ class AssetResolver:
                         query=query,
                         local_path=str(cache_path),
                         url=url_to_download,
-                        asset_status="cached"
+                        asset_status="cached",
+                        duration_seconds=(
+                            self._get_video_duration(cache_path)
+                            if asset_type == "video"
+                            else None
+                        ),
                     )
                 except Exception as e:
                     last_error = e
@@ -221,6 +231,23 @@ class AssetResolver:
                 return float(num) / float(den) if float(den) != 0 else None
             return float(rate_str) if rate_str else None
         except Exception:
+            return None
+
+    def _get_video_duration(self, path: Path) -> float | None:
+        """Extract the playable video duration for renderer-side looping."""
+        try:
+            cmd = [
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(path),
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if res.returncode != 0:
+                return None
+            duration = float(res.stdout.strip())
+            return duration if duration > 0 else None
+        except (OSError, ValueError, subprocess.SubprocessError):
             return None
 
     def _smooth_interpolate_fps(self, path: Path) -> None:

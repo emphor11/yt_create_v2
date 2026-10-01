@@ -1,13 +1,16 @@
 import React from 'react';
 import {
   AbsoluteFill,
+  Loop,
   interpolate,
   useCurrentFrame,
   Img,
   OffthreadVideo,
   staticFile,
+  useVideoConfig,
 } from 'remotion';
 import { BrollCaptionProps } from '../types';
+import { getMediaLoopDurationInFrames } from '../media-playback';
 
 /**
  * BrollCaption Composition:
@@ -27,6 +30,7 @@ export function BrollCaption(props: BrollCaptionProps | any) {
     props?.durationInFrames ||
     props?.props?.duration_frames ||
     180;
+  const { fps } = useVideoConfig();
 
   const asset = resolvedProps.asset || props?.asset || null;
 
@@ -55,19 +59,30 @@ export function BrollCaption(props: BrollCaptionProps | any) {
       {asset && asset.local_path ? (
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
           {asset.asset_type === 'video' ? (
-            <OffthreadVideo
-              src={asset.local_path.startsWith('http') ? asset.local_path : staticFile(asset.local_path)}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                opacity: 1.0,
-                transform: `scale(${bgScale}) translate(${bgDriftX}px, ${bgDriftY}px)`,
-              }}
-              muted
-            />
+            (() => {
+              const video = (
+                <OffthreadVideo
+                  src={asset.local_path.startsWith('http') ? asset.local_path : staticFile(asset.local_path)}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    opacity: 1.0,
+                    transform: `scale(${bgScale}) translate(${bgDriftX}px, ${bgDriftY}px)`,
+                  }}
+                  muted
+                />
+              );
+              const loopDurationInFrames = getMediaLoopDurationInFrames(
+                asset.duration_seconds,
+                fps,
+              );
+              return loopDurationInFrames ? (
+                <Loop durationInFrames={loopDurationInFrames}>{video}</Loop>
+              ) : video;
+            })()
           ) : (
             <Img
               src={asset.local_path.startsWith('http') ? asset.local_path : staticFile(asset.local_path)}

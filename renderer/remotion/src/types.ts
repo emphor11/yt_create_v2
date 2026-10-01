@@ -364,6 +364,7 @@ export interface BrollCaptionProps {
   asset?: {
     asset_type?: "image" | "video" | string;
     local_path?: string;
+    duration_seconds?: number | null;
   } | null;
 }
 
@@ -389,6 +390,7 @@ export interface AssetReference {
   local_path: string;
   url: string | null;
   asset_status: string;
+  duration_seconds?: number | null;
 }
 
 export interface ComponentSpec {

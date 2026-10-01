@@ -1,7 +1,20 @@
 import { interpolate, spring } from "remotion";
 import { safeAnimationWindow, safeSpringDelay, safeKeyframeWindow, getCalculationPhases } from "../src/animation-safety.ts";
+import { getMediaLoopDurationInFrames } from "../src/media-playback.ts";
 
 console.log("==================================================");
+
+console.log("\n--- TEST 0: B-roll loop duration mapping ---");
+if (getMediaLoopDurationInFrames(5, 30) !== 150) {
+  throw new Error("FAIL: a 5-second B-roll clip must loop every 150 frames at 30fps");
+}
+if (getMediaLoopDurationInFrames(0, 30) !== null) {
+  throw new Error("FAIL: zero-duration media must not produce a loop duration");
+}
+if (getMediaLoopDurationInFrames(undefined, 30) !== null) {
+  throw new Error("FAIL: media without duration metadata must use the non-looping fallback");
+}
+console.log("✓ 5-second B-roll maps to a 150-frame loop; missing duration remains safe");
 console.log("TEST SUITE: DURATION-SAFE ANIMATION ROBUSTNESS");
 console.log("==================================================");
 

@@ -23,6 +23,8 @@ class AssetReference(BaseModel):
     local_path: str
     url: str | None = None
     asset_status: Literal["found", "cached", "fallback", "failed"]
+    # Needed by the renderer to restart short video assets inside longer beats.
+    duration_seconds: float | None = None
 
 class ComponentSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
