@@ -9,6 +9,15 @@ class WordTimestamp(BaseModel):
     end_char: int | None = None
 
 
+class SpeechMark(BaseModel):
+    """Represents a discrete speech mark emitted by Amazon Polly (e.g. ssml <mark>, word, sentence)."""
+    time_ms: int
+    mark_type: str  # 'ssml', 'word', or 'sentence'
+    value: str      # name of the SSML mark or spoken word
+    start_char: int | None = None
+    end_char: int | None = None
+
+
 class VoiceTrack(BaseModel):
     schema_version: str = "1"
     voice_id: str
@@ -17,5 +26,6 @@ class VoiceTrack(BaseModel):
     duration_seconds: float
     full_script_text: str
     word_timestamps: list[WordTimestamp] = Field(default_factory=list)
+    speech_marks: list[SpeechMark] = Field(default_factory=list)
     chunks: list[dict] = Field(default_factory=list)
 

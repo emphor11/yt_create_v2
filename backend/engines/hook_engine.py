@@ -26,6 +26,24 @@ HOOK_RESPONSE_SCHEMA: dict[str, Any] = {
             "type": "string",
             "description": "The exact spoken opening hook script for narration.",
         },
+        "voice_cues": {
+            "type": "array",
+            "description": "Optional semantic vocal performance cues (pauses, volume lift, tempo shifts, pronunciation).",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "cue_id": {"type": "string"},
+                    "anchor": {"type": "string"},
+                    "pause_before_ms": {"type": "integer"},
+                    "pause_after_ms": {"type": "integer"},
+                    "rate_percent": {"type": "integer"},
+                    "rate": {"type": "integer"},
+                    "volume_db": {"type": "integer"},
+                    "pronunciation": {"type": "string"},
+                },
+                "required": ["anchor"],
+            },
+        },
     },
     "required": [
         "conceptual_hook",

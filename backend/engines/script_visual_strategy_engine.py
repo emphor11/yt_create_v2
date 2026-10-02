@@ -37,6 +37,23 @@ SCRIPT_VISUAL_STRATEGY_RESPONSE_SCHEMA: dict[str, Any] = {
                         "items": {"type": "string"},
                     },
                     "narration": {"type": "string"},
+                    "voice_cues": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "cue_id": {"type": "string"},
+                                "anchor": {"type": "string"},
+                                "pause_before_ms": {"type": "integer"},
+                                "pause_after_ms": {"type": "integer"},
+                                "rate_percent": {"type": "integer"},
+                                "rate": {"type": "integer"},
+                                "volume_db": {"type": "integer"},
+                                "pronunciation": {"type": "string"},
+                            },
+                            "required": ["anchor"],
+                        },
+                    },
                 },
                 "required": [
                     "idea_id",
@@ -90,15 +107,13 @@ class ScriptVisualStrategyEngine:
         )
         if is_long_5min:
             budget_instructions = (
-                "4. 5-MINUTE BUDGET: Target roughly 85 to 95 words of natural spoken narration per idea, "
+                "5-MINUTE BUDGET: Target roughly 85 to 95 words of natural spoken narration per idea, "
                 "prioritizing natural spoken delivery and an overall total of roughly 700-800 narration words across all ideas and the hook.\n"
-                "5. NARRATIVE FLOW: Maintain coherent story progression across all ideas without repeating facts or statistics.\n"
-                "6. Generate a highly detailed body script conforming exactly to the response schema and these requirements."
+                "NARRATIVE FLOW: Maintain coherent story progression across all ideas without repeating facts or statistics."
             )
         else:
             budget_instructions = (
-                "4. Keep each idea's narration to roughly 40-70 words.\n"
-                "5. Generate a highly detailed body script conforming exactly to the response schema and these requirements."
+                "Keep each idea's narration to roughly 40-70 words."
             )
 
         user_prompt_lines = [
@@ -140,11 +155,22 @@ class ScriptVisualStrategyEngine:
         user_prompt_lines.append(f"Verified Statistics: {research_packet.statistics}")
         user_prompt_lines.append(f"Examples: {research_packet.examples}")
 
+        user_prompt_lines.append("\n--- BUDGET & PACING ---")
+        user_prompt_lines.append(budget_instructions)
+
         user_prompt_lines.append("\nCRITICAL INSTRUCTIONS:")
         user_prompt_lines.append("1. For each idea's 'focus_concept', you MUST choose exactly one concept from the 'Verified Concepts' list above. Do NOT make up new concepts or use phrasing not present in that list.")
         user_prompt_lines.append("2. Any numbers, statistics, or figures you mention in the narration text MUST be strictly grounded in 'Verified Facts', 'Verified Statistics', or 'Examples'. You are explicitly permitted and encouraged to use the concrete numbers and calculations from 'Examples' (such as salary figures, percentage allocations, and timelines) in your narration. Do NOT invent or use any other numbers (except common small numbers/indexes like 1, 2, 3, etc.).")
         user_prompt_lines.append("3. You MUST generate exactly one output 'idea' in the 'ideas' array for every 'scene_beat' provided in the Narrative Plan. Maintain their exact chronological order, titles, focus concepts, and core teaching points, while filling in the 'narration' field.")
-        user_prompt_lines.append(budget_instructions)
+        user_prompt_lines.append(
+            "4. For every idea, explicitly evaluate whether the narration contains a genuine "
+            "performance moment such as a reveal, contradiction, key realization, important "
+            "contrast, payoff, or conclusion. If it does, provide 1 meaningful voice cue in "
+            "'voice_cues'. If it contains two clearly distinct performance moments, you may "
+            "provide 2 cues. Use [] only when normal delivery is genuinely sufficient. "
+            "Do not add cues merely because the narration contains numbers, statistics, "
+            "technical terms, or other factual information."
+        )
 
         llm_request = LLMJsonRequest(
             schema_name="ScriptVisualStrategy",

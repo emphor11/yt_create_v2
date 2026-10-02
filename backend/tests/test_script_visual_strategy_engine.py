@@ -230,3 +230,73 @@ def test_strategy_engine_preserves_narrative_lineage_and_hook_context() -> None:
     assert idea.scene_role == "problem"
     assert idea.viewer_question == "Why are retail investors pouring billions into gold right now?"
     assert idea.key_evidence == ["Gold hit ₹1.5 lakh per 10g", "Gold-ETF inflows surged 67%"]
+
+
+def test_strategy_engine_supports_voice_cues() -> None:
+    payload = {
+        "thesis": "Compounding requires time over contribution",
+        "ideas": [
+            {
+                "idea_id": "idea_01",
+                "title": "The Time Advantage",
+                "focus_concept": "Compound Interest",
+                "core_teaching_point": "Starting five years earlier beats doubling monthly investment later",
+                "narration": "On paper, investing more feels like the safest route. Until you calculate the lost time.",
+                "voice_cues": [
+                    {
+                        "anchor": "safest route.",
+                        "pause_after_ms": 400,
+                    },
+                    {
+                        "anchor": "lost time.",
+                        "rate": 94,
+                        "volume_db": 2,
+                    },
+                    {
+                        "anchor": "₹5,000",
+                        "pronunciation": "five thousand rupees",
+                    },
+                ],
+            }
+        ],
+    }
+
+    provider = StaticTestLLMProvider(payload)
+    engine = ScriptVisualStrategyEngine(provider)
+
+    packet = ResearchPacket(
+        topic="Compounding",
+        audience="retail investors",
+        channel="WealthUnpacked",
+        concepts=["Compound Interest"],
+    )
+    plan = NarrativePlan(
+        thesis="Compounding requires time",
+        target_pain_point="Delayed start",
+        conceptual_hook="Time vs Capital",
+        narrative_arc_type="Mechanism",
+        scene_beats=[
+            SceneBeat(
+                scene_id="scene_01",
+                title="The Time Advantage",
+                focus_concept="Compound Interest",
+                core_teaching_point="Starting five years earlier beats doubling monthly investment later",
+            )
+        ],
+    )
+    hook = Hook(
+        conceptual_hook="Time vs Capital",
+        script_text="What happens when you delay your SIP by five years?",
+    )
+
+    result = engine.run(packet, plan, hook)
+
+    idea = result.strategy.ideas[0]
+    assert len(idea.voice_cues) == 3
+    assert idea.voice_cues[0].anchor == "safest route."
+    assert idea.voice_cues[0].pause_after_ms == 400
+    assert idea.voice_cues[1].anchor == "lost time."
+    assert idea.voice_cues[1].rate == 94
+    assert idea.voice_cues[1].volume_db == 2
+    assert idea.voice_cues[2].anchor == "₹5,000"
+    assert idea.voice_cues[2].pronunciation == "five thousand rupees"

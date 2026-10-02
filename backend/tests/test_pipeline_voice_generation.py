@@ -213,7 +213,7 @@ def test_voice_generation_synthesizes_and_saves(tmp_path) -> None:
     assert artifact["status"] == "valid"
     
     payload = artifact["payload_json"]
-    assert payload["voice_id"] == "Matthew"
+    assert payload["voice_id"] in ["Kajal", "Danielle", "Matthew"]
     assert payload["audio_file_name"] == "narration.mp3"
     assert payload["duration_seconds"] > 0
     assert len(payload["word_timestamps"]) > 0

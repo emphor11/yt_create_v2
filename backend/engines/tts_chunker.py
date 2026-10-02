@@ -33,15 +33,22 @@ class TTSChunker:
             )
         self.safe_max_chars = safe_max_chars
 
-    def chunk_sections(self, sections: list[tuple[str, str]]) -> list[TTSChunk]:
+    def chunk_sections(self, sections: list[tuple[str, str] | tuple[str, str, list[Any]]]) -> list[TTSChunk]:
         """
-        Takes an ordered list of (source_id, text) tuples (e.g. [('hook', hook_text),
-        ('idea_01', idea1_text), ...]) and returns an ordered list of TTSChunks.
+        Takes an ordered list of (source_id, text) or (source_id, text, voice_cues) tuples
+        and returns an ordered list of TTSChunks.
         """
         chunks: list[TTSChunk] = []
         seq = 1
 
-        for source_id, raw_text in sections:
+        for section_item in sections:
+            if len(section_item) == 3:
+                source_id, raw_text, cues = section_item
+                raw_cues = [c.model_dump() if hasattr(c, "model_dump") else c for c in cues] if cues else []
+            else:
+                source_id, raw_text = section_item
+                raw_cues = []
+
             clean_text = raw_text.strip()
             if not clean_text:
                 continue
@@ -55,16 +62,19 @@ class TTSChunker:
                         sequence=seq,
                         text=clean_text,
                         char_count=len(clean_text),
+                        voice_cues=raw_cues,
                     )
                 )
                 seq += 1
             else:
                 # Hierarchical subdivision needed for this section
                 sub_texts = self._split_hierarchical(clean_text, self.safe_max_chars)
-                for sub_text in sub_texts:
+                for sub_idx, sub_text in enumerate(sub_texts):
                     clean_sub = sub_text.strip()
                     if not clean_sub:
                         continue
+                    # Only attach cues that belong to this sub_text or first chunk
+                    sub_cues = raw_cues if sub_idx == 0 else []
                     chunks.append(
                         TTSChunk(
                             chunk_id=f"chunk_{seq:03d}",
@@ -72,6 +82,7 @@ class TTSChunker:
                             sequence=seq,
                             text=clean_sub,
                             char_count=len(clean_sub),
+                            voice_cues=sub_cues,
                         )
                     )
                     seq += 1

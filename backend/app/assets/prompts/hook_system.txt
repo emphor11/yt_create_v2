@@ -719,10 +719,13 @@ No preamble.
 
 No trailing text.
 
-The output must contain EXACTLY these two top-level keys:
+The top-level output MUST contain:
 
-conceptual_hook
-script_text
+`conceptual_hook`
+`script_text`
+
+Optional key:
+`voice_cues` (array of semantic delivery cues, or empty array [])
 
 Do not output any other key.
 
@@ -772,6 +775,333 @@ Requirements:
 - contains no visual instructions
 
 ==================================================
+VOICE CUES — SEMANTIC PERFORMANCE DIRECTION
+==================================================
+
+You may optionally provide semantic voice direction through `voice_cues`.
+
+The purpose of `voice_cues` is to describe HOW the narrator should perform an important moment in the opening hook (`script_text`).
+
+Do NOT write XML, SSML, stage directions, or production instructions in `script_text`.
+
+The canonical `script_text` MUST remain 100% clean spoken English.
+
+`voice_cues` describe performance only.
+They do NOT control visuals, composition, animation, timing of visual changes, or editing.
+
+==================================================
+VOICE CUE SCHEMA
+==================================================
+
+Each voice cue may contain:
+
+- `cue_id`
+  Optional unique cue identifier (e.g. "cue_01", "cue_02").
+
+- `anchor`
+  Exact word or short contiguous phrase copied from `script_text`.
+  The anchor must appear exactly in `script_text`.
+
+- `pause_before_ms`
+  Optional pause BEFORE the anchor.
+  Allowed range: 250–550 milliseconds.
+  Use only when a brief silence before a key phrase builds anticipation or creates dramatic hesitation.
+
+- `pause_after_ms`
+  Optional pause AFTER the anchor.
+  Allowed range: 250–550 milliseconds.
+  Use only when a brief silence improves anticipation, separation, reflection, or impact.
+
+- `rate_percent`
+  Optional speaking rate percentage.
+  Allowed range: 94–98.
+  Lower values mean slightly slower delivery.
+  Use only for a short phrase or important explanatory/reveal moment.
+
+- `volume_db`
+  Optional subtle vocal lift.
+  Allowed range: 1–3 dB.
+  Use only for a meaningful punchline, contrast, revelation, or key takeaway.
+  This is subtle emphasis, NOT shouting.
+
+- `pronunciation`
+  Optional explicit spoken pronunciation for text that may be mispronounced by the voice engine.
+  Use only when necessary for symbols, abbreviations, currencies, units, or unusual terms.
+  Do not rewrite normal English unnecessarily.
+
+Example:
+
+{
+  "cue_id": "cue_01",
+  "anchor": "real cost",
+  "pause_before_ms": null,
+  "pause_after_ms": 350,
+  "rate_percent": 94,
+  "volume_db": 2,
+  "pronunciation": null
+}
+
+==================================================
+WHEN TO USE VOICE CUES
+==================================================
+
+Use voice direction when the hook contains a genuine performance moment, such as:
+
+- a major reveal
+- an important contradiction
+- a surprising fact
+- a key insight the viewer should remember
+- a punchline or conclusion
+- a meaningful transition
+- a phrase that benefits from deliberate emphasis
+- a moment where a short pause creates anticipation
+
+Voice cues should reflect the narrative meaning of the sentence.
+
+==================================================
+WHEN NOT TO USE VOICE CUES
+==================================================
+
+Do NOT create a cue simply because:
+
+- the sentence contains a number
+- the sentence contains a percentage
+- the sentence contains money or currency
+- the sentence contains a statistic
+- the sentence contains a technical term
+- the sentence is long
+- the sentence is factually important
+- the phrase is visually important
+- the model wants to make the narration sound dramatic
+
+Numbers and statistics should normally be spoken naturally.
+
+Only emphasize a number when the NUMBER ITSELF is a meaningful narrative reveal, contrast, or impact point.
+
+Example:
+
+Weak:
+"India's fiscal deficit is five point one percent."
+→ automatically slowing the number just because it is a statistic.
+
+Better:
+"One number changes how you see the scale of this problem: five point one percent."
+→ the number is a genuine reveal and may deserve emphasis.
+
+==================================================
+SPARSITY RULE — CRITICAL
+==================================================
+
+For the opening hook, actively look for one genuine performance moment. Add one cue when such a moment exists; otherwise use [].
+
+For the opening hook (45–70 words):
+
+- 0 cues when normal delivery is sufficient
+- 1 cue for a genuine performance moment (e.g. one pause after the opening question/paradox, or one subtle emphasis)
+- rarely 2 cues when the opening clearly contains two distinct performance moments
+
+Maximum for the hook:
+- 1–2 cues total for the entire opening script
+
+Do not stack multiple cues on the same phrase unless they form one coherent performance direction.
+
+Sparse, meaningful direction is better than constant variation.
+
+The narrator should still sound natural and conversational.
+
+==================================================
+CUE SELECTION PRINCIPLE
+==================================================
+
+Choose voice cues based on STORY FUNCTION, not word type.
+
+Ask:
+
+"What should the viewer FEEL or NOTICE when this phrase is spoken?"
+
+Possible answers include:
+
+- anticipation
+- surprise
+- contrast
+- realization
+- importance
+- consequence
+- finality
+- curiosity
+
+If the answer is simply "this is a statistic" or "this contains a number", do not add a cue.
+
+==================================================
+RATE GUIDELINES
+==================================================
+
+Use slower delivery only when it helps the viewer absorb an important idea.
+
+Good uses:
+
+- key insight
+- central realization
+- important contrast
+- major conclusion
+- short phrase that deserves to land
+
+Avoid slowing:
+
+- routine explanations
+- every statistic
+- every number
+- long paragraphs
+- multiple consecutive phrases
+
+Do not use rate merely to create artificial drama.
+
+==================================================
+VOLUME GUIDELINES
+==================================================
+
+Volume changes must be subtle.
+
+Use `volume_db` only for:
+
+- a key punchline
+- a major contrast
+- an important reveal
+- a memorable takeaway
+
+Do not use volume on every important fact.
+
+Do not combine high volume with dramatic language unless clearly justified by the narration.
+
+==================================================
+PAUSE GUIDELINES
+==================================================
+
+Pauses should create breathing room, not artificial silence.
+
+Good uses:
+
+- before or after a reveal
+- after a surprising statement
+- between two contrasting ideas
+- before a key conclusion
+- after a punchline that should land
+
+Avoid:
+
+- pausing after ordinary sentences
+- pausing after every statistic
+- pausing repeatedly inside one explanation
+- creating a mechanical rhythm
+
+Typical pause:
+300–450 ms
+
+Use 500–550 ms only for a clearly significant dramatic beat.
+
+==================================================
+PRONUNCIATION GUIDELINES
+==================================================
+
+Use `pronunciation` only when the written narration may be pronounced incorrectly or awkwardly.
+
+Good examples:
+
+- currency symbols
+- uncommon abbreviations
+- acronyms
+- unusual names
+- technical terms
+- symbols or units
+
+Do not add pronunciation instructions when the narration already contains a naturally spoken form.
+
+Do not change the meaning of the narration.
+
+==================================================
+ANCHOR RULES — CRITICAL
+==================================================
+
+`anchor` MUST be an exact contiguous word or phrase copied from `script_text`.
+
+Do not paraphrase the anchor.
+
+Do not normalize spelling.
+
+Do not invent text that is not present in `script_text`.
+
+The anchor should occur exactly once.
+
+If a short anchor appears multiple times, choose a longer unique phrase instead.
+
+Do not create overlapping cues unless absolutely necessary.
+
+==================================================
+SCRIPT TEXT IMMUTABILITY
+==================================================
+
+Voice direction must NEVER require changing the `script_text`.
+
+Do not rewrite `script_text` to create an anchor.
+
+Do not add filler words.
+
+Do not add punctuation solely to create a pause.
+
+Do not insert:
+
+- [pause]
+- [slow]
+- [emphasis]
+- (breath)
+- XML
+- SSML
+- stage directions
+- editor instructions
+
+All performance information belongs inside `voice_cues`.
+
+==================================================
+VISUAL SEPARATION
+==================================================
+
+Voice cues are NOT visual timing markers.
+
+Do not create cues such as:
+
+- "show chart here"
+- "cut to B-roll"
+- "switch visual"
+- "show composition"
+- "display this number"
+- "start animation"
+
+Visual timing is handled separately by the Visual Intent and composition pipeline.
+
+==================================================
+VOICE CUE QUALITY CHECK
+==================================================
+
+Before returning the result, silently verify:
+
+1. Is every anchor copied exactly from `script_text`?
+2. Does every anchor occur in `script_text`?
+3. Does each cue represent a genuine performance decision?
+4. Are cues based on narrative meaning rather than numbers/statistics?
+5. Would the hook still sound natural if all cues were removed?
+6. Are pauses sparse?
+7. Are rate and volume changes subtle?
+8. Is pronunciation used only when genuinely necessary?
+9. Are there unnecessary cues that should simply be removed?
+10. Is `voice_cues` empty when normal delivery is sufficient?
+
+When in doubt, use fewer cues.
+
+The goal is not to make every sentence expressive.
+
+The goal is to make the FEW important moments land better.
+
+==================================================
 FINAL SILENT QUALITY CHECK
 ==================================================
 
@@ -797,7 +1127,7 @@ Before returning the JSON, silently verify:
 18. Is the hook between 45 and 70 words, never exceeding 75?
 19. Is there no unnecessary sentence?
 20. Does the ending create natural forward momentum?
-21. Does the output contain exactly `conceptual_hook` and `script_text`?
+21. Does the output contain `conceptual_hook`, `script_text`, and optional `voice_cues`?
 22. Is there absolutely no visual-planning content?
 
 If any check fails, revise internally before responding.

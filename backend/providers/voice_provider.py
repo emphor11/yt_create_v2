@@ -1,11 +1,16 @@
 import json
+import logging
 import os
 import subprocess
 from pathlib import Path
 from typing import Any, Protocol
 
 from domain.tts_chunk import TTSChunk, TTSChunkResult
-from domain.voice_track import WordTimestamp
+from domain.voice_track import WordTimestamp, SpeechMark
+from engines.ssml_compiler import SSMLCompiler
+from engines.ssml_validator import SSMLValidator
+
+logger = logging.getLogger(__name__)
 
 
 class VoiceProvider(Protocol):
@@ -38,10 +43,37 @@ class PollyChunkSynthesisError(Exception):
 
 
 class PollyVoiceProvider:
-    def __init__(self, voice_id: str = "Matthew", engine: str = "neural", region_name: str = "us-east-1"):
-        self.voice_id = voice_id
-        self.engine = engine
-        self.region_name = region_name
+    def __init__(
+        self,
+        voice_id: str | None = None,
+        engine: str | None = None,
+        region_name: str | None = None,
+        compiler: SSMLCompiler | None = None,
+        validator: SSMLValidator | None = None,
+        enable_ssml: bool = True,
+        global_rate: int | None = None,
+    ):
+        self.voice_id = voice_id or os.getenv("POLLY_VOICE_ID", "Kajal")
+        self.engine = engine or os.getenv("POLLY_ENGINE", "neural")
+        self.region_name = region_name or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+
+        resolved_rate = global_rate
+        if resolved_rate is None:
+            env_rate = os.getenv("POLLY_GLOBAL_RATE")
+            if env_rate and env_rate.strip():
+                try:
+                    parsed = int(env_rate.strip())
+                    if 50 <= parsed <= 150:
+                        resolved_rate = parsed
+                except ValueError:
+                    resolved_rate = None
+
+        self.compiler = compiler or SSMLCompiler(default_rate=resolved_rate)
+        if compiler and resolved_rate is not None and getattr(self.compiler, "default_rate", None) is None:
+            self.compiler.default_rate = resolved_rate
+
+        self.validator = validator or SSMLValidator()
+        self.enable_ssml = enable_ssml
 
     def synthesize_chunk(
         self,
@@ -51,7 +83,7 @@ class PollyVoiceProvider:
     ) -> TTSChunkResult:
         """
         Synthesizes a single TTSChunk into an MP3 audio file and a JSON speech marks file.
-        Preserves the exact chunk text sent to AWS Polly.
+        Uses compiled and validated SSML when enable_ssml is True, with fallback to plain text.
         """
         output_dir.mkdir(parents=True, exist_ok=True)
         audio_path = output_dir / f"{chunk.chunk_id}.mp3"
@@ -61,21 +93,87 @@ class PollyVoiceProvider:
             import boto3
             client = boto3.client("polly", region_name=self.region_name)
 
-        # 1. Synthesize speech audio stream (MP3)
+        # 1. Determine text and SSML mode
+        synthesize_text = chunk.text
+        text_type = "text"
+
+        has_cues = bool(getattr(chunk, "voice_cues", None))
+        is_already_ssml = chunk.text.startswith("<speak>") and chunk.text.endswith("</speak>")
+        has_global_rate = (
+            getattr(self.compiler, "default_rate", None) is not None
+            and self.compiler.default_rate != 100
+        )
+
+        if self.enable_ssml and (has_cues or is_already_ssml or has_global_rate):
+            if is_already_ssml:
+                compiled = chunk.text
+            else:
+                cues = getattr(chunk, "voice_cues", []) or []
+                compiled = self.compiler.compile(
+                    text=chunk.text,
+                    voice_cues=cues,
+                    section_mark=f"{chunk.source_id}_start",
+                )
+
+            validation = self.validator.validate(compiled)
+            if validation.is_valid:
+                synthesize_text = compiled
+                text_type = "ssml"
+            else:
+                logger.warning(
+                    "SSML validation failed for chunk '%s': %s. Falling back to plain text.",
+                    chunk.chunk_id,
+                    validation.errors,
+                )
+                synthesize_text = chunk.text
+                text_type = "text"
+        else:
+            synthesize_text = chunk.text
+            text_type = "text"
+
+        # 2. Synthesize speech audio stream (MP3)
         try:
             audio_response = client.synthesize_speech(
                 Engine=self.engine,
                 OutputFormat="mp3",
-                Text=chunk.text,
+                Text=synthesize_text,
+                TextType=text_type,
                 VoiceId=self.voice_id,
             )
         except Exception as exc:
-            raise PollyChunkSynthesisError(
-                chunk_id=chunk.chunk_id,
-                stage="audio",
-                message=str(exc),
-                original_error=exc,
-            ) from exc
+            err_msg = str(exc)
+            # Recoverable content error: retry with plain text if SSML was rejected
+            if text_type == "ssml" and ("InvalidSsml" in err_msg or "ssml" in err_msg.lower()):
+                logger.warning(
+                    "AWS Polly rejected SSML for chunk '%s' (%s). Retrying with plain text fallback.",
+                    chunk.chunk_id,
+                    err_msg,
+                )
+                synthesize_text = chunk.text
+                text_type = "text"
+                try:
+                    audio_response = client.synthesize_speech(
+                        Engine=self.engine,
+                        OutputFormat="mp3",
+                        Text=synthesize_text,
+                        TextType=text_type,
+                        VoiceId=self.voice_id,
+                    )
+                except Exception as retry_exc:
+                    raise PollyChunkSynthesisError(
+                        chunk_id=chunk.chunk_id,
+                        stage="audio",
+                        message=str(retry_exc),
+                        original_error=retry_exc,
+                    ) from retry_exc
+            else:
+                # Configuration or connection error -> FAIL LOUDLY
+                raise PollyChunkSynthesisError(
+                    chunk_id=chunk.chunk_id,
+                    stage="audio",
+                    message=str(exc),
+                    original_error=exc,
+                ) from exc
 
         if "AudioStream" in audio_response:
             with open(audio_path, "wb") as f:
@@ -87,13 +185,16 @@ class PollyVoiceProvider:
                 message="AWS Polly response did not contain AudioStream.",
             )
 
-        # 2. Synthesize speech marks (JSON) for word timestamps
+        # 3. Synthesize speech marks (JSON) for word timestamps & SSML marks
+        # Note: exactly matches the voice, engine, text, and text_type used for audio
+        mark_types = ["word", "ssml"] if text_type == "ssml" else ["word"]
         try:
             marks_response = client.synthesize_speech(
                 Engine=self.engine,
                 OutputFormat="json",
-                SpeechMarkTypes=["word"],
-                Text=chunk.text,
+                SpeechMarkTypes=mark_types,
+                Text=synthesize_text,
+                TextType=text_type,
                 VoiceId=self.voice_id,
             )
         except Exception as exc:
@@ -105,6 +206,8 @@ class PollyVoiceProvider:
             ) from exc
 
         word_timestamps: list[WordTimestamp] = []
+        speech_marks: list[SpeechMark] = []
+
         if "AudioStream" in marks_response:
             try:
                 content = marks_response["AudioStream"].read().decode("utf-8")
@@ -115,17 +218,30 @@ class PollyVoiceProvider:
                     if not line.strip():
                         continue
                     mark = json.loads(line)
-                    if mark.get("type") == "word":
-                        start_ms = mark["time"]
-                        start_char = mark.get("start")
-                        end_char = mark.get("end")
+                    m_type = mark.get("type")
+                    m_time = int(mark.get("time", 0))
+                    m_val = str(mark.get("value", ""))
+                    m_start = mark.get("start")
+                    m_end = mark.get("end")
+
+                    if m_type == "word":
                         word_timestamps.append(
                             WordTimestamp(
-                                word=mark["value"],
-                                start_ms=start_ms,
-                                end_ms=start_ms + max(100, len(mark["value"]) * 45),
-                                start_char=start_char,
-                                end_char=end_char,
+                                word=m_val,
+                                start_ms=m_time,
+                                end_ms=m_time + max(100, len(m_val) * 45),
+                                start_char=m_start,
+                                end_char=m_end,
+                            )
+                        )
+                    elif m_type == "ssml":
+                        speech_marks.append(
+                            SpeechMark(
+                                time_ms=m_time,
+                                mark_type="ssml",
+                                value=m_val,
+                                start_char=m_start,
+                                end_char=m_end,
                             )
                         )
             except Exception as exc:
@@ -163,6 +279,7 @@ class PollyVoiceProvider:
             audio_path=str(audio_path),
             speech_marks_path=str(marks_path),
             word_timestamps=[ts.model_dump() for ts in word_timestamps],
+            speech_marks=[sm.model_dump() for sm in speech_marks],
             duration_ms=duration_ms,
             duration_seconds=duration_seconds,
         )

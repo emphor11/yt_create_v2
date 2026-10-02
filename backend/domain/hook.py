@@ -1,6 +1,8 @@
 from typing import Any
 from pydantic import BaseModel, Field
 
+from domain.script_visual_strategy import VoiceCue
+
 
 class VisualDirective(BaseModel):
     beat_id: str
@@ -20,12 +22,14 @@ class Hook(BaseModel):
     """Domain model representing the spoken opening hook of the video.
     
     Under the locked pipeline architecture:
-    - Hook is responsible exclusively for the spoken script (`script_text`) and conceptual framing (`conceptual_hook`).
+    - Hook is responsible exclusively for the spoken script (`script_text`), conceptual framing (`conceptual_hook`),
+      and optional semantic performance direction (`voice_cues`).
     - Hook is NOT responsible for visual directives, component selection, or trigger words.
     - `visual_directives` is retained strictly for backward compatibility when reading legacy artifacts.
     """
     schema_version: str = "1"
     conceptual_hook: str
     script_text: str
+    voice_cues: list[VoiceCue] = Field(default_factory=list)
     visual_directives: list[VisualDirective] = Field(default_factory=list)
 

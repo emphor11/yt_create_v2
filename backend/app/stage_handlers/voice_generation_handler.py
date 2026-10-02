@@ -6,7 +6,7 @@ from app.stage_logger import StageLogger
 from domain.hook import Hook
 from domain.script_visual_strategy import ScriptVisualStrategy
 from domain.tts_chunk import TTSChunkResult
-from domain.voice_track import VoiceTrack, WordTimestamp
+from domain.voice_track import VoiceTrack, WordTimestamp, SpeechMark
 from domain.validators.voice_track_validator import VoiceTrackValidator
 from engines.audio_merger import AudioMerger
 from engines.tts_chunker import TTSChunker
@@ -56,13 +56,15 @@ class VoiceGenerationHandler:
             )
             hook = Hook.model_validate(hook_artifact.payload_json)
 
-            # 2. Compile full narration script sections (Hook + Body Ideas)
-            sections: list[tuple[str, str]] = [("hook", hook.script_text)]
+            # 2. Compile full narration script sections with semantic voice_cues (Hook + Body Ideas)
+            sections: list[tuple[str, str, list]] = [
+                ("hook", hook.script_text, getattr(hook, "voice_cues", []) or [])
+            ]
             for idea in strategy.ideas:
                 if idea.narration.strip():
-                    sections.append((idea.idea_id, idea.narration.strip()))
+                    sections.append((idea.idea_id, idea.narration.strip(), getattr(idea, "voice_cues", []) or []))
 
-            narration_blocks = [text for _, text in sections]
+            narration_blocks = [text for _, text, _ in sections]
             full_script_text = "\n\n".join(narration_blocks)
 
             # 3. Setup output file storage path
@@ -71,7 +73,7 @@ class VoiceGenerationHandler:
             output_path = self.media_storage.ensure_parent(storage_key)
             chunks_dir = output_path.parent / "chunks"
 
-            # 4. Chunk narration using TTSChunker
+            # 4. Chunk narration using TTSChunker (preserves voice_cues)
             chunks = self.chunker.chunk_sections(sections)
 
             # 5. Synthesize chunks via voice_provider
@@ -105,14 +107,32 @@ class VoiceGenerationHandler:
                 output_path=output_path,
             )
 
+            # Compute global speech marks across merged chunks
+            global_speech_marks: list[SpeechMark] = []
+            cumulative_offset_ms = 0
+            for c in sorted(chunk_results, key=lambda x: x.sequence):
+                for sm_dict in getattr(c, "speech_marks", []) or []:
+                    sm_time = sm_dict.get("time_ms", 0) + cumulative_offset_ms
+                    global_speech_marks.append(
+                        SpeechMark(
+                            time_ms=sm_time,
+                            mark_type=sm_dict.get("mark_type", "ssml"),
+                            value=sm_dict.get("value", ""),
+                            start_char=sm_dict.get("start_char"),
+                            end_char=sm_dict.get("end_char"),
+                        )
+                    )
+                cumulative_offset_ms += c.duration_ms
+
             # 7. Build and validate VoiceTrack model
             voice_track = VoiceTrack(
-                voice_id=getattr(self.voice_provider, "voice_id", "Matthew"),
+                voice_id=getattr(self.voice_provider, "voice_id", "Danielle"),
                 audio_file_name=file_name,
                 storage_key=storage_key,
                 duration_seconds=master_duration_seconds,
                 full_script_text=full_script_text,
                 word_timestamps=global_word_timestamps,
+                speech_marks=global_speech_marks,
                 chunks=[c.model_dump() for c in chunk_results],
             )
 

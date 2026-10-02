@@ -144,3 +144,48 @@ def test_hook_engine_raises_error_for_invalid_shape() -> None:
 
     assert exc.value.raw_payload == {"script_text": "Only a script text"}
     assert exc.value.provider_metadata is not None
+
+
+def test_hook_engine_supports_voice_cues() -> None:
+    payload = {
+        "conceptual_hook": "The Rent Myth",
+        "script_text": "What if your monthly EMI is secretly doubling your costs?",
+        "voice_cues": [
+            {
+                "anchor": "secretly doubling",
+                "pause_after_ms": 350,
+                "volume_db": 2,
+            }
+        ],
+    }
+
+    provider = StaticTestLLMProvider(payload)
+    engine = HookEngine(provider)
+
+    result = engine.run(
+        GenerateVideoRequest(
+            topic="Why Renting is Smarter",
+            angle="Cash flow",
+            audience="working professionals",
+            channel="WealthUnpacked",
+        ),
+        NarrativePlan(
+            thesis="Renting preserves capital",
+            target_pain_point="Hidden EMI cost",
+            conceptual_hook="The Rent Myth",
+            narrative_arc_type="PSA",
+            scene_beats=[
+                SceneBeat(
+                    scene_id="scene_01",
+                    title="Intro",
+                    focus_concept="Opportunity Cost",
+                    core_teaching_point="Show EMI cost",
+                )
+            ],
+        ),
+    )
+
+    assert len(result.hook.voice_cues) == 1
+    assert result.hook.voice_cues[0].anchor == "secretly doubling"
+    assert result.hook.voice_cues[0].pause_after_ms == 350
+    assert result.hook.voice_cues[0].volume_db == 2
