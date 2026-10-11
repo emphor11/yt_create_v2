@@ -225,13 +225,21 @@ class PollyVoiceProvider:
                     m_end = mark.get("end")
 
                     if m_type == "word":
+                        # Provider normalization: filter non-spoken SSML tags and decode HTML entities
+                        from domain.timing_contract import is_ssml_token, clean_spoken_token, normalize_for_search
+                        if is_ssml_token(m_val):
+                            continue
+                        cleaned_val = clean_spoken_token(m_val)
+                        if not cleaned_val:
+                            continue
                         word_timestamps.append(
                             WordTimestamp(
-                                word=m_val,
+                                word=cleaned_val,
                                 start_ms=m_time,
-                                end_ms=m_time + max(100, len(m_val) * 45),
+                                end_ms=m_time + max(100, len(cleaned_val) * 45),
                                 start_char=m_start,
                                 end_char=m_end,
+                                normalized_text=normalize_for_search(cleaned_val),
                             )
                         )
                     elif m_type == "ssml":

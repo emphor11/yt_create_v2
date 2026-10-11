@@ -25,6 +25,8 @@ type ProjectPipelinePageProps = {
   onRunScriptVisualStrategy: () => void;
   onRunQualityReview: () => void;
   onRunVoiceGeneration: () => void;
+  onRunStoryboard: () => void;
+  onRunWorldCompiler: () => void;
   onRunVideoAssembly: () => void;
   onRunRender: () => void;
   onRunYoutubeMetadata: () => void;
@@ -51,6 +53,8 @@ export function ProjectPipelinePage({
   onRunScriptVisualStrategy,
   onRunQualityReview,
   onRunVoiceGeneration,
+  onRunStoryboard,
+  onRunWorldCompiler,
   onRunVideoAssembly,
   onRunRender,
   onRunYoutubeMetadata,
@@ -183,6 +187,22 @@ export function ProjectPipelinePage({
             type="button"
           >
             Run Voiceover
+          </button>
+          <button
+            className="primary-button secondary"
+            disabled={!selectedRun || isRunningStage}
+            onClick={onRunStoryboard}
+            type="button"
+          >
+            Run Storyboard
+          </button>
+          <button
+            className="primary-button secondary"
+            disabled={!selectedRun || isRunningStage}
+            onClick={onRunWorldCompiler}
+            type="button"
+          >
+            Run Compiler
           </button>
           <button
             className="primary-button secondary"

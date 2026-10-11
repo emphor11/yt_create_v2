@@ -1,4 +1,4 @@
-export type ArtifactStatus = "valid" | "warning" | "blocked" | "failed";
+export type ArtifactStatus = "valid" | "warning" | "blocked" | "failed" | "skipped";
 export type StageStatus = ArtifactStatus | "missing";
 export type RunMode = "deterministic" | "ai";
 
@@ -85,6 +85,34 @@ export type RegenerateDescendantsResponse = {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
+function formatErrorDetail(detail: unknown, fallbackStatus: string): string {
+  if (detail === undefined || detail === null) {
+    return fallbackStatus;
+  }
+  if (typeof detail === "string") {
+    return detail;
+  }
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "object" && item !== null) {
+          const rec = item as Record<string, unknown>;
+          const loc = Array.isArray(rec.loc)
+            ? rec.loc.filter((p) => p !== "body").join(".")
+            : "";
+          const msg = rec.msg ? String(rec.msg) : JSON.stringify(item);
+          return loc ? `${loc}: ${msg}` : msg;
+        }
+        return String(item);
+      })
+      .join("; ");
+  }
+  if (typeof detail === "object") {
+    return JSON.stringify(detail);
+  }
+  return String(detail);
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
@@ -95,8 +123,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}));
-    const detail = "detail" in errorBody ? String(errorBody.detail) : response.statusText;
+    const errorBody = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    const detail = formatErrorDetail(errorBody.detail, response.statusText);
     throw new Error(detail);
   }
 
@@ -104,7 +132,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export type DurationProfile = "short_2min" | "long_5min";
-export type VisualMode = "legacy" | "composition";
+export type VisualMode = "world" | "composition" | "legacy";
 
 export function listProjects(): Promise<ProjectRecord[]> {
   return request<ProjectRecord[]>("/projects");
@@ -115,7 +143,7 @@ export function createProject(
   angle: string,
   mode: RunMode = "ai",
   durationProfile: DurationProfile = "short_2min",
-  visualMode: VisualMode = "composition"
+  visualMode: VisualMode = "world"
 ): Promise<CreateProjectResponse> {
   return request<CreateProjectResponse>("/projects", {
     method: "POST",
@@ -197,6 +225,24 @@ export function runVoiceGeneration(
   runId: string
 ): Promise<RunStageResponse> {
   return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/voice_generation`, {
+    method: "POST",
+  });
+}
+
+export function runStoryboard(
+  projectId: string,
+  runId: string
+): Promise<RunStageResponse> {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/storyboard`, {
+    method: "POST",
+  });
+}
+
+export function runWorldCompiler(
+  projectId: string,
+  runId: string
+): Promise<RunStageResponse> {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/world_compiler`, {
     method: "POST",
   });
 }

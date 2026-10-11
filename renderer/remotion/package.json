@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "remotion studio src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/smoke-test.mjs && node --experimental-strip-types scripts/test-duration-safety.mjs"
+    "test": "node scripts/smoke-test.mjs && node --experimental-strip-types scripts/test-duration-safety.mjs && esbuild scripts/test-world-renderer.mjs --bundle --platform=node --format=esm --outfile=/tmp/ytcreate-world-renderer-test.mjs && node /tmp/ytcreate-world-renderer-test.mjs"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.240",

@@ -1,0 +1,11 @@
+export { PrimitiveBar } from "../../primitives/PrimitiveBar";
+export { PrimitiveIcon } from "../../primitives/PrimitiveIcon";
+export { PrimitiveImage } from "../../primitives/PrimitiveImage";
+export { PrimitiveLine } from "../../primitives/PrimitiveLine";
+export { PrimitiveNumber } from "../../primitives/PrimitiveNumber";
+export { PrimitivePoint } from "../../primitives/PrimitivePoint";
+export { PrimitiveProgress } from "../../primitives/PrimitiveProgress";
+export { PrimitiveSegment } from "../../primitives/PrimitiveSegment";
+export { PrimitiveShape } from "../../primitives/PrimitiveShape";
+export { PrimitiveText } from "../../primitives/PrimitiveText";
+export { PrimitiveVideo } from "../../primitives/PrimitiveVideo";

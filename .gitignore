@@ -35,3 +35,7 @@ renderer/remotion/test-outputs/
 renderer/remotion/test-renders/
 renderer/remotion/public/run_*
 backend/.data/
+output/
+*.sqlite3
+backend/*user_prompt.txt
+renderer/remotion/primitive_demo_rendered.png

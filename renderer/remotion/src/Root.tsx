@@ -1,4 +1,5 @@
 import { Composition } from "remotion";
+import type { FC } from "react";
 import { SplitComparison } from "./SplitComparison";
 import { Timeline } from "./Timeline";
 import { ProcessFlow } from "./ProcessFlow";
@@ -32,7 +33,13 @@ import { RangeThreshold } from "./compositions/RangeThreshold";
 import { TimelineMilestone } from "./compositions/TimelineMilestone";
 import { VideoAssembly } from "./VideoAssembly";
 import { Thumbnail, defaultThumbnailProps } from "./Thumbnail";
+import { PrimitiveDemo } from "./primitives";
+import { WorldComposition } from "./world/WorldComposition";
+import { loanCompiledWorld } from "./world/loanCompiledWorldFixture";
 import { type SplitComparisonRenderSpec, type VideoAssemblyRenderSpec } from "./types";
+import { HierarchyTestComposition } from "./world/HierarchyTestComposition";
+import { RealHierarchyTestComposition } from "./world/RealHierarchyTestComposition";
+import { UrbanSqueezeProductionTestComposition } from "./world/UrbanSqueezeProductionTestComposition";
 
 const defaultProps: SplitComparisonRenderSpec = {
   scene_id: "scene_01",
@@ -379,6 +386,56 @@ export function RemotionRoot() {
         width={1280}
         height={720}
         defaultProps={defaultThumbnailProps as any}
+      />
+      <Composition
+        id="PrimitiveDemo"
+        component={PrimitiveDemo}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="WorldComposition"
+        component={WorldComposition as unknown as FC<Record<string, unknown>>}
+        durationInFrames={loanCompiledWorld.total_duration_frames}
+        fps={loanCompiledWorld.canvas_config.fps}
+        width={loanCompiledWorld.canvas_config.width}
+        height={loanCompiledWorld.canvas_config.height}
+        defaultProps={{ world: loanCompiledWorld }}
+        calculateMetadata={({ props }) => {
+          const w = (props as { world?: { total_duration_frames?: number; canvas_config?: { fps?: number; width?: number; height?: number } } })?.world;
+          return {
+            durationInFrames: w?.total_duration_frames || loanCompiledWorld.total_duration_frames,
+            fps: w?.canvas_config?.fps || loanCompiledWorld.canvas_config.fps,
+            width: w?.canvas_config?.width || loanCompiledWorld.canvas_config.width,
+            height: w?.canvas_config?.height || loanCompiledWorld.canvas_config.height,
+          };
+        }}
+      />
+      <Composition
+        id="HierarchyTest"
+        component={HierarchyTestComposition}
+        durationInFrames={120}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="RealHierarchyTest"
+        component={RealHierarchyTestComposition}
+        durationInFrames={120}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="UrbanSqueezeProductionTest"
+        component={UrbanSqueezeProductionTestComposition}
+        durationInFrames={7879}
+        fps={30}
+        width={1920}
+        height={1080}
       />
     </>
   );

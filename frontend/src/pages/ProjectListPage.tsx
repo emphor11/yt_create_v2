@@ -14,6 +14,8 @@ import {
   runScriptVisualStrategy,
   runQualityReview,
   runVoiceGeneration,
+  runStoryboard,
+  runWorldCompiler,
   runVideoAssembly,
   runRender,
   runYoutubeMetadata,
@@ -44,7 +46,7 @@ export function ProjectListPage() {
   const [angle, setAngle] = useState("");
   const [runMode, setRunMode] = useState<RunMode>("ai");
   const [durationProfile, setDurationProfile] = useState<DurationProfile>("short_2min");
-  const [visualMode, setVisualMode] = useState<VisualMode>("composition");
+  const [visualMode, setVisualMode] = useState<VisualMode>("world");
   const [isBusy, setIsBusy] = useState(false);
   const [isRunningStage, setIsRunningStage] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export function ProjectListPage() {
       setAngle("");
       setRunMode("ai");
       setDurationProfile("short_2min");
-      setVisualMode("composition");
+      setVisualMode("world");
       await selectProject(created.project);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -239,6 +241,40 @@ export function ProjectListPage() {
     setError(null);
     try {
       const response = await runVoiceGeneration(selectedProject.id, selectedRun.id);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
+      await selectArtifact(response.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+    }
+  }
+
+  async function handleRunStoryboard() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      const response = await runStoryboard(selectedProject.id, selectedRun.id);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
+      await selectArtifact(response.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+    }
+  }
+
+  async function handleRunWorldCompiler() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      const response = await runWorldCompiler(selectedProject.id, selectedRun.id);
       await refreshRunArtifacts(selectedProject.id, selectedRun.id);
       await selectArtifact(response.artifact);
     } catch (requestError) {
@@ -435,6 +471,8 @@ export function ProjectListPage() {
           onRunScriptVisualStrategy={handleRunScriptVisualStrategy}
           onRunQualityReview={handleRunQualityReview}
           onRunVoiceGeneration={handleRunVoiceGeneration}
+          onRunStoryboard={handleRunStoryboard}
+          onRunWorldCompiler={handleRunWorldCompiler}
           onRunVideoAssembly={handleRunVideoAssembly}
           onRunRender={handleRunRender}
           onRunYoutubeMetadata={handleRunYoutubeMetadata}

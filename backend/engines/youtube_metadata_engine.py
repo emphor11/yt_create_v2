@@ -78,7 +78,8 @@ class YoutubeMetadataEngine:
     def run(
         self,
         *,
-        render_spec: RenderSpec,
+        render_spec: RenderSpec | None = None,
+        chapter_cues: list[str] | None = None,
         hook: Hook | None = None,
         research: ResearchPacket | None = None,
         topic: str = "",
@@ -87,32 +88,34 @@ class YoutubeMetadataEngine:
         if self.llm_provider is None:
             raise YoutubeMetadataEngineError("LLMProvider is required for YoutubeMetadataEngine.")
 
-        # Extract timestamps and scene narration to provide precise chapter markers
-        fps = render_spec.fps or 30
-        if isinstance(render_spec.props, dict):
-            raw_scenes = render_spec.props.get("scenes", [])
-        else:
-            raw_scenes = getattr(render_spec.props, "scenes", [])
-
-        chapter_cues: list[str] = []
-        if raw_scenes:
-            for idx, scene in enumerate(raw_scenes):
-                if hasattr(scene, "model_dump"):
-                    scene_dict = scene.model_dump()
-                elif isinstance(scene, dict):
-                    scene_dict = scene
+        if chapter_cues is None:
+            chapter_cues = []
+            if render_spec is not None:
+                fps = render_spec.fps or 30
+                if isinstance(render_spec.props, dict):
+                    raw_scenes = render_spec.props.get("scenes", [])
                 else:
-                    scene_dict = {}
+                    raw_scenes = getattr(render_spec.props, "scenes", [])
 
-                start_f = scene_dict.get("start_frame", 0)
-                seconds = int(start_f / fps)
-                mm = seconds // 60
-                ss = seconds % 60
-                ts = f"{mm:02d}:{ss:02d}"
-                narr = (scene_dict.get("narration_text") or scene_dict.get("scene_id") or f"Section {idx + 1}").strip()
-                chapter_cues.append(f"{ts} - {narr[:80]}")
-        else:
-            chapter_cues = ["00:00 - Introduction", "00:30 - Deep Dive", "01:00 - Conclusion"]
+                if raw_scenes:
+                    for idx, scene in enumerate(raw_scenes):
+                        if hasattr(scene, "model_dump"):
+                            scene_dict = scene.model_dump()
+                        elif isinstance(scene, dict):
+                            scene_dict = scene
+                        else:
+                            scene_dict = {}
+
+                        start_f = scene_dict.get("start_frame", 0)
+                        seconds = int(start_f / fps)
+                        mm = seconds // 60
+                        ss = seconds % 60
+                        ts = f"{mm:02d}:{ss:02d}"
+                        narr = (scene_dict.get("narration_text") or scene_dict.get("scene_id") or f"Section {idx + 1}").strip()
+                        chapter_cues.append(f"{ts} - {narr[:80]}")
+
+            if not chapter_cues:
+                chapter_cues = ["00:00 - Introduction", "00:30 - Deep Dive", "01:00 - Conclusion"]
 
 
         hook_text = hook.conceptual_hook if hook else ""

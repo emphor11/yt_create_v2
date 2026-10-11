@@ -30,6 +30,8 @@ from app.stage_handlers.render_handler import RenderHandler
 from app.stage_handlers.youtube_metadata_handler import YoutubeMetadataHandler
 from app.stage_handlers.thumbnail_handler import ThumbnailHandler
 from app.stage_handlers.youtube_upload_handler import YoutubeUploadHandler
+from app.stage_handlers.storyboard_handler import StoryboardHandler
+from app.stage_handlers.world_compiler_handler import WorldCompilerHandler
 
 from engines.render_engine import RenderEngine
 from engines.research_engine import ResearchEngine
@@ -69,7 +71,7 @@ class PipelineServiceError(Exception):
     """Raised when a pipeline stage cannot run due to a business rule violation."""
 
 
-OPTIONAL_STAGES: set[str] = {"thumbnail"}
+OPTIONAL_STAGES: set[str] = {"thumbnail", "video_assembly"}
 
 AI_STAGE_DEFINITIONS: list[tuple[str, str]] = [
     ("generate_video_request",  "generate_video_request"),
@@ -79,6 +81,8 @@ AI_STAGE_DEFINITIONS: list[tuple[str, str]] = [
     ("script_visual_strategy",  "script_visual_strategy"),
     ("quality_review",          "review_result"),
     ("voice_generation",        "voice_track"),
+    ("storyboard",              "storyboard"),
+    ("world_compiler",          "compiled_world"),
     ("video_assembly",          "render_spec"),
     ("render",                  "video"),
     ("youtube_metadata",        "youtube_metadata"),
@@ -93,7 +97,9 @@ NEXT_STAGE_BY_ARTIFACT_TYPE: dict[str, str | None] = {
     "hook":                   "script_visual_strategy",
     "script_visual_strategy": "quality_review",
     "review_result":          "voice_generation",
-    "voice_track":            "video_assembly",
+    "voice_track":            "storyboard",
+    "storyboard":             "world_compiler",
+    "compiled_world":         "render",
     "render_spec":            "render",
     "video":                  "youtube_metadata",
     "youtube_metadata":       "youtube_upload",
@@ -320,6 +326,16 @@ def build_pipeline_service(
             media_storage=media_storage,
             voice_provider=voice_provider,
             voice_validator=VoiceTrackValidator(),
+            stage_logger=stage_logger,
+        ),
+        PipelineStage.STORYBOARD: StoryboardHandler(
+            store=store,
+            llm_provider=llm_provider,
+            stage_logger=stage_logger,
+        ),
+        PipelineStage.WORLD_COMPILER: WorldCompilerHandler(
+            store=store,
+            media_storage=media_storage,
             stage_logger=stage_logger,
         ),
         PipelineStage.RENDER: RenderHandler(

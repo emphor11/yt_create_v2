@@ -170,7 +170,7 @@ class GeminiProvider:
             "responseMimeType": "application/json",
         }
         if llm_request.response_schema:
-            generation_config["responseSchema"] = self._clean_schema_for_gemini(
+            generation_config["responseJsonSchema"] = self._clean_schema_for_gemini(
                 llm_request.response_schema
             )
 
@@ -185,7 +185,7 @@ class GeminiProvider:
     @staticmethod
     def _clean_schema_for_gemini(schema: dict[str, Any]) -> dict[str, Any]:
         """Recursively dereference '$ref' pointers, remove '$defs'/'definitions',
-        and remove 'additionalProperties' since Gemini API v1beta does not support them.
+        and preserve supported JSON Schema fields.
         """
         def _collect_defs(node: Any, defs_map: dict[str, dict[str, Any]]) -> None:
             if isinstance(node, dict):
@@ -225,7 +225,7 @@ class GeminiProvider:
 
             cleaned: dict[str, Any] = {}
             for k, v in node.items():
-                if k in ("additionalProperties", "$defs", "definitions"):
+                if k in ("$defs", "definitions"):
                     continue
                 cleaned[k] = _resolve_and_clean(v, set(visited_refs))
 

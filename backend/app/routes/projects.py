@@ -21,7 +21,7 @@ class CreateProjectRequest(BaseModel):
     style: str = ""
     channel: str = ""
     duration_profile: DurationProfile = DurationProfile.SHORT_2MIN
-    visual_mode: VisualMode = VisualMode.LEGACY
+    visual_mode: VisualMode = VisualMode.WORLD
 
 
 class CreateProjectResponse(BaseModel):

@@ -20,6 +20,8 @@ class PipelineStage(str, Enum):
     RENDER_SPEC = "render_spec"
     RENDER = "render"
     VIDEO_ASSEMBLY = "video_assembly"
+    STORYBOARD = "storyboard"
+    WORLD_COMPILER = "world_compiler"
     YOUTUBE_METADATA = "youtube_metadata"
     THUMBNAIL = "thumbnail"
     YOUTUBE_UPLOAD = "youtube_upload"

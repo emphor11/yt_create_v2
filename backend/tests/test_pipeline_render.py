@@ -20,6 +20,11 @@ class SuccessfulProvider:
         output_path.write_bytes(b"fake mp4")
         return RemotionRenderOutput(output_path=output_path, size_bytes=8)
 
+    def render_world(self, *, compiled_world: dict, output_path: Path) -> RemotionRenderOutput:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"fake world mp4")
+        return RemotionRenderOutput(output_path=output_path, size_bytes=14)
+
 
 class FailingProvider:
     def render(self, *, render_spec, output_path: Path) -> RemotionRenderOutput:
@@ -189,3 +194,58 @@ def test_render_failure_is_stored_as_failed_video_artifact(tmp_path) -> None:
     assert payload["render_status"] == "failed"
     assert payload["storage_key"] is None
     assert "render failed" in payload["error_message"]
+
+
+def test_render_world_with_voice_track_succeeds(tmp_path) -> None:
+    client, store, media_storage = make_client(tmp_path, provider=SuccessfulProvider())
+    created = create_valid_project(client)
+    project_id = created["project"]["id"]
+    run_id = created["run"]["id"]
+
+    # Save mock voice_track artifact with existing audio file
+    audio_key = f"projects/{project_id}/runs/{run_id}/narration.mp3"
+    audio_file = media_storage.path_for_key(audio_key)
+    audio_file.parent.mkdir(parents=True, exist_ok=True)
+    audio_file.write_bytes(b"fake audio data")
+
+    store.save_artifact(
+        project_id=project_id,
+        run_id=run_id,
+        artifact_type="voice_track",
+        schema_version="1",
+        payload_json={
+            "storage_key": audio_key,
+            "duration_seconds": 10.0,
+        },
+        parent_artifact_roles_json={},
+        validation_json=ValidationResult(status="valid"),
+    )
+
+    # Save mock compiled_world artifact
+    store.save_artifact(
+        project_id=project_id,
+        run_id=run_id,
+        artifact_type="compiled_world",
+        schema_version="1",
+        payload_json={
+            "world_id": "test_world",
+            "canvas_config": {"width": 1920, "height": 1080, "fps": 30},
+            "total_duration_frames": 300,
+            "objects": [],
+            "state_tracks": [],
+            "animation_tracks": [],
+        },
+        parent_artifact_roles_json={},
+        validation_json=ValidationResult(status="valid"),
+    )
+
+    response = client.post(
+        f"/projects/{project_id}/runs/{run_id}/run/render"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["validation"]["status"] == "valid"
+    assert body["artifact"]["status"] == "valid"
+    assert body["artifact"]["payload_json"]["render_status"] == "succeeded"
+

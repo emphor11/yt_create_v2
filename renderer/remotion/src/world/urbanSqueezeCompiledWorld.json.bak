@@ -1,0 +1,1508 @@
+{
+  "schema_version": "1",
+  "world_id": "world_urban_squeeze_01",
+  "canvas_config": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_x": 120.0,
+    "safe_margin_y": 80.0
+  },
+  "total_duration_frames": 7879,
+  "beat_intervals": [
+    {
+      "beat_id": "beat_01",
+      "start_ms": 187,
+      "end_ms": 19459,
+      "start_frame": 6,
+      "end_frame": 584
+    },
+    {
+      "beat_id": "beat_02",
+      "start_ms": 19865,
+      "end_ms": 55867,
+      "start_frame": 596,
+      "end_frame": 1676
+    },
+    {
+      "beat_id": "beat_03",
+      "start_ms": 56369,
+      "end_ms": 89953,
+      "start_frame": 1691,
+      "end_frame": 2699
+    },
+    {
+      "beat_id": "beat_04",
+      "start_ms": 90305,
+      "end_ms": 121963,
+      "start_frame": 2709,
+      "end_frame": 3659
+    },
+    {
+      "beat_id": "beat_05",
+      "start_ms": 122273,
+      "end_ms": 159085,
+      "start_frame": 3668,
+      "end_frame": 4773
+    },
+    {
+      "beat_id": "beat_06",
+      "start_ms": 159569,
+      "end_ms": 193348,
+      "start_frame": 4787,
+      "end_frame": 5800
+    },
+    {
+      "beat_id": "beat_07",
+      "start_ms": 193913,
+      "end_ms": 227056,
+      "start_frame": 5817,
+      "end_frame": 6812
+    },
+    {
+      "beat_id": "beat_08",
+      "start_ms": 227587,
+      "end_ms": 262439,
+      "start_frame": 6828,
+      "end_frame": 7873
+    }
+  ],
+  "speech_anchors": [
+    {
+      "anchor_id": "action:beat_01:act_01",
+      "beat_id": "beat_01",
+      "text": "India",
+      "occurrence": 1,
+      "start_ms": 187,
+      "end_ms": 412,
+      "global_frame": 6
+    },
+    {
+      "anchor_id": "action:beat_01:act_02",
+      "beat_id": "beat_01",
+      "text": "Yet",
+      "occurrence": 1,
+      "start_ms": 4922,
+      "end_ms": 5057,
+      "global_frame": 148
+    },
+    {
+      "anchor_id": "action:beat_02:act_03",
+      "beat_id": "beat_02",
+      "text": "top",
+      "occurrence": 1,
+      "start_ms": 38467,
+      "end_ms": 38602,
+      "global_frame": 1154
+    },
+    {
+      "anchor_id": "action:beat_02:act_04",
+      "beat_id": "beat_02",
+      "text": "bottom",
+      "occurrence": 1,
+      "start_ms": 44675,
+      "end_ms": 44945,
+      "global_frame": 1340
+    },
+    {
+      "anchor_id": "action:beat_03:act_05",
+      "beat_id": "beat_03",
+      "text": "housing",
+      "occurrence": 1,
+      "start_ms": 72320,
+      "end_ms": 72635,
+      "global_frame": 2170
+    },
+    {
+      "anchor_id": "action:beat_04:act_06",
+      "beat_id": "beat_04",
+      "text": "Annual",
+      "occurrence": 1,
+      "start_ms": 96643,
+      "end_ms": 96913,
+      "global_frame": 2899
+    },
+    {
+      "anchor_id": "action:beat_04:act_07",
+      "beat_id": "beat_04",
+      "text": "urban",
+      "occurrence": 1,
+      "start_ms": 111621,
+      "end_ms": 111846,
+      "global_frame": 3349
+    },
+    {
+      "anchor_id": "action:beat_05:act_08",
+      "beat_id": "beat_05",
+      "text": "ten",
+      "occurrence": 1,
+      "start_ms": 125615,
+      "end_ms": 125750,
+      "global_frame": 3768
+    },
+    {
+      "anchor_id": "action:beat_05:act_09",
+      "beat_id": "beat_05",
+      "text": "thirteen",
+      "occurrence": 1,
+      "start_ms": 128901,
+      "end_ms": 129261,
+      "global_frame": 3867
+    },
+    {
+      "anchor_id": "action:beat_05:act_10",
+      "beat_id": "beat_05",
+      "text": "apartment",
+      "occurrence": 1,
+      "start_ms": 137378,
+      "end_ms": 137783,
+      "global_frame": 4121
+    },
+    {
+      "anchor_id": "action:beat_05:act_11",
+      "beat_id": "beat_05",
+      "text": "children's",
+      "occurrence": 1,
+      "start_ms": 139825,
+      "end_ms": 140218,
+      "global_frame": 4195
+    },
+    {
+      "anchor_id": "action:beat_05:act_12",
+      "beat_id": "beat_05",
+      "text": "grocery",
+      "occurrence": 1,
+      "start_ms": 142588,
+      "end_ms": 142903,
+      "global_frame": 4278
+    },
+    {
+      "anchor_id": "action:beat_06:act_13",
+      "beat_id": "beat_06",
+      "text": "savings",
+      "occurrence": 1,
+      "start_ms": 169056,
+      "end_ms": 169371,
+      "global_frame": 5072
+    },
+    {
+      "anchor_id": "action:beat_06:act_14",
+      "beat_id": "beat_06",
+      "text": "historical",
+      "occurrence": 1,
+      "start_ms": 173900,
+      "end_ms": 174350,
+      "global_frame": 5217
+    },
+    {
+      "anchor_id": "action:beat_07:act_15",
+      "beat_id": "beat_07",
+      "text": "salaries",
+      "occurrence": 1,
+      "start_ms": 207854,
+      "end_ms": 208214,
+      "global_frame": 6236
+    },
+    {
+      "anchor_id": "action:beat_07:act_16",
+      "beat_id": "beat_07",
+      "text": "property",
+      "occurrence": 1,
+      "start_ms": 210263,
+      "end_ms": 210623,
+      "global_frame": 6308
+    },
+    {
+      "anchor_id": "action:beat_08:act_17",
+      "beat_id": "beat_08",
+      "text": "macroeconomic",
+      "occurrence": 1,
+      "start_ms": 239256,
+      "end_ms": 239841,
+      "global_frame": 7178
+    },
+    {
+      "anchor_id": "action:beat_08:act_18",
+      "beat_id": "beat_08",
+      "text": "True",
+      "occurrence": 1,
+      "start_ms": 251824,
+      "end_ms": 252004,
+      "global_frame": 7555
+    }
+  ],
+  "transition_events": [
+    {
+      "event_id": "transition:beat_01:beat_02",
+      "from_beat_id": "beat_01",
+      "to_beat_id": "beat_02",
+      "global_frame": 596,
+      "kind": "continue",
+      "preserve_object_ids": []
+    },
+    {
+      "event_id": "transition:beat_02:beat_03",
+      "from_beat_id": "beat_02",
+      "to_beat_id": "beat_03",
+      "global_frame": 1691,
+      "kind": "continue",
+      "preserve_object_ids": []
+    },
+    {
+      "event_id": "transition:beat_03:beat_04",
+      "from_beat_id": "beat_03",
+      "to_beat_id": "beat_04",
+      "global_frame": 2709,
+      "kind": "continue",
+      "preserve_object_ids": [
+        "rent_inflation_metric"
+      ]
+    },
+    {
+      "event_id": "transition:beat_04:beat_05",
+      "from_beat_id": "beat_04",
+      "to_beat_id": "beat_05",
+      "global_frame": 3668,
+      "kind": "continue",
+      "preserve_object_ids": [
+        "rent_inflation_metric"
+      ]
+    },
+    {
+      "event_id": "transition:beat_05:beat_06",
+      "from_beat_id": "beat_05",
+      "to_beat_id": "beat_06",
+      "global_frame": 4787,
+      "kind": "continue",
+      "preserve_object_ids": []
+    },
+    {
+      "event_id": "transition:beat_06:beat_07",
+      "from_beat_id": "beat_06",
+      "to_beat_id": "beat_07",
+      "global_frame": 5817,
+      "kind": "continue",
+      "preserve_object_ids": []
+    },
+    {
+      "event_id": "transition:beat_07:beat_08",
+      "from_beat_id": "beat_07",
+      "to_beat_id": "beat_08",
+      "global_frame": 6828,
+      "kind": "continue",
+      "preserve_object_ids": []
+    }
+  ],
+  "primitives": {
+    "gdp_growth_metric": {
+      "object_id": "gdp_growth_metric",
+      "primitive_type": "number",
+      "parent_object_id": null,
+      "child_object_ids": [],
+      "local_geometry": {
+        "x": 144.0,
+        "y": 104.0,
+        "width": 69.44,
+        "height": 33.6
+      },
+      "style": {
+        "fill": null,
+        "stroke": null,
+        "stroke_width": null,
+        "stroke_style": "solid",
+        "corner_radius": null,
+        "opacity": 1.0,
+        "shadow": null,
+        "blur_backdrop": null,
+        "blend_mode": "normal"
+      },
+      "properties": {
+        "tabular_nums": true,
+        "font_size": 28.0,
+        "font_weight": 400
+      },
+      "connector_path": null
+    },
+    "savings_metric": {
+      "object_id": "savings_metric",
+      "primitive_type": "number",
+      "parent_object_id": null,
+      "child_object_ids": [],
+      "local_geometry": {
+        "x": 1000.0,
+        "y": 104.0,
+        "width": 69.44,
+        "height": 33.6
+      },
+      "style": {
+        "fill": null,
+        "stroke": null,
+        "stroke_width": null,
+        "stroke_style": "solid",
+        "corner_radius": null,
+        "opacity": 1.0,
+        "shadow": null,
+        "blur_backdrop": null,
+        "blend_mode": "normal"
+      },
+      "properties": {
+        "tabular_nums": true,
+        "font_size": 28.0,
+        "font_weight": 400
+      },
+      "connector_path": null
+    },
+    "top_wealth_share": {
+      "object_id": "top_wealth_share",
+      "primitive_type": "number",
+      "parent_object_id": null,
+      "child_object_ids": [],
+      "local_geometry": {
+        "x": 144.0,
+        "y": 161.6,
+        "width": 86.8,
+        "height": 33.6
+      },
+      "style": {
+        "fill": null,
+        "stroke": null,
+        "stroke_width": null,
+        "stroke_style": "solid",
+        "corner_radius": null,
+        "opacity": 1.0,
+        "shadow": null,
+        "blur_backdrop": null,
+        "blend_mode": "normal"
+      },
+      "properties": {
+        "tabular_nums": true,
+        "font_size": 28.0,
+        "font_weight": 400
+      },
+      "connector_path": null
+    },
+    "bottom_wealth_share": {
+      "object_id": "bottom_wealth_share",
+      "primitive_type": "number",
+      "parent_object_id": null,
+      "child_object_ids": [],
+      "local_geometry": {
+        "x": 1000.0,
+        "y": 161.6,
+        "width": 69.44,
+        "height": 33.6
+      },
+      "style": {
+        "fill": null,
+        "stroke": null,
+        "stroke_width": null,
+        "stroke_style": "solid",
+        "corner_radius": null,
+        "opacity": 1.0,
+        "shadow": null,
+        "blur_backdrop": null,
+        "blend_mode": "normal"
+      },
+      "properties": {
+        "tabular_nums": true,
+        "font_size": 28.0,
+        "font_weight": 400
+      },
+      "connector_path": null
+    },
+    "salary_increment_metric": {
+      "object_id": "salary_increment_metric",
+      "primitive_type": "number",
+      "parent_object_id": null,
+      "child_object_ids": [],
+      "local_geometry": {
+        "x": 144.0,
+        "y": 219.2,
+        "width": 69.44,
+        "height": 33.6
+      },
+      "style": {
+        "fill": null,
+        "stroke": null,
+        "stroke_width": null,
+        "stroke_style": "solid",
+        "corner_radius": null,
+        "opacity": 1.0,
+        "shadow": null,
+        "blur_backdrop": null,
+        "blend_mode": "normal"
+      },
+      "properties": {
+        "tabular_nums": true,
+        "font_size": 28.0,
+        "font_weight": 400
+      },
+      "connector_path": null
+    },
+    "engineer_salary_2019": {
+      "object_id": "engineer_salary_2019",
+      "primitive_type": "number",
+      "parent_object_id": null,
+      "child_object_ids": [],
+      "local_geometry": {
+        "x": 437.24,
+        "y": 270.2,
+        "width": 121.52,
+        "height": 33.6
+      },
+      "style": {
+        "fill": null,
+        "stroke": null,
+        "stroke_width": null,
+        "stroke_style": "solid",
+        "corner_radius": null,
+        "opacity": 1.0,
+        "shadow": null,
+        "blur_backdrop": null,
+        "blend_mode": "normal"
+      },
+      "properties": {
+        "tabular_nums": true,
+        "font_size": 28.0,
+        "font_weight": 400
+      },
+      "connector_path": null
+    },
+    "engineer_salary_2024": {
+      "object_id": "engineer_salary_2024",
+      "primitive_type": "number",
+      "parent_object_id": null,
+      "child_object_ids": [],
+      "local_geometry": {
+        "x": 437.24,
+        "y": 776.2,
+        "width": 121.52,
+        "height": 33.6
+      },
+      "style": {
+        "fill": null,
+        "stroke": null,
+        "stroke_width": null,
+        "stroke_style": "solid",
+        "corner_radius": null,
+        "opacity": 1.0,
+        "shadow": null,
+        "blur_backdrop": null,
+        "blend_mode": "normal"
+      },
+      "properties": {
+        "tabular_nums": true,
+        "font_size": 28.0,
+        "font_weight": 400
+      },
+      "connector_path": null
+    },
+    "rent_inflation_metric": {
+      "object_id": "rent_inflation_metric",
+      "primitive_type": "number",
+      "parent_object_id": null,
+      "child_object_ids": [],
+      "local_geometry": {
+        "x": 916.6,
+        "y": 523.2,
+        "width": 86.8,
+        "height": 33.6
+      },
+      "style": {
+        "fill": null,
+        "stroke": null,
+        "stroke_width": null,
+        "stroke_style": "solid",
+        "corner_radius": null,
+        "opacity": 1.0,
+        "shadow": null,
+        "blur_backdrop": null,
+        "blend_mode": "normal"
+      },
+      "properties": {
+        "tabular_nums": true,
+        "font_size": 28.0,
+        "font_weight": 400
+      },
+      "connector_path": null
+    },
+    "school_fees_metric": {
+      "object_id": "school_fees_metric",
+      "primitive_type": "number",
+      "parent_object_id": null,
+      "child_object_ids": [],
+      "local_geometry": {
+        "x": 1000.0,
+        "y": 219.2,
+        "width": 86.8,
+        "height": 33.6
+      },
+      "style": {
+        "fill": null,
+        "stroke": null,
+        "stroke_width": null,
+        "stroke_style": "solid",
+        "corner_radius": null,
+        "opacity": 1.0,
+        "shadow": null,
+        "blur_backdrop": null,
+        "blend_mode": "normal"
+      },
+      "properties": {
+        "tabular_nums": true,
+        "font_size": 28.0,
+        "font_weight": 400
+      },
+      "connector_path": null
+    },
+    "grocery_inflation_metric": {
+      "object_id": "grocery_inflation_metric",
+      "primitive_type": "number",
+      "parent_object_id": null,
+      "child_object_ids": [],
+      "local_geometry": {
+        "x": 1378.6,
+        "y": 776.2,
+        "width": 86.8,
+        "height": 33.6
+      },
+      "style": {
+        "fill": null,
+        "stroke": null,
+        "stroke_width": null,
+        "stroke_style": "solid",
+        "corner_radius": null,
+        "opacity": 1.0,
+        "shadow": null,
+        "blur_backdrop": null,
+        "blend_mode": "normal"
+      },
+      "properties": {
+        "tabular_nums": true,
+        "font_size": 28.0,
+        "font_weight": 400
+      },
+      "connector_path": null
+    },
+    "historical_savings_metric": {
+      "object_id": "historical_savings_metric",
+      "primitive_type": "number",
+      "parent_object_id": null,
+      "child_object_ids": [],
+      "local_geometry": {
+        "x": 1000.0,
+        "y": 276.8,
+        "width": 86.8,
+        "height": 33.6
+      },
+      "style": {
+        "fill": null,
+        "stroke": null,
+        "stroke_width": null,
+        "stroke_style": "solid",
+        "corner_radius": null,
+        "opacity": 1.0,
+        "shadow": null,
+        "blur_backdrop": null,
+        "blend_mode": "normal"
+      },
+      "properties": {
+        "tabular_nums": true,
+        "font_size": 28.0,
+        "font_weight": 400
+      },
+      "connector_path": null
+    }
+  },
+  "lifecycle_tracks": [
+    {
+      "object_id": "gdp_growth_metric",
+      "introduced_frame": 6,
+      "exit_frame": null,
+      "mode": "persistent"
+    },
+    {
+      "object_id": "savings_metric",
+      "introduced_frame": 6,
+      "exit_frame": null,
+      "mode": "persistent"
+    },
+    {
+      "object_id": "top_wealth_share",
+      "introduced_frame": 596,
+      "exit_frame": null,
+      "mode": "persistent"
+    },
+    {
+      "object_id": "bottom_wealth_share",
+      "introduced_frame": 596,
+      "exit_frame": null,
+      "mode": "persistent"
+    },
+    {
+      "object_id": "salary_increment_metric",
+      "introduced_frame": 2709,
+      "exit_frame": null,
+      "mode": "persistent"
+    },
+    {
+      "object_id": "engineer_salary_2019",
+      "introduced_frame": 3668,
+      "exit_frame": null,
+      "mode": "persistent"
+    },
+    {
+      "object_id": "engineer_salary_2024",
+      "introduced_frame": 3668,
+      "exit_frame": null,
+      "mode": "persistent"
+    },
+    {
+      "object_id": "rent_inflation_metric",
+      "introduced_frame": 1691,
+      "exit_frame": null,
+      "mode": "persistent"
+    },
+    {
+      "object_id": "school_fees_metric",
+      "introduced_frame": 3668,
+      "exit_frame": null,
+      "mode": "persistent"
+    },
+    {
+      "object_id": "grocery_inflation_metric",
+      "introduced_frame": 3668,
+      "exit_frame": null,
+      "mode": "persistent"
+    },
+    {
+      "object_id": "historical_savings_metric",
+      "introduced_frame": 4787,
+      "exit_frame": null,
+      "mode": "persistent"
+    }
+  ],
+  "visibility_intervals": [
+    {
+      "object_id": "gdp_growth_metric",
+      "start_frame": 6,
+      "end_frame": 7178
+    },
+    {
+      "object_id": "gdp_growth_metric",
+      "start_frame": 7178,
+      "end_frame": 7879
+    },
+    {
+      "object_id": "savings_metric",
+      "start_frame": 148,
+      "end_frame": 5072
+    },
+    {
+      "object_id": "savings_metric",
+      "start_frame": 5072,
+      "end_frame": 7555
+    },
+    {
+      "object_id": "savings_metric",
+      "start_frame": 7555,
+      "end_frame": 7879
+    },
+    {
+      "object_id": "top_wealth_share",
+      "start_frame": 1154,
+      "end_frame": 7879
+    },
+    {
+      "object_id": "bottom_wealth_share",
+      "start_frame": 1340,
+      "end_frame": 7879
+    },
+    {
+      "object_id": "salary_increment_metric",
+      "start_frame": 2899,
+      "end_frame": 6236
+    },
+    {
+      "object_id": "salary_increment_metric",
+      "start_frame": 6236,
+      "end_frame": 7879
+    },
+    {
+      "object_id": "engineer_salary_2019",
+      "start_frame": 3768,
+      "end_frame": 7879
+    },
+    {
+      "object_id": "engineer_salary_2024",
+      "start_frame": 3867,
+      "end_frame": 7879
+    },
+    {
+      "object_id": "rent_inflation_metric",
+      "start_frame": 2170,
+      "end_frame": 3349
+    },
+    {
+      "object_id": "rent_inflation_metric",
+      "start_frame": 3349,
+      "end_frame": 4121
+    },
+    {
+      "object_id": "rent_inflation_metric",
+      "start_frame": 4121,
+      "end_frame": 6308
+    },
+    {
+      "object_id": "rent_inflation_metric",
+      "start_frame": 6308,
+      "end_frame": 7879
+    },
+    {
+      "object_id": "school_fees_metric",
+      "start_frame": 4195,
+      "end_frame": 7879
+    },
+    {
+      "object_id": "grocery_inflation_metric",
+      "start_frame": 4278,
+      "end_frame": 7879
+    },
+    {
+      "object_id": "historical_savings_metric",
+      "start_frame": 5217,
+      "end_frame": 7879
+    }
+  ],
+  "state_tracks": [
+    {
+      "object_id": "gdp_growth_metric",
+      "initial_state": {
+        "value": 7.5,
+        "suffix": "%"
+      },
+      "changes": [
+        {
+          "event_id": "evt_layout_gdp_move_beat08",
+          "object_id": "gdp_growth_metric",
+          "beat_id": "beat_08",
+          "global_frame": 6828,
+          "kind": "layout",
+          "target_property": "layout",
+          "from_value": {
+            "x": 144.0,
+            "y": 104.0,
+            "width": 69.44,
+            "height": 33.6
+          },
+          "to_value": {
+            "x": 497.28,
+            "y": 523.2,
+            "width": 69.44,
+            "height": 33.6
+          },
+          "visible": true
+        }
+      ]
+    },
+    {
+      "object_id": "savings_metric",
+      "initial_state": {
+        "value": 5.3,
+        "suffix": "%"
+      },
+      "changes": [
+        {
+          "event_id": "evt_layout_savings_move_beat06",
+          "object_id": "savings_metric",
+          "beat_id": "beat_06",
+          "global_frame": 4787,
+          "kind": "layout",
+          "target_property": "layout",
+          "from_value": {
+            "x": 1000.0,
+            "y": 104.0,
+            "width": 69.44,
+            "height": 33.6
+          },
+          "to_value": {
+            "x": 497.28,
+            "y": 523.2,
+            "width": 69.44,
+            "height": 33.6
+          },
+          "visible": true
+        },
+        {
+          "event_id": "evt_layout_savings_move_beat08",
+          "object_id": "savings_metric",
+          "beat_id": "beat_08",
+          "global_frame": 6828,
+          "kind": "layout",
+          "target_property": "layout",
+          "from_value": {
+            "x": 497.28,
+            "y": 523.2,
+            "width": 69.44,
+            "height": 33.6
+          },
+          "to_value": {
+            "x": 1353.28,
+            "y": 523.2,
+            "width": 69.44,
+            "height": 33.6
+          },
+          "visible": true
+        }
+      ]
+    },
+    {
+      "object_id": "top_wealth_share",
+      "initial_state": {
+        "value": 57.0,
+        "suffix": "%"
+      },
+      "changes": []
+    },
+    {
+      "object_id": "bottom_wealth_share",
+      "initial_state": {
+        "value": 6.0,
+        "suffix": "%"
+      },
+      "changes": []
+    },
+    {
+      "object_id": "salary_increment_metric",
+      "initial_state": {
+        "value": 9.5,
+        "suffix": "%"
+      },
+      "changes": [
+        {
+          "event_id": "evt_layout_salary_move_beat07",
+          "object_id": "salary_increment_metric",
+          "beat_id": "beat_07",
+          "global_frame": 5817,
+          "kind": "layout",
+          "target_property": "layout",
+          "from_value": {
+            "x": 144.0,
+            "y": 219.2,
+            "width": 69.44,
+            "height": 33.6
+          },
+          "to_value": {
+            "x": 497.28,
+            "y": 523.2,
+            "width": 69.44,
+            "height": 33.6
+          },
+          "visible": true
+        }
+      ]
+    },
+    {
+      "object_id": "engineer_salary_2019",
+      "initial_state": {
+        "value": 10.0,
+        "suffix": "LPA"
+      },
+      "changes": []
+    },
+    {
+      "object_id": "engineer_salary_2024",
+      "initial_state": {
+        "value": 13.0,
+        "suffix": "LPA"
+      },
+      "changes": []
+    },
+    {
+      "object_id": "rent_inflation_metric",
+      "initial_state": {
+        "value": 50.0,
+        "suffix": "%"
+      },
+      "changes": [
+        {
+          "event_id": "evt_layout_rent_move_beat04",
+          "object_id": "rent_inflation_metric",
+          "beat_id": "beat_04",
+          "global_frame": 2709,
+          "kind": "layout",
+          "target_property": "layout",
+          "from_value": {
+            "x": 916.6,
+            "y": 523.2,
+            "width": 86.8,
+            "height": 33.6
+          },
+          "to_value": {
+            "x": 1344.6,
+            "y": 523.2,
+            "width": 86.8,
+            "height": 33.6
+          },
+          "visible": true
+        },
+        {
+          "event_id": "evt_layout_rent_move_beat05",
+          "object_id": "rent_inflation_metric",
+          "beat_id": "beat_05",
+          "global_frame": 3668,
+          "kind": "layout",
+          "target_property": "layout",
+          "from_value": {
+            "x": 1344.6,
+            "y": 523.2,
+            "width": 86.8,
+            "height": 33.6
+          },
+          "to_value": {
+            "x": 1378.6,
+            "y": 270.2,
+            "width": 86.8,
+            "height": 33.6
+          },
+          "visible": true
+        },
+        {
+          "event_id": "evt_layout_rent_move_beat07",
+          "object_id": "rent_inflation_metric",
+          "beat_id": "beat_07",
+          "global_frame": 5817,
+          "kind": "layout",
+          "target_property": "layout",
+          "from_value": {
+            "x": 1378.6,
+            "y": 270.2,
+            "width": 86.8,
+            "height": 33.6
+          },
+          "to_value": {
+            "x": 1344.6,
+            "y": 523.2,
+            "width": 86.8,
+            "height": 33.6
+          },
+          "visible": true
+        }
+      ]
+    },
+    {
+      "object_id": "school_fees_metric",
+      "initial_state": {
+        "value": 40.0,
+        "suffix": "%"
+      },
+      "changes": []
+    },
+    {
+      "object_id": "grocery_inflation_metric",
+      "initial_state": {
+        "value": 35.0,
+        "suffix": "%"
+      },
+      "changes": []
+    },
+    {
+      "object_id": "historical_savings_metric",
+      "initial_state": {
+        "value": 10.0,
+        "suffix": "%"
+      },
+      "changes": []
+    }
+  ],
+  "animation_tracks": [
+    {
+      "animation_id": "evt_layout_gdp_move_beat08",
+      "object_id": "gdp_growth_metric",
+      "trigger_frame": 6828,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "layout",
+      "target_property": "layout",
+      "from_value": {
+        "x": 144.0,
+        "y": 104.0,
+        "width": 69.44,
+        "height": 33.6
+      },
+      "to_value": {
+        "x": 497.28,
+        "y": 523.2,
+        "width": 69.44,
+        "height": 33.6
+      }
+    },
+    {
+      "animation_id": "act_01",
+      "object_id": "gdp_growth_metric",
+      "trigger_frame": 6,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "act_17",
+      "object_id": "gdp_growth_metric",
+      "trigger_frame": 7178,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "evt_layout_savings_move_beat06",
+      "object_id": "savings_metric",
+      "trigger_frame": 4787,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "layout",
+      "target_property": "layout",
+      "from_value": {
+        "x": 1000.0,
+        "y": 104.0,
+        "width": 69.44,
+        "height": 33.6
+      },
+      "to_value": {
+        "x": 497.28,
+        "y": 523.2,
+        "width": 69.44,
+        "height": 33.6
+      }
+    },
+    {
+      "animation_id": "evt_layout_savings_move_beat08",
+      "object_id": "savings_metric",
+      "trigger_frame": 6828,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "layout",
+      "target_property": "layout",
+      "from_value": {
+        "x": 497.28,
+        "y": 523.2,
+        "width": 69.44,
+        "height": 33.6
+      },
+      "to_value": {
+        "x": 1353.28,
+        "y": 523.2,
+        "width": 69.44,
+        "height": 33.6
+      }
+    },
+    {
+      "animation_id": "act_02",
+      "object_id": "savings_metric",
+      "trigger_frame": 148,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "act_13",
+      "object_id": "savings_metric",
+      "trigger_frame": 5072,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "act_18",
+      "object_id": "savings_metric",
+      "trigger_frame": 7555,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "act_03",
+      "object_id": "top_wealth_share",
+      "trigger_frame": 1154,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "act_04",
+      "object_id": "bottom_wealth_share",
+      "trigger_frame": 1340,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "evt_layout_salary_move_beat07",
+      "object_id": "salary_increment_metric",
+      "trigger_frame": 5817,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "layout",
+      "target_property": "layout",
+      "from_value": {
+        "x": 144.0,
+        "y": 219.2,
+        "width": 69.44,
+        "height": 33.6
+      },
+      "to_value": {
+        "x": 497.28,
+        "y": 523.2,
+        "width": 69.44,
+        "height": 33.6
+      }
+    },
+    {
+      "animation_id": "act_06",
+      "object_id": "salary_increment_metric",
+      "trigger_frame": 2899,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "act_15",
+      "object_id": "salary_increment_metric",
+      "trigger_frame": 6236,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "act_08",
+      "object_id": "engineer_salary_2019",
+      "trigger_frame": 3768,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "act_09",
+      "object_id": "engineer_salary_2024",
+      "trigger_frame": 3867,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "evt_layout_rent_move_beat04",
+      "object_id": "rent_inflation_metric",
+      "trigger_frame": 2709,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "layout",
+      "target_property": "layout",
+      "from_value": {
+        "x": 916.6,
+        "y": 523.2,
+        "width": 86.8,
+        "height": 33.6
+      },
+      "to_value": {
+        "x": 1344.6,
+        "y": 523.2,
+        "width": 86.8,
+        "height": 33.6
+      }
+    },
+    {
+      "animation_id": "evt_layout_rent_move_beat05",
+      "object_id": "rent_inflation_metric",
+      "trigger_frame": 3668,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "layout",
+      "target_property": "layout",
+      "from_value": {
+        "x": 1344.6,
+        "y": 523.2,
+        "width": 86.8,
+        "height": 33.6
+      },
+      "to_value": {
+        "x": 1378.6,
+        "y": 270.2,
+        "width": 86.8,
+        "height": 33.6
+      }
+    },
+    {
+      "animation_id": "evt_layout_rent_move_beat07",
+      "object_id": "rent_inflation_metric",
+      "trigger_frame": 5817,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "layout",
+      "target_property": "layout",
+      "from_value": {
+        "x": 1378.6,
+        "y": 270.2,
+        "width": 86.8,
+        "height": 33.6
+      },
+      "to_value": {
+        "x": 1344.6,
+        "y": 523.2,
+        "width": 86.8,
+        "height": 33.6
+      }
+    },
+    {
+      "animation_id": "act_05",
+      "object_id": "rent_inflation_metric",
+      "trigger_frame": 2170,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "act_07",
+      "object_id": "rent_inflation_metric",
+      "trigger_frame": 3349,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "act_10",
+      "object_id": "rent_inflation_metric",
+      "trigger_frame": 4121,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "act_16",
+      "object_id": "rent_inflation_metric",
+      "trigger_frame": 6308,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "act_11",
+      "object_id": "school_fees_metric",
+      "trigger_frame": 4195,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "act_12",
+      "object_id": "grocery_inflation_metric",
+      "trigger_frame": 4278,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    },
+    {
+      "animation_id": "act_14",
+      "object_id": "historical_savings_metric",
+      "trigger_frame": 5217,
+      "duration_frames": 20,
+      "easing": "linear",
+      "behavior": "enter",
+      "target_property": "opacity",
+      "from_value": 0.0,
+      "to_value": 1.0
+    }
+  ],
+  "terminal_hold": {
+    "start_frame": 7873,
+    "end_frame": 7879
+  },
+  "macro_zone_allocations": [
+    {
+      "object_id": "gdp_growth_metric",
+      "zone": "left",
+      "rect": {
+        "x": 120.0,
+        "y": 80.0,
+        "width": 824.0,
+        "height": 920.0
+      }
+    },
+    {
+      "object_id": "savings_metric",
+      "zone": "right",
+      "rect": {
+        "x": 976.0,
+        "y": 80.0,
+        "width": 824.0,
+        "height": 920.0
+      }
+    },
+    {
+      "object_id": "top_wealth_share",
+      "zone": "left",
+      "rect": {
+        "x": 120.0,
+        "y": 80.0,
+        "width": 824.0,
+        "height": 920.0
+      }
+    },
+    {
+      "object_id": "bottom_wealth_share",
+      "zone": "right",
+      "rect": {
+        "x": 976.0,
+        "y": 80.0,
+        "width": 824.0,
+        "height": 920.0
+      }
+    },
+    {
+      "object_id": "salary_increment_metric",
+      "zone": "left",
+      "rect": {
+        "x": 120.0,
+        "y": 80.0,
+        "width": 824.0,
+        "height": 920.0
+      }
+    },
+    {
+      "object_id": "engineer_salary_2019",
+      "zone": "top_left",
+      "rect": {
+        "x": 120.0,
+        "y": 80.0,
+        "width": 756.0,
+        "height": 414.0
+      }
+    },
+    {
+      "object_id": "engineer_salary_2024",
+      "zone": "bottom_left",
+      "rect": {
+        "x": 120.0,
+        "y": 586.0,
+        "width": 756.0,
+        "height": 414.0
+      }
+    },
+    {
+      "object_id": "rent_inflation_metric",
+      "zone": "center",
+      "rect": {
+        "x": 355.2,
+        "y": 190.4,
+        "width": 1209.6,
+        "height": 699.2
+      }
+    },
+    {
+      "object_id": "school_fees_metric",
+      "zone": "right",
+      "rect": {
+        "x": 976.0,
+        "y": 80.0,
+        "width": 824.0,
+        "height": 920.0
+      }
+    },
+    {
+      "object_id": "grocery_inflation_metric",
+      "zone": "bottom_right",
+      "rect": {
+        "x": 1044.0,
+        "y": 586.0,
+        "width": 756.0,
+        "height": 414.0
+      }
+    },
+    {
+      "object_id": "historical_savings_metric",
+      "zone": "right",
+      "rect": {
+        "x": 976.0,
+        "y": 80.0,
+        "width": 824.0,
+        "height": 920.0
+      }
+    }
+  ],
+  "semantic_lineage": [
+    {
+      "kind": "visual_intent",
+      "reference_id": "intent_01",
+      "excerpt": null
+    },
+    {
+      "kind": "visual_intent",
+      "reference_id": "intent_02",
+      "excerpt": null
+    },
+    {
+      "kind": "visual_intent",
+      "reference_id": "intent_03",
+      "excerpt": null
+    },
+    {
+      "kind": "visual_intent",
+      "reference_id": "intent_04",
+      "excerpt": null
+    },
+    {
+      "kind": "visual_intent",
+      "reference_id": "intent_05",
+      "excerpt": null
+    }
+  ]
+}

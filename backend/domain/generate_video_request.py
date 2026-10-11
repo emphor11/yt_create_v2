@@ -8,8 +8,9 @@ class DurationProfile(str, Enum):
 
 
 class VisualMode(str, Enum):
-    LEGACY = "legacy"          # current component-selection pipeline (default)
-    COMPOSITION = "composition"  # new intent-driven composition pipeline
+    WORLD = "world"              # Universal Visual World: 2-Pass Storyboarder + Compiler (Current/Recommended)
+    COMPOSITION = "composition"  # Intent-driven Composition Pipeline
+    LEGACY = "legacy"            # Legacy component-selection pipeline
 
 
 class GenerateVideoRequest(BaseModel):
@@ -22,6 +23,6 @@ class GenerateVideoRequest(BaseModel):
     channel: str = Field(default="")
     duration_profile: DurationProfile = Field(default=DurationProfile.SHORT_2MIN)
     visual_mode: VisualMode = Field(
-        default=VisualMode.LEGACY,
-        description="Controls which visual pipeline runs. 'legacy' = existing component-selection. 'composition' = new intent-driven composition system.",
+        default=VisualMode.WORLD,
+        description="Controls which visual pipeline runs. 'world' = Universal Visual World (Storyboarder + Compiler), 'composition' = composition system, 'legacy' = component-selection.",
     )

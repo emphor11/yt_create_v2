@@ -20,7 +20,7 @@ class RemotionRenderOutput:
 
 
 class RemotionProvider:
-    def __init__(self, renderer_root: str | Path, timeout_seconds: int = 600):
+    def __init__(self, renderer_root: str | Path, timeout_seconds: int = 1800):
         self.renderer_root = Path(renderer_root)
         self.timeout_seconds = timeout_seconds
 
@@ -41,16 +41,65 @@ class RemotionProvider:
             completed = subprocess.run(
                 ["node", "scripts/render-spec.mjs", str(request_path)],
                 cwd=self.renderer_root,
+                stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout_seconds,
                 check=False,
+                start_new_session=True,
             )
 
         if completed.returncode != 0:
             raise RemotionProviderError(
                 self._format_error(completed.stdout, completed.stderr)
             )
+        if not output_path.exists():
+            raise RemotionProviderError("Remotion completed but did not create an output file.")
+
+        size_bytes = output_path.stat().st_size
+        if size_bytes <= 0:
+            raise RemotionProviderError("Remotion created an empty output file.")
+
+        return RemotionRenderOutput(output_path=output_path, size_bytes=size_bytes)
+
+    def render_world(self, *, compiled_world: dict[str, Any], output_path: Path) -> RemotionRenderOutput:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="ytcreate-world-render-") as temporary_directory:
+            request_path = Path(temporary_directory) / "render-world-request.json"
+            request_path.write_text(
+                json.dumps(
+                    {
+                        "world": compiled_world,
+                        "outputPath": str(output_path),
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            process = subprocess.Popen(
+                ["node", "scripts/render-world-spec.mjs", str(request_path)],
+                cwd=self.renderer_root,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                start_new_session=True,
+            )
+            output_lines: list[str] = []
+            if process.stdout:
+                for line in iter(process.stdout.readline, ""):
+                    output_lines.append(line)
+                    clean_line = line.strip()
+                    if clean_line:
+                        print(clean_line, flush=True)
+
+            process.wait(timeout=self.timeout_seconds)
+            combined_output = "".join(output_lines)
+            if process.returncode != 0:
+                raise RemotionProviderError(
+                    self._format_error(combined_output, "")
+                )
         if not output_path.exists():
             raise RemotionProviderError("Remotion completed but did not create an output file.")
 
@@ -84,10 +133,12 @@ class RemotionProvider:
             completed = subprocess.run(
                 ["node", "scripts/render-still.mjs", str(request_path)],
                 cwd=self.renderer_root,
+                stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout_seconds,
                 check=False,
+                start_new_session=True,
             )
 
         if completed.returncode != 0:

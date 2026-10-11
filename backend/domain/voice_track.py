@@ -7,6 +7,7 @@ class WordTimestamp(BaseModel):
     end_ms: int
     start_char: int | None = None
     end_char: int | None = None
+    normalized_text: str | None = None
 
 
 class SpeechMark(BaseModel):
@@ -28,4 +29,9 @@ class VoiceTrack(BaseModel):
     word_timestamps: list[WordTimestamp] = Field(default_factory=list)
     speech_marks: list[SpeechMark] = Field(default_factory=list)
     chunks: list[dict] = Field(default_factory=list)
+
+    def to_canonical(self) -> Any:
+        """Converts to a normalized, canonical VoiceTrack timing representation."""
+        from domain.timing_contract import CanonicalVoiceTrack
+        return CanonicalVoiceTrack.from_voice_track(self)
 

@@ -18,12 +18,12 @@ from __future__ import annotations
 
 import re
 from typing import Any, Literal
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 # Closed set of semantic relationship types.
 # The LLM must choose one of these for every VisualIntent.
-# This drives deterministic composition selection — no open-ended LLM invention.
+# Downstream stages may use these semantics to choose a visual treatment.
 VALID_RELATIONSHIP_TYPES: list[str] = [
     "metric",         # A single important number/value the viewer must register
     "calculation",    # input + operation → result (math story)
@@ -50,28 +50,6 @@ VALID_RELATIONSHIP_TYPES: list[str] = [
     "timeline_milestone", # dated historical events, rate cycles, policy dates on a time axis
 ]
 
-
-VALID_COMPOSITION_IDS: list[str] = [
-    "metric_hero",
-    "calculation_story",
-    "cause_effect",
-    "comparison_split",
-    "ranked_list",
-    "process_flow",
-    "time_decay",
-    "growth_trajectory",
-    "multi_factor_pressure",
-    "trajectory_divergence",
-    "cash_flow_waterfall",
-    "accumulation_decomposition",
-    "debt_amortization_schedule",
-    "broll_caption",
-    "value_flow_network",
-    "causal_chain",
-    "state_transition",
-    "range_threshold",
-    "timeline_milestone",
-]
 
 
 # Closed set of semantic visual representations.
@@ -103,63 +81,15 @@ VALID_EVIDENCE_MODES: list[str] = [
     "ranked_items",
 ]
 
-COMPOSITION_TO_RELATIONSHIP_MAP: dict[str, str] = {
-    "metric_hero": "metric",
-    "calculation_story": "calculation",
-    "cause_effect": "cause_effect",
-    "multi_factor_pressure": "multi_factor",
-    "comparison_split": "comparison",
-    "ranked_list": "ranking",
-    "process_flow": "process",
-    "time_decay": "decline",
-    "growth_trajectory": "growth",
-    "trajectory_divergence": "divergence",
-    "cash_flow_waterfall": "waterfall",
-    "accumulation_decomposition": "accumulation",
-    "debt_amortization_schedule": "amortization",
-    "broll_caption": "broll",
-    "value_flow_network": "value_flow",
-    "causal_chain": "causal_chain",
-    "state_transition": "state_transition",
-    "range_threshold": "range_threshold",
-    "timeline_milestone": "timeline_milestone",
-}
-
-RELATIONSHIP_TO_COMPOSITION_MAP: dict[str, str] = {
-    "metric": "metric_hero",
-    "calculation": "calculation_story",
-    "cause_effect": "cause_effect",
-    "multi_factor": "multi_factor_pressure",
-    "comparison": "comparison_split",
-    "ranking": "ranked_list",
-    "process": "process_flow",
-    "decline": "time_decay",
-    "growth": "growth_trajectory",
-    "divergence": "trajectory_divergence",
-    "waterfall": "cash_flow_waterfall",
-    "accumulation": "accumulation_decomposition",
-    "amortization": "debt_amortization_schedule",
-    "broll": "broll_caption",
-    "statement": "broll_caption",
-    "quote": "broll_caption",
-    "definition": "broll_caption",
-    "trend": "growth_trajectory",
-    "value_flow": "value_flow_network",
-    "causal_chain": "causal_chain",
-    "state_transition": "state_transition",
-    "range_threshold": "range_threshold",
-    "timeline_milestone": "timeline_milestone",
-}
-
 
 
 class SemanticEntity(BaseModel):
     """
     An explicit entity involved in the visual narrative (e.g. 'Fixed Deposit', 'S&P 500').
 
-    Contract for Ordered Compositions:
-    - In relationship_type='ranking': entities are declared in authoritative order from highest rank (rank 1 at index 0) to lowest rank.
-    - In relationship_type='process': entities are declared in authoritative sequential execution order (step 1 at index 0, step 2 at index 1, ...).
+    Contract for ordered semantic entities:
+    - In relationship_type='ranking': entities are ordered from highest rank to lowest rank.
+    - In relationship_type='process': entities are ordered by execution step.
     """
 
     name: str = Field(description="Name or title of the entity")
@@ -397,10 +327,6 @@ class VisualIntent(BaseModel):
         default_factory=list,
         description="Explicit values or quantities mentioned, e.g. '₹50 lakh', '4%', '15 years'.",
     )
-    composition_id: str | None = Field(
-        default=None,
-        description=f"Direct Remotion composition ID. Must be one of: {', '.join(VALID_COMPOSITION_IDS)}",
-    )
     relationship_type: str | None = Field(
         default=None,
         description=f"Semantic relationship type. Must be one of: {', '.join(VALID_RELATIONSHIP_TYPES)}",
@@ -412,10 +338,6 @@ class VisualIntent(BaseModel):
     evidence_mode: str | None = Field(
         default=None,
         description=f"Actual evidence available in narration. Must be one of: {', '.join(VALID_EVIDENCE_MODES)}",
-    )
-    composition_id: str | None = Field(
-        default=None,
-        description=f"Direct Remotion composition ID. Must be one of: {', '.join(VALID_COMPOSITION_IDS)}",
     )
     emphasis: str | None = Field(
         default=None,
@@ -442,8 +364,8 @@ class VisualIntent(BaseModel):
         default_factory=list,
         description=(
             "Explicit entities involved in this visual intent. "
-            "For composition_id='ranked_list', list order is authoritative (index 0 = rank 1). "
-            "For composition_id='process_flow', list order is authoritative (index 0 = step 1)."
+            "For relationship_type='ranking', list order is authoritative (index 0 = rank 1). "
+            "For relationship_type='process', list order is authoritative (index 0 = step 1)."
         ),
     )
     measurements: list[QuantitativeMeasurement] = Field(
@@ -466,63 +388,6 @@ class VisualIntent(BaseModel):
         default=None,
         description="Semantic visual dynamics and focal intent.",
     )
-
-    @model_validator(mode="before")
-    @classmethod
-    def sync_composition_and_relationship(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            comp_id = data.get("composition_id")
-            rel_type = data.get("relationship_type")
-            ev_mode = data.get("evidence_mode")
-            if comp_id and not rel_type:
-                data["relationship_type"] = COMPOSITION_TO_RELATIONSHIP_MAP.get(comp_id, "broll")
-            elif rel_type and not comp_id:
-                if ev_mode:
-                    if rel_type == "growth":
-                        if ev_mode in ("qualitative", "none"):
-                            data["composition_id"] = "broll_caption"
-                        elif ev_mode == "single_value":
-                            data["composition_id"] = "metric_hero"
-                        else:
-                            data["composition_id"] = "growth_trajectory"
-                    elif rel_type == "decline":
-                        if ev_mode in ("qualitative", "none"):
-                            data["composition_id"] = "broll_caption"
-                        elif ev_mode == "single_value":
-                            data["composition_id"] = "metric_hero"
-                        else:
-                            data["composition_id"] = "time_decay"
-                    elif rel_type == "calculation":
-                        if ev_mode in ("qualitative", "none"):
-                            data["composition_id"] = "broll_caption"
-                        elif ev_mode == "single_value":
-                            data["composition_id"] = "metric_hero"
-                        else:
-                            data["composition_id"] = "calculation_story"
-                    elif rel_type == "metric":
-                        data["composition_id"] = "broll_caption" if ev_mode in ("qualitative", "none") else "metric_hero"
-                    elif rel_type == "comparison":
-                        data["composition_id"] = "broll_caption" if ev_mode == "none" else "comparison_split"
-                    elif rel_type == "divergence":
-                        data["composition_id"] = "broll_caption" if ev_mode == "none" else "trajectory_divergence"
-                    else:
-                        data["composition_id"] = RELATIONSHIP_TO_COMPOSITION_MAP.get(rel_type, "broll_caption")
-                elif rel_type != "trend":
-                    data["composition_id"] = RELATIONSHIP_TO_COMPOSITION_MAP.get(rel_type, "broll_caption")
-            elif not comp_id and not rel_type:
-                data["composition_id"] = "broll_caption"
-                data["relationship_type"] = "broll"
-        return data
-
-    @field_validator("composition_id")
-    @classmethod
-    def composition_id_must_be_valid(cls, value: str | None) -> str | None:
-        if value is not None and value not in VALID_COMPOSITION_IDS:
-            raise ValueError(
-                f"composition_id '{value}' is not allowed. "
-                f"Must be one of: {', '.join(VALID_COMPOSITION_IDS)}"
-            )
-        return value
 
     @field_validator("relationship_type")
     @classmethod

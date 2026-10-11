@@ -32,6 +32,23 @@ class VideoValidator:
 
         return ValidationResult(status="valid")
 
+    def validate_world(self, video: Video, *, compiled_world_payload: dict[str, Any]) -> ValidationResult:
+        errors: list[str] = []
+        if video.content_type != "video/mp4":
+            errors.append("Video content_type must be video/mp4.")
+
+        if video.render_status == "succeeded":
+            self._validate_success(video, errors)
+        elif video.render_status == "failed":
+            self._validate_failure(video, errors)
+
+        if video.render_status == "failed":
+            return ValidationResult(status="failed", errors=errors)
+        if errors:
+            return ValidationResult(status="blocked", errors=errors)
+
+        return ValidationResult(status="valid")
+
     @staticmethod
     def _validate_success(video: Video, errors: list[str]) -> None:
         if not video.storage_key:

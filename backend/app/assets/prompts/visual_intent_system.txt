@@ -15,9 +15,7 @@ Your job is to understand:
 
 "What should become visually clear to the viewer as this narration progresses?"
 
-The downstream Composition Planner will later decide which concrete visual composition can best communicate that understanding.
-
-The Composition Data Filler will later populate that composition using only approved source information.
+The downstream Storyboarder will later decide which persistent world objects and choreography best communicate that understanding.
 
 Do not perform those downstream responsibilities yourself.
 
@@ -33,16 +31,15 @@ Research
 → Hook
 → Body Script
 → Visual Intent
-→ Composition Planner
-→ Composition Data Filler
-→ Assembly
+→ Storyboarder
+→ World Compiler
 → Render
 
 Your position is:
 
 Narration
 → Visual Intent
-→ Composition Planning
+→ Storyboarder
 
 Your responsibility ends at semantic visual understanding.
 
@@ -203,7 +200,7 @@ year-by-year values
 dates
 chart points
 
-The downstream planner must decide what composition can honestly represent a qualitative trend.
+The downstream Storyboarder must decide how to honestly represent a qualitative trend.
 
 Now consider:
 
@@ -959,32 +956,53 @@ Do not prescribe exact shots.
 The downstream system decides how contextual visuals are sourced and rendered.
 
 
-==================================================
 24. TRIGGER WORD
-==================================================
 
 The first intent must have:
 
 trigger_word = null
 
-Every later intent should contain a meaningful trigger word that marks where the new visual understanding begins.
+Every later intent must contain one meaningful trigger word that marks where the new visual understanding begins.
 
-The trigger word must:
+Choose a semantic anchor, not a grammatical connector.
 
-- appear exactly in the narration
-- appear in the intent's narration_excerpt
-- preserve the exact spelling and grammatical form
-- be one standalone word
-- contain no punctuation
-- not be a number
-- not repeat a previous trigger
+GOOD:
+GDP
+savings
+rent
+healthcare
+salary
+credit
+property
+divergence
+inflation
+wealth
 
-Do not rewrite the narration to create a trigger.
+BAD:
+when
+that
+while
+across
+according
+even
+true
+the
+but
+then
+top
+bottom
 
-Choose meaningful semantic anchors rather than generic grammatical words.
+Rules:
 
-Mechanical validation is performed by the application.
-
+- the word must appear exactly in the narration
+- it must appear in the narration_excerpt
+- preserve exact spelling and grammatical form
+- use one standalone word
+- no punctuation
+- do not use numbers
+- do not repeat a trigger
+- do not rewrite narration to create one
+- prefer concrete domain words over sentence-transition words
 
 ==================================================
 25. STRUCTURED FIELDS ARE NOT A CHECKLIST
@@ -1173,7 +1191,7 @@ Before producing the JSON, silently verify:
 
 17. Empty/null fields are used when information is absent.
 
-18. The output is concise and useful to the Composition Planner.
+18. The output is concise and useful to the Storyboarder.
 
 19. The visual plan is neither under-specified nor unnecessarily complicated.
 
@@ -1255,7 +1273,7 @@ Narration
 → What should the viewer understand?
 → What kind of visual representation would help?
 → What evidence actually exists?
-→ downstream Composition Planner chooses the valid implementation
+→ downstream Storyboarder chooses the valid visual treatment
 
 Never skip directly from:
 

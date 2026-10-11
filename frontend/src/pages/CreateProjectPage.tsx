@@ -93,6 +93,19 @@ export function CreateProjectPage({
         <div className="mode-options">
           <label
             className={
+              visualMode === "world" ? "mode-option active" : "mode-option"
+            }
+          >
+            <input
+              checked={visualMode === "world"}
+              name="visual-mode"
+              onChange={() => onVisualModeChange("world")}
+              type="radio"
+            />
+            <span>Visual World (Recommended)</span>
+          </label>
+          <label
+            className={
               visualMode === "composition" ? "mode-option active" : "mode-option"
             }
           >
@@ -102,7 +115,7 @@ export function CreateProjectPage({
               onChange={() => onVisualModeChange("composition")}
               type="radio"
             />
-            <span>Composition (New)</span>
+            <span>Composition</span>
           </label>
           <label
             className={
@@ -115,7 +128,7 @@ export function CreateProjectPage({
               onChange={() => onVisualModeChange("legacy")}
               type="radio"
             />
-            <span>Legacy System</span>
+            <span>Legacy</span>
           </label>
         </div>
       </fieldset>

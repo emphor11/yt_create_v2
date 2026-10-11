@@ -4,8 +4,8 @@ VisualIntentEngine — converts narration into semantic VisualIntents.
 Takes the narration of one narrative idea and calls the LLM to produce
 an ordered list of VisualIntents using the closed relationship_type taxonomy.
 
-This is Stage 1 of the composition visual pipeline:
-  narration → VisualIntentSequence → (→ CompositionPlannerEngine → CompositionBeat[])
+This is the semantic visual-intent stage:
+  narration → VisualIntentSequence → Storyboarder
 """
 from __future__ import annotations
 
@@ -18,16 +18,12 @@ from typing import Any
 from pydantic import ValidationError
 
 from domain.visual_intent import (
-    VALID_COMPOSITION_IDS,
     VALID_EVIDENCE_MODES,
     VALID_RELATIONSHIP_TYPES,
     VALID_VISUAL_REPRESENTATIONS,
     VisualIntent,
     VisualIntentSequence,
-    COMPOSITION_TO_RELATIONSHIP_MAP,
-    RELATIONSHIP_TO_COMPOSITION_MAP,
 )
-from engines.composition_selector import select_composition_for_intent
 from providers.llm_provider import (
     LLMJsonRequest,
     LLMMessage,
@@ -41,7 +37,13 @@ logger = logging.getLogger(__name__)
 
 
 # Trigger word stopwords blocklist removed
-TRIGGER_WORD_STOPWORDS: frozenset[str] = frozenset()
+TRIGGER_WORD_STOPWORDS: frozenset[str] = frozenset({
+    "when", "that", "while", "across", "according", "even", "true",
+    "the", "a", "an", "if", "but", "and", "or", "this", "it", "its",
+    "of", "to", "for", "from", "in", "on", "as", "by", "with",
+    "during", "once", "then", "yet", "so", "now", "these", "those",
+    "there", "their", "your", "our", "we", "you", "top", "bottom",
+})
 
 
 def calculate_pacing_budget(narration: str) -> dict[str, Any]:
@@ -97,17 +99,12 @@ VISUAL_INTENT_RESPONSE_SCHEMA: dict[str, Any] = {
                         "type": "array",
                         "items": {"type": "string"},
                     },
-                    "composition_id": {
-                        "type": "string",
-                        "enum": VALID_COMPOSITION_IDS,
-                        "nullable": True,
-                    },
-                    "emphasis": {"type": "string", "nullable": True},
-                    "trigger_word": {"type": "string", "nullable": True},
+                    "emphasis": {"type": ["string", "null"]},
+                    "trigger_word": {"type": ["string", "null"]},
                     "visual_priority": {
                         "type": "string",
                         "enum": ["primary", "secondary", "context"],
-                        "nullable": True,
+                        
                     },
                     "entities": {
                         "type": "array",
@@ -115,8 +112,8 @@ VISUAL_INTENT_RESPONSE_SCHEMA: dict[str, Any] = {
                             "type": "object",
                             "properties": {
                                 "name": {"type": "string"},
-                                "role": {"type": "string", "nullable": True},
-                                "category": {"type": "string", "nullable": True},
+                                "role": {"type": ["string", "null"]},
+                                "category": {"type": ["string", "null"]},
                             },
                             "required": ["name"],
                         },
@@ -127,78 +124,78 @@ VISUAL_INTENT_RESPONSE_SCHEMA: dict[str, Any] = {
                             "type": "object",
                             "properties": {
                                 "raw_value": {"type": "string"},
-                                "entity_name": {"type": "string", "nullable": True},
-                                "metric_name": {"type": "string", "nullable": True},
-                                "unit": {"type": "string", "nullable": True},
-                                "numeric_value": {"type": "number", "nullable": True},
+                                "entity_name": {"type": ["string", "null"]},
+                                "metric_name": {"type": ["string", "null"]},
+                                "unit": {"type": ["string", "null"]},
+                                "numeric_value": {"type": ["number", "null"]},
                                 "direction": {
                                     "type": "string",
                                     "enum": ["up", "down", "flat", "neutral"],
-                                    "nullable": True,
+                                    
                                 },
                                 "polarity": {
                                     "type": "string",
                                     "enum": ["positive", "negative", "neutral", "warning"],
-                                    "nullable": True,
+                                    
                                 },
                                 "role": {
                                     "type": "string",
                                     "enum": ["input", "rate", "result", "baseline", "delta", "benchmark", "context"],
-                                    "nullable": True,
+                                    
                                 },
                             },
                             "required": ["raw_value"],
                         },
                     },
                     "temporal": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "properties": {
-                            "horizon": {"type": "string", "nullable": True},
-                            "frequency": {"type": "string", "nullable": True},
+                            "horizon": {"type": ["string", "null"]},
+                            "frequency": {"type": ["string", "null"]},
                             "is_decay_over_time": {"type": "boolean"},
                         },
-                        "nullable": True,
+                        
                     },
                     "causal": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "properties": {
                             "causes": {
                                 "type": "array",
                                 "items": {"type": "string"},
                             },
-                            "mechanism": {"type": "string", "nullable": True},
-                            "outcome": {"type": "string", "nullable": True},
+                            "mechanism": {"type": ["string", "null"]},
+                            "outcome": {"type": ["string", "null"]},
                             "outcome_severity": {
                                 "type": "string",
                                 "enum": ["critical", "high", "medium", "low", "positive", "neutral"],
-                                "nullable": True,
+                                
                             },
                         },
-                        "nullable": True,
+                        
                     },
                     "comparison": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "properties": {
                             "subject_a": {"type": "string"},
                             "value_a": {"type": "string"},
                             "subject_b": {"type": "string"},
                             "value_b": {"type": "string"},
                             "comparison_dimension": {"type": "string"},
-                            "delta": {"type": "string", "nullable": True},
-                            "winner": {"type": "string", "nullable": True},
+                            "delta": {"type": ["string", "null"]},
+                            "winner": {"type": ["string", "null"]},
                         },
                         "required": ["subject_a", "value_a", "subject_b", "value_b", "comparison_dimension"],
-                        "nullable": True,
+                        
                     },
                     "visual_dynamics": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "properties": {
-                            "focal_point": {"type": "string", "nullable": True},
-                            "desired_visual_outcome": {"type": "string", "nullable": True},
-                            "motion_intent": {"type": "string", "nullable": True},
-                            "visual_priority": {"type": "string", "nullable": True},
+                            "focal_point": {"type": ["string", "null"]},
+                            "desired_visual_outcome": {"type": ["string", "null"]},
+                            "motion_intent": {"type": ["string", "null"]},
+                            "visual_priority": {"type": ["string", "null"]},
                         },
-                        "nullable": True,
+                        
                     },
                 },
                 "required": [
@@ -239,9 +236,9 @@ class VisualIntentEngineError(Exception):
 
 class VisualIntentEngine:
     """
-    Converts the narration of one narrative idea into an ordered list of VisualIntents.
+    Converts the narration of one narrative idea into an ordered list of semantic VisualIntents.
 
-    One LLM call per idea. The output feeds into CompositionPlannerEngine.
+    One LLM call per idea. The output feeds into the Storyboarder.
     """
 
     def __init__(self, llm_provider: LLMProvider):
@@ -405,7 +402,7 @@ class VisualIntentEngine:
         # 5. No duplicate trigger_word within the same idea
         # 6. Single lexical word (no whitespace)
         # 7. Must not be punctuation-only
-        # 8. Must not be a common English stopword
+        # 8. Must be a semantically meaningful lexical anchor (quality checked below)
         intents_raw = raw.get("intents", [])
         seen_trigger_words: set[str] = set()
         for i, intent_item in enumerate(intents_raw):
@@ -543,8 +540,6 @@ class VisualIntentEngine:
             intents = []
             for i in intents_raw:
                 intent_obj = VisualIntent.model_validate(i)
-                if not intent_obj.composition_id:
-                    intent_obj.composition_id = select_composition_for_intent(intent_obj)
                 intents.append(intent_obj)
 
             sequence = VisualIntentSequence(

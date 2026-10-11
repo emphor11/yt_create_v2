@@ -26,7 +26,6 @@ def setup_project_with_research_and_strategy(
     statistics: list[str],
     strategy_concepts: list[str],
     strategy_narrations: list[str],
-    strategy_split_values: list[int] = None,
 ) -> tuple[str, str]:
     project = store.create_project("Review Test Project")
     run = store.create_run(project.id, mode="ai")
@@ -68,18 +67,6 @@ def setup_project_with_research_and_strategy(
     # 3. Save ScriptVisualStrategy
     ideas = []
     for idx, (concept, narration) in enumerate(zip(strategy_concepts, strategy_narrations)):
-        beat_data = {}
-        if strategy_split_values and idx < len(strategy_split_values):
-            beat_data = {
-                "left_role": "product_price",
-                "left_label": "Left Option",
-                "left_value": strategy_split_values[idx],
-                "left_unit": "INR",
-                "right_role": "monthly_payment",
-                "right_label": "Right Option",
-                "right_value": strategy_split_values[idx] * 2,
-                "right_unit": "INR",
-            }
         ideas.append(
             {
                 "idea_id": f"idea_{idx:02d}",
@@ -87,14 +74,6 @@ def setup_project_with_research_and_strategy(
                 "focus_concept": concept,
                 "core_teaching_point": "Teaching point",
                 "narration": narration,
-                "visual_sequence": [
-                    {
-                        "beat_id": f"beat_{idx}_01",
-                        "preferred_component": "SplitComparison" if beat_data else "Typography",
-                        "visual_goal": "Goal",
-                        "component_data": beat_data,
-                    }
-                ],
             }
         )
 
@@ -148,7 +127,6 @@ def test_quality_review_passes_on_aligned_concept_and_statistics(tmp_path) -> No
         statistics=["70% of people want entrepreneurship."],
         strategy_concepts=["Opportunity Cost"],
         strategy_narrations=["Let's compare the 80000 rupees cost. Note that 70% of people feel this."],
-        strategy_split_values=[80000],
     )
 
     response = client.post(f"/projects/{project_id}/runs/{run_id}/run/quality_review")
@@ -265,21 +243,6 @@ def test_quality_review_verifies_topic_and_examples_and_re_runs_failed_review(tm
                     "focus_concept": "Lifestyle Creep",
                     "core_teaching_point": "Expenses expand to meet income.",
                     "narration": "Doubling salary from 50000 to 100000 rupees will not help. Even with 9.8% hike, rent is 22000.",
-                    "visual_sequence": [
-                        {
-                            "beat_id": "beat_01",
-                            "preferred_component": "SplitComparison",
-                            "visual_goal": "Compare salaries",
-                            "component_data": {
-                                "left_role": "Old Salary",
-                                "left_label": "Old Salary",
-                                "left_value": 50000,
-                                "right_role": "New Salary",
-                                "right_label": "New Salary",
-                                "right_value": 100000,
-                            },
-                        }
-                    ],
                 }
             ],
         },
