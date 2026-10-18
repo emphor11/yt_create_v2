@@ -6,17 +6,21 @@ from domain.video import Video
 
 
 class VideoValidator:
-    def validate(self, video: Video, *, render_spec: RenderSpec) -> ValidationResult:
+    def validate(self, video: Video, *, render_spec: Any) -> ValidationResult:
         errors: list[str] = []
 
-        if video.scene_id != render_spec.scene_id:
-            errors.append("Video scene_id must match RenderSpec scene_id.")
-        if video.fps != render_spec.fps:
-            errors.append("Video fps must match RenderSpec fps.")
-        if video.duration_frames != render_spec.duration_frames:
-            errors.append("Video duration_frames must match RenderSpec duration_frames.")
-        if video.file_name != f"{render_spec.scene_id}.mp4":
-            errors.append("Video file_name must match the scene id and .mp4 extension.")
+        expected_scene_id = getattr(render_spec, "scene_id", getattr(render_spec, "story_id", None))
+        expected_fps = getattr(render_spec, "fps", 30)
+        expected_duration = getattr(render_spec, "duration_frames", getattr(render_spec, "duration_in_frames", None))
+
+        if video.scene_id != expected_scene_id:
+            errors.append(f"Video scene_id must match expected scene_id ('{expected_scene_id}').")
+        if video.fps != expected_fps:
+            errors.append(f"Video fps must match expected fps ({expected_fps}).")
+        if video.duration_frames != expected_duration:
+            errors.append(f"Video duration_frames must match expected duration_frames ({expected_duration}).")
+        if video.file_name != f"{expected_scene_id}.mp4":
+            errors.append(f"Video file_name must match '{expected_scene_id}.mp4'.")
         if video.content_type != "video/mp4":
             errors.append("Video content_type must be video/mp4.")
 

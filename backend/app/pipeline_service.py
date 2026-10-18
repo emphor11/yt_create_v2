@@ -26,6 +26,7 @@ from app.stage_handlers.script_visual_strategy_handler import ScriptVisualStrate
 from app.stage_handlers.quality_review_handler import QualityReviewHandler
 from app.stage_handlers.voice_generation_handler import VoiceGenerationHandler
 from app.stage_handlers.video_assembly_handler import VideoAssemblyHandler
+from app.stage_handlers.continuous_story_handler import ContinuousStoryHandler
 from app.stage_handlers.render_handler import RenderHandler
 from app.stage_handlers.youtube_metadata_handler import YoutubeMetadataHandler
 from app.stage_handlers.thumbnail_handler import ThumbnailHandler
@@ -40,6 +41,7 @@ from engines.visual_intent_engine import VisualIntentEngine
 from engines.composition_planner_engine import CompositionPlannerEngine
 from engines.composition_data_filler_engine import CompositionDataFillerEngine
 from engines.video_assembly_engine import VideoAssemblyEngine
+from engines.continuous_story_compiler import ContinuousStoryCompiler
 from engines.youtube_metadata_engine import YoutubeMetadataEngine
 from engines.thumbnail_engine import ThumbnailEngine
 from engines.youtube_upload_engine import YoutubeUploadEngine
@@ -51,6 +53,7 @@ from domain.validators.script_visual_strategy_validator import ScriptVisualStrat
 from domain.validators.review_result_validator import ReviewResultValidator
 from domain.validators.voice_track_validator import VoiceTrackValidator
 from domain.validators.render_spec_validator import RenderSpecValidator
+from domain.validators.continuous_story_plan_validator import ContinuousStoryPlanValidator
 from domain.validators.video_validator import VideoValidator
 from domain.validators.youtube_metadata_validator import YoutubeMetadataValidator
 from domain.validators.thumbnail_validator import ThumbnailValidator
@@ -79,6 +82,7 @@ AI_STAGE_DEFINITIONS: list[tuple[str, str]] = [
     ("script_visual_strategy",  "script_visual_strategy"),
     ("quality_review",          "review_result"),
     ("voice_generation",        "voice_track"),
+    ("continuous_story",        "continuous_story_plan"),
     ("video_assembly",          "render_spec"),
     ("render",                  "video"),
     ("youtube_metadata",        "youtube_metadata"),
@@ -94,6 +98,7 @@ NEXT_STAGE_BY_ARTIFACT_TYPE: dict[str, str | None] = {
     "script_visual_strategy": "quality_review",
     "review_result":          "voice_generation",
     "voice_track":            "video_assembly",
+    "continuous_story_plan":  "render",
     "render_spec":            "render",
     "video":                  "youtube_metadata",
     "youtube_metadata":       "youtube_upload",
@@ -114,6 +119,19 @@ class PipelineService:
         self.store = store
         self.router = router
         self.stage_logger = stage_logger
+
+    def _resolve_next_stage(self, project_id: str, run_id: str, artifact_type: str) -> str | None:
+        if artifact_type == "voice_track":
+            req_art = self.store.find_artifact_by_type(project_id, run_id, "generate_video_request")
+            visual_mode = (
+                req_art.payload_json.get("visual_mode")
+                if req_art and isinstance(req_art.payload_json, dict)
+                else None
+            )
+            if visual_mode == "continuous_story":
+                return "continuous_story"
+            return "video_assembly"
+        return NEXT_STAGE_BY_ARTIFACT_TYPE.get(artifact_type)
 
     def run_stage(self, stage: str, project_id: str, run_id: str, **kwargs) -> ArtifactRecord:
         try:
@@ -170,7 +188,7 @@ class PipelineService:
             )
         else:
             # Check if this is the final stage
-            next_stage = NEXT_STAGE_BY_ARTIFACT_TYPE.get(artifact.artifact_type)
+            next_stage = self._resolve_next_stage(project_id, run_id, artifact.artifact_type)
             new_state = "completed" if next_stage is None else "running"
             self.store.update_run_state(
                 project_id=project_id,
@@ -183,14 +201,24 @@ class PipelineService:
 
     def get_run_status(self, project_id: str, run_id: str) -> list[dict[str, Any]]:
         self.store.get_run(project_id, run_id)
+        req_art = self.store.find_artifact_by_type(project_id, run_id, "generate_video_request")
+        visual_mode = (
+            req_art.payload_json.get("visual_mode")
+            if req_art and isinstance(req_art.payload_json, dict)
+            else "composition"
+        )
         summaries: list[dict[str, Any]] = []
         for stage, artifact_type in AI_STAGE_DEFINITIONS:
+            is_mode_skipped = (
+                (visual_mode == "continuous_story" and stage == "video_assembly")
+                or (visual_mode != "continuous_story" and stage == "continuous_story")
+            )
             artifact = self.store.find_artifact_by_type(project_id, run_id, artifact_type)
             validation = artifact.validation_json if artifact is not None else None
             status = (
                 artifact.status
                 if artifact is not None
-                else ("skipped" if stage in OPTIONAL_STAGES else "missing")
+                else ("skipped" if (stage in OPTIONAL_STAGES or is_mode_skipped) else "missing")
             )
             summaries.append(
                 {
@@ -224,7 +252,7 @@ class PipelineService:
         )
         return (
             deleted_artifacts,
-            NEXT_STAGE_BY_ARTIFACT_TYPE.get(target_artifact.artifact_type),
+            self._resolve_next_stage(project_id, run_id, target_artifact.artifact_type),
         )
 
 
@@ -327,6 +355,13 @@ def build_pipeline_service(
             render_engine=render_engine,
             video_validator=VideoValidator(),
             stage_logger=stage_logger,
+        ),
+        PipelineStage.CONTINUOUS_STORY: ContinuousStoryHandler(
+            store=store,
+            llm_provider=llm_provider,
+            artifact_validator=ContinuousStoryPlanValidator(),
+            stage_logger=stage_logger,
+            compiler=ContinuousStoryCompiler(),
         ),
         PipelineStage.VIDEO_ASSEMBLY: VideoAssemblyHandler(
             store=store,

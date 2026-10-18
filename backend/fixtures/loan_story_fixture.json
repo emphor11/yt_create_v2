@@ -1,0 +1,138 @@
+{
+  "story_id": "loan_rate_hike",
+  "narration_text": "A 50 lakh rupee home loan starts at 8.5 percent interest. When the benchmark rate rises to 10.5 percent... ...the monthly EMI surges to 49,919 rupees, adding a heavy burden. ...snowballing into 15.6 lakh in extra interest over 20 years.",
+  "audio_file": "loan_narration.mp3",
+  "total_duration_ms": 16847,
+  "word_timestamps": [
+    { "word": "A", "start_ms": 0, "end_ms": 335 },
+    { "word": "50", "start_ms": 335, "end_ms": 670 },
+    { "word": "lakh", "start_ms": 670, "end_ms": 1005 },
+    { "word": "rupee", "start_ms": 1005, "end_ms": 1340 },
+    { "word": "home", "start_ms": 1340, "end_ms": 1675 },
+    { "word": "loan", "start_ms": 1675, "end_ms": 2010 },
+    { "word": "starts", "start_ms": 2010, "end_ms": 2345 },
+    { "word": "at", "start_ms": 2345, "end_ms": 2680 },
+    { "word": "8.5", "start_ms": 2680, "end_ms": 3015 },
+    { "word": "percent", "start_ms": 3015, "end_ms": 3350 },
+    { "word": "interest", "start_ms": 3350, "end_ms": 3685 },
+    { "word": "When", "start_ms": 4085, "end_ms": 4498 },
+    { "word": "the", "start_ms": 4498, "end_ms": 4911 },
+    { "word": "benchmark", "start_ms": 4912, "end_ms": 5325 },
+    { "word": "rate", "start_ms": 5325, "end_ms": 5738 },
+    { "word": "rises", "start_ms": 5739, "end_ms": 6152 },
+    { "word": "to", "start_ms": 6153, "end_ms": 6566 },
+    { "word": "10.5", "start_ms": 6566, "end_ms": 6979 },
+    { "word": "percent", "start_ms": 6980, "end_ms": 7393 },
+    { "word": "the", "start_ms": 7744, "end_ms": 8148 },
+    { "word": "monthly", "start_ms": 8148, "end_ms": 8552 },
+    { "word": "EMI", "start_ms": 8552, "end_ms": 8956 },
+    { "word": "surges", "start_ms": 8957, "end_ms": 9361 },
+    { "word": "to", "start_ms": 9361, "end_ms": 9765 },
+    { "word": "49,919", "start_ms": 9766, "end_ms": 10170 },
+    { "word": "rupees", "start_ms": 10170, "end_ms": 10574 },
+    { "word": "adding", "start_ms": 10575, "end_ms": 10979 },
+    { "word": "a", "start_ms": 10979, "end_ms": 11383 },
+    { "word": "heavy", "start_ms": 11384, "end_ms": 11788 },
+    { "word": "burden", "start_ms": 11788, "end_ms": 12192 },
+    { "word": "snowballing", "start_ms": 12543, "end_ms": 12938 },
+    { "word": "into", "start_ms": 12938, "end_ms": 13333 },
+    { "word": "15.6", "start_ms": 13333, "end_ms": 13728 },
+    { "word": "lakh", "start_ms": 13729, "end_ms": 14124 },
+    { "word": "in", "start_ms": 14124, "end_ms": 14519 },
+    { "word": "extra", "start_ms": 14520, "end_ms": 14915 },
+    { "word": "interest", "start_ms": 14915, "end_ms": 15310 },
+    { "word": "over", "start_ms": 15310, "end_ms": 15705 },
+    { "word": "20", "start_ms": 15706, "end_ms": 16101 },
+    { "word": "years", "start_ms": 16101, "end_ms": 16496 }
+  ],
+  "approved_facts": {
+    "loan_principal": {
+      "id": "loan_principal",
+      "value": 5000000,
+      "format": "currency_inr",
+      "label": "Home Loan Principal",
+      "subtitle": "20 Year Tenure",
+      "accent_color": "#3B82F6"
+    },
+    "rate_baseline": {
+      "id": "rate_baseline",
+      "value": 8.5,
+      "format": "percentage",
+      "decimals": 1,
+      "label": "Interest Rate",
+      "subtitle": "Annual Floating",
+      "accent_color": "#F59E0B"
+    },
+    "rate_high": {
+      "id": "rate_high",
+      "value": 10.5,
+      "format": "percentage",
+      "decimals": 1,
+      "label": "Interest Rate",
+      "subtitle": "Annual Floating",
+      "accent_color": "#F59E0B"
+    },
+    "emi_baseline": {
+      "id": "emi_baseline",
+      "value": 43391,
+      "format": "currency_inr",
+      "label": "Monthly EMI",
+      "subtitle": "Base Monthly Payment",
+      "accent_color": "#EF4444",
+      "provenance": {
+        "formula": "loan_emi",
+        "inputs": {
+          "principal": 5000000,
+          "rate": 8.5,
+          "tenure_months": 240
+        }
+      }
+    },
+    "emi_high": {
+      "id": "emi_high",
+      "value": 49919,
+      "format": "currency_inr",
+      "label": "Monthly EMI",
+      "subtitle": "+ ₹6,528 / month burden",
+      "accent_color": "#EF4444",
+      "provenance": {
+        "formula": "loan_emi",
+        "inputs": {
+          "principal": 5000000,
+          "rate": 10.5,
+          "tenure_months": 240
+        }
+      }
+    },
+    "total_extra_interest": {
+      "id": "total_extra_interest",
+      "value": 1566720,
+      "format": "currency_inr",
+      "label": "Total Extra Interest",
+      "subtitle": "₹15.6 Lakh Over 20 Years",
+      "accent_color": "#EF4444"
+    },
+    "loan_interest_trajectory": {
+      "id": "loan_interest_trajectory",
+      "type": "chart_trajectory",
+      "chart_type": "trajectory_area",
+      "label": "20-Year Extra Interest Trajectory",
+      "subtitle": "Cumulative Rate Hike Penalty",
+      "accent_color": "#EF4444",
+      "series": [
+        {
+          "id": "extra_interest_series",
+          "name": "Cumulative Extra Burden",
+          "color": "#EF4444",
+          "points": [
+            { "xLabel": "Yr 0", "yValue": 0 },
+            { "xLabel": "Yr 5", "yValue": 391680 },
+            { "xLabel": "Yr 10", "yValue": 783360 },
+            { "xLabel": "Yr 15", "yValue": 1175040 },
+            { "xLabel": "Yr 20", "yValue": 1566720 }
+          ]
+        }
+      ]
+    }
+  }
+}

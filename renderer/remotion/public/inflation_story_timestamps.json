@@ -1,0 +1,162 @@
+{
+  "audio_file": "inflation_narration.mp3",
+  "total_duration_ms": 9798,
+  "full_text": "You keep 10 lakh rupees safely parked in a savings account. At a stubborn 7 percent annual inflation rate... ...your real purchasing power is quietly cut in half over 10 years.",
+  "word_timestamps": [
+    {
+      "word": "You",
+      "start_ms": 0,
+      "end_ms": 237
+    },
+    {
+      "word": "keep",
+      "start_ms": 237,
+      "end_ms": 474
+    },
+    {
+      "word": "10",
+      "start_ms": 475,
+      "end_ms": 712
+    },
+    {
+      "word": "lakh",
+      "start_ms": 712,
+      "end_ms": 949
+    },
+    {
+      "word": "rupees",
+      "start_ms": 950,
+      "end_ms": 1187
+    },
+    {
+      "word": "safely",
+      "start_ms": 1187,
+      "end_ms": 1424
+    },
+    {
+      "word": "parked",
+      "start_ms": 1425,
+      "end_ms": 1662
+    },
+    {
+      "word": "in",
+      "start_ms": 1662,
+      "end_ms": 1899
+    },
+    {
+      "word": "a",
+      "start_ms": 1900,
+      "end_ms": 2137
+    },
+    {
+      "word": "savings",
+      "start_ms": 2137,
+      "end_ms": 2374
+    },
+    {
+      "word": "account",
+      "start_ms": 2375,
+      "end_ms": 2612
+    },
+    {
+      "word": "At",
+      "start_ms": 3013,
+      "end_ms": 3333
+    },
+    {
+      "word": "a",
+      "start_ms": 3333,
+      "end_ms": 3653
+    },
+    {
+      "word": "stubborn",
+      "start_ms": 3653,
+      "end_ms": 3973
+    },
+    {
+      "word": "7",
+      "start_ms": 3973,
+      "end_ms": 4293
+    },
+    {
+      "word": "percent",
+      "start_ms": 4293,
+      "end_ms": 4613
+    },
+    {
+      "word": "annual",
+      "start_ms": 4613,
+      "end_ms": 4933
+    },
+    {
+      "word": "inflation",
+      "start_ms": 4933,
+      "end_ms": 5253
+    },
+    {
+      "word": "rate",
+      "start_ms": 5253,
+      "end_ms": 5573
+    },
+    {
+      "word": "your",
+      "start_ms": 5924,
+      "end_ms": 6217
+    },
+    {
+      "word": "real",
+      "start_ms": 6217,
+      "end_ms": 6510
+    },
+    {
+      "word": "purchasing",
+      "start_ms": 6511,
+      "end_ms": 6804
+    },
+    {
+      "word": "power",
+      "start_ms": 6805,
+      "end_ms": 7098
+    },
+    {
+      "word": "is",
+      "start_ms": 7098,
+      "end_ms": 7391
+    },
+    {
+      "word": "quietly",
+      "start_ms": 7392,
+      "end_ms": 7685
+    },
+    {
+      "word": "cut",
+      "start_ms": 7686,
+      "end_ms": 7979
+    },
+    {
+      "word": "in",
+      "start_ms": 7979,
+      "end_ms": 8272
+    },
+    {
+      "word": "half",
+      "start_ms": 8273,
+      "end_ms": 8566
+    },
+    {
+      "word": "over",
+      "start_ms": 8567,
+      "end_ms": 8860
+    },
+    {
+      "word": "10",
+      "start_ms": 8860,
+      "end_ms": 9153
+    },
+    {
+      "word": "years",
+      "start_ms": 9154,
+      "end_ms": 9447
+    }
+  ]
+}

@@ -10,6 +10,7 @@ class DurationProfile(str, Enum):
 class VisualMode(str, Enum):
     LEGACY = "legacy"          # current component-selection pipeline (default)
     COMPOSITION = "composition"  # new intent-driven composition pipeline
+    CONTINUOUS_STORY = "continuous_story"  # continuous visual storytelling pipeline
 
 
 class GenerateVideoRequest(BaseModel):

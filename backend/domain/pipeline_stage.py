@@ -9,6 +9,7 @@ class PipelineStage(str, Enum):
     SCRIPT_VISUAL_STRATEGY = "script_visual_strategy"
     QUALITY_REVIEW = "quality_review"
     VOICE_GENERATION = "voice_generation"
+    CONTINUOUS_STORY = "continuous_story"
     SCRIPT_BRIEF = "script_brief"
     NARRATIVE_ARC = "narrative_arc"
     SCRIPT_DRAFT = "script_draft"

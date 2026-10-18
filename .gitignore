@@ -19,6 +19,9 @@ dist/
 build/
 *.egg-info/
 *.db
+*.sqlite
+*.sqlite3
+backend/*user_prompt.txt
 
 # Node
 node_modules/
@@ -27,6 +30,7 @@ npm-debug.log*
 
 # Remotion output
 out/
+output/
 renders/
 .remotion/
 test-outputs/
@@ -34,4 +38,6 @@ test-renders/
 renderer/remotion/test-outputs/
 renderer/remotion/test-renders/
 renderer/remotion/public/run_*
+renderer/remotion/public/narration.mp3
+renderer/remotion/primitive_demo_rendered.png
 backend/.data/

@@ -2,6 +2,7 @@ from artifact_store.models import ArtifactRecord
 from artifact_store.sqlite_store import ArtifactStore
 from app.stage_logger import StageLogger
 from domain.render_spec import RenderSpec
+from domain.continuous_story_plan import ContinuousStoryPlanArtifact
 from domain.validators.video_validator import VideoValidator
 from engines.render_engine import RenderEngine
 
@@ -21,33 +22,52 @@ class RenderHandler:
         self.stage_logger = stage_logger
 
     def run(self, project_id: str, run_id: str) -> ArtifactRecord:
-        from app.pipeline_service import PipelineServiceError
-
         existing = self.store.find_artifact_by_type(project_id, run_id, "video")
         if existing is not None:
             return existing
 
-        # Retrieve run details
+        # Determine visual mode from request or fallback
+        req_artifact = self.store.find_artifact_by_type(project_id, run_id, "generate_video_request")
+        visual_mode = (
+            req_artifact.payload_json.get("visual_mode")
+            if req_artifact and isinstance(req_artifact.payload_json, dict)
+            else "composition"
+        )
 
         start = self.stage_logger.log_start(project_id, run_id, "render")
         try:
-            render_spec_artifact = self.store.require_artifact(
-                project_id, run_id, "render_spec", for_stage="render"
-            )
-            render_spec = RenderSpec.model_validate(render_spec_artifact.payload_json)
-            video = self.render_engine.run(
-                render_spec=render_spec,
-                project_id=project_id,
-                run_id=run_id,
-            )
-            validation = self.video_validator.validate(video, render_spec=render_spec)
+            if visual_mode == "continuous_story":
+                csp_artifact = self.store.require_artifact(
+                    project_id, run_id, "continuous_story_plan", for_stage="render"
+                )
+                csp = ContinuousStoryPlanArtifact.model_validate(csp_artifact.payload_json)
+                video = self.render_engine.run(
+                    continuous_story_plan=csp,
+                    project_id=project_id,
+                    run_id=run_id,
+                )
+                validation = self.video_validator.validate(video, render_spec=csp)
+                parent_roles = {"continuous_story_plan": csp_artifact.id}
+            else:
+                render_spec_artifact = self.store.require_artifact(
+                    project_id, run_id, "render_spec", for_stage="render"
+                )
+                render_spec = RenderSpec.model_validate(render_spec_artifact.payload_json)
+                video = self.render_engine.run(
+                    render_spec=render_spec,
+                    project_id=project_id,
+                    run_id=run_id,
+                )
+                validation = self.video_validator.validate(video, render_spec=render_spec)
+                parent_roles = {"render_spec": render_spec_artifact.id}
+
             artifact = self.store.save_artifact(
                 project_id=project_id,
                 run_id=run_id,
                 artifact_type="video",
                 schema_version=video.schema_version,
                 payload_json=video.model_dump(),
-                parent_artifact_roles_json={"render_spec": render_spec_artifact.id},
+                parent_artifact_roles_json=parent_roles,
                 validation_json=validation,
             )
         except Exception as exc:

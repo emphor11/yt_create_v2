@@ -7,7 +7,10 @@ class MediaStorageError(Exception):
 
 class LocalMediaStorage:
     def __init__(self, root_path: str | Path):
-        self.root_path = Path(root_path)
+        # Render providers may change their working directory. Keep every
+        # storage path absolute so the artifact path and renderer path cannot
+        # diverge.
+        self.root_path = Path(root_path).expanduser().resolve()
 
     def path_for_key(self, storage_key: str) -> Path:
         key_path = PurePosixPath(storage_key)

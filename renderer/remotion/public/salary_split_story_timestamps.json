@@ -1,0 +1,182 @@
+{
+  "audio_file": "salary_split_narration.mp3",
+  "total_duration_ms": 12367,
+  "full_text": "A 50 lakh rupee executive salary is not what hits your bank account. 15 lakh goes to income taxes, and 10 lakh covers living expenses... ...leaving you with exactly 25 lakh in real net savings.",
+  "word_timestamps": [
+    {
+      "word": "A",
+      "start_ms": 0,
+      "end_ms": 263
+    },
+    {
+      "word": "50",
+      "start_ms": 263,
+      "end_ms": 526
+    },
+    {
+      "word": "lakh",
+      "start_ms": 526,
+      "end_ms": 789
+    },
+    {
+      "word": "rupee",
+      "start_ms": 789,
+      "end_ms": 1052
+    },
+    {
+      "word": "executive",
+      "start_ms": 1052,
+      "end_ms": 1315
+    },
+    {
+      "word": "salary",
+      "start_ms": 1316,
+      "end_ms": 1579
+    },
+    {
+      "word": "is",
+      "start_ms": 1579,
+      "end_ms": 1842
+    },
+    {
+      "word": "not",
+      "start_ms": 1842,
+      "end_ms": 2105
+    },
+    {
+      "word": "what",
+      "start_ms": 2105,
+      "end_ms": 2368
+    },
+    {
+      "word": "hits",
+      "start_ms": 2369,
+      "end_ms": 2632
+    },
+    {
+      "word": "your",
+      "start_ms": 2632,
+      "end_ms": 2895
+    },
+    {
+      "word": "bank",
+      "start_ms": 2895,
+      "end_ms": 3158
+    },
+    {
+      "word": "account",
+      "start_ms": 3158,
+      "end_ms": 3421
+    },
+    {
+      "word": "15",
+      "start_ms": 3822,
+      "end_ms": 4185
+    },
+    {
+      "word": "lakh",
+      "start_ms": 4185,
+      "end_ms": 4548
+    },
+    {
+      "word": "goes",
+      "start_ms": 4548,
+      "end_ms": 4911
+    },
+    {
+      "word": "to",
+      "start_ms": 4912,
+      "end_ms": 5275
+    },
+    {
+      "word": "income",
+      "start_ms": 5275,
+      "end_ms": 5638
+    },
+    {
+      "word": "taxes",
+      "start_ms": 5639,
+      "end_ms": 6002
+    },
+    {
+      "word": "and",
+      "start_ms": 6002,
+      "end_ms": 6365
+    },
+    {
+      "word": "10",
+      "start_ms": 6365,
+      "end_ms": 6728
+    },
+    {
+      "word": "lakh",
+      "start_ms": 6729,
+      "end_ms": 7092
+    },
+    {
+      "word": "covers",
+      "start_ms": 7092,
+      "end_ms": 7455
+    },
+    {
+      "word": "living",
+      "start_ms": 7456,
+      "end_ms": 7819
+    },
+    {
+      "word": "expenses",
+      "start_ms": 7819,
+      "end_ms": 8182
+    },
+    {
+      "word": "leaving",
+      "start_ms": 8533,
+      "end_ms": 8881
+    },
+    {
+      "word": "you",
+      "start_ms": 8881,
+      "end_ms": 9229
+    },
+    {
+      "word": "with",
+      "start_ms": 9229,
+      "end_ms": 9577
+    },
+    {
+      "word": "exactly",
+      "start_ms": 9578,
+      "end_ms": 9926
+    },
+    {
+      "word": "25",
+      "start_ms": 9926,
+      "end_ms": 10274
+    },
+    {
+      "word": "lakh",
+      "start_ms": 10275,
+      "end_ms": 10623
+    },
+    {
+      "word": "in",
+      "start_ms": 10623,
+      "end_ms": 10971
+    },
+    {
+      "word": "real",
+      "start_ms": 10971,
+      "end_ms": 11319
+    },
+    {
+      "word": "net",
+      "start_ms": 11320,
+      "end_ms": 11668
+    },
+    {
+      "word": "savings",
+      "start_ms": 11668,
+      "end_ms": 12016
+    }
+  ]
+}

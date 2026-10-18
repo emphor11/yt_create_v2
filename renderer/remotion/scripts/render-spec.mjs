@@ -25,8 +25,12 @@ const serveUrl = await bundle({
   entryPoint,
   onProgress: () => undefined,
 });
+const inputProps = renderSpec.composition === "StoryScene"
+  ? (renderSpec.plan ? { plan: renderSpec.plan } : (renderSpec.props?.plan ? renderSpec.props : renderSpec))
+  : renderSpec;
+
 const compositions = await getCompositions(serveUrl, {
-  inputProps: renderSpec,
+  inputProps,
 });
 const composition = compositions.find((candidate) => candidate.id === renderSpec.composition);
 
@@ -35,8 +39,12 @@ if (!composition) {
 }
 
 // Override composition settings dynamically to match the render spec
-composition.durationInFrames = renderSpec.duration_frames;
-composition.fps = renderSpec.fps;
+if (renderSpec.duration_frames) {
+  composition.durationInFrames = renderSpec.duration_frames;
+}
+if (renderSpec.fps) {
+  composition.fps = renderSpec.fps;
+}
 
 await mkdir(path.dirname(outputPath), { recursive: true });
 await renderMedia({
@@ -44,7 +52,7 @@ await renderMedia({
   serveUrl,
   codec: "h264",
   outputLocation: outputPath,
-  inputProps: renderSpec,
+  inputProps,
   overwrite: true,
   muted: false,
   concurrency: 2,

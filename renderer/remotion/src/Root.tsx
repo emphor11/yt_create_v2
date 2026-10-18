@@ -33,6 +33,10 @@ import { TimelineMilestone } from "./compositions/TimelineMilestone";
 import { VideoAssembly } from "./VideoAssembly";
 import { Thumbnail, defaultThumbnailProps } from "./Thumbnail";
 import { type SplitComparisonRenderSpec, type VideoAssemblyRenderSpec } from "./types";
+import { StoryScene } from "./story_engine/StoryScene";
+import { loanStoryPlan } from "./story_engine/loanStoryPlan";
+import { inflationStoryPlan } from "./story_engine/inflationStoryPlan";
+import { salarySplitStoryPlan } from "./story_engine/salarySplitStoryPlan";
 
 const defaultProps: SplitComparisonRenderSpec = {
   scene_id: "scene_01",
@@ -379,6 +383,42 @@ export function RemotionRoot() {
         width={1280}
         height={720}
         defaultProps={defaultThumbnailProps as any}
+      />
+      <Composition
+        id="StoryScene"
+        component={StoryScene as any}
+        durationInFrames={loanStoryPlan.durationInFrames}
+        fps={loanStoryPlan.fps}
+        width={loanStoryPlan.width}
+        height={loanStoryPlan.height}
+        defaultProps={{ plan: loanStoryPlan } as any}
+        calculateMetadata={({ props }) => {
+          const plan = (props as any)?.plan;
+          return {
+            durationInFrames: plan?.durationInFrames ?? loanStoryPlan.durationInFrames,
+            fps: plan?.fps ?? loanStoryPlan.fps,
+            width: plan?.width ?? loanStoryPlan.width,
+            height: plan?.height ?? loanStoryPlan.height,
+          };
+        }}
+      />
+      <Composition
+        id="InflationStoryScene"
+        component={StoryScene as any}
+        durationInFrames={inflationStoryPlan.durationInFrames}
+        fps={inflationStoryPlan.fps}
+        width={inflationStoryPlan.width}
+        height={inflationStoryPlan.height}
+        defaultProps={{ plan: inflationStoryPlan } as any}
+      />
+      <Composition
+        id="SalarySplitStoryScene"
+        component={StoryScene as any}
+        durationInFrames={salarySplitStoryPlan.durationInFrames}
+        fps={salarySplitStoryPlan.fps}
+        width={salarySplitStoryPlan.width}
+        height={salarySplitStoryPlan.height}
+        defaultProps={{ plan: salarySplitStoryPlan } as any}
       />
     </>
   );

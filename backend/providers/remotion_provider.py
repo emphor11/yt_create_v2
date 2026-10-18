@@ -24,14 +24,45 @@ class RemotionProvider:
         self.renderer_root = Path(renderer_root)
         self.timeout_seconds = timeout_seconds
 
-    def render(self, *, render_spec: RenderSpec, output_path: Path) -> RemotionRenderOutput:
+    def stage_public_asset(self, source_path: Path, filename: str) -> Path:
+        """Stages an asset into Remotion's public directory for staticFile() access."""
+        public_dir = self.renderer_root / "public"
+        public_dir.mkdir(parents=True, exist_ok=True)
+        target_path = public_dir / filename
+        if not target_path.exists() or target_path.stat().st_size != source_path.stat().st_size:
+            import shutil
+            shutil.copy2(source_path, target_path)
+        return target_path
+
+    def render(
+        self,
+        *,
+        render_spec: RenderSpec | None = None,
+        story_plan: dict[str, Any] | None = None,
+        output_path: Path,
+    ) -> RemotionRenderOutput:
         output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if story_plan is not None:
+            render_spec_payload = {
+                "composition": "StoryScene",
+                "scene_id": story_plan.get("id", "continuous_story"),
+                "fps": story_plan.get("fps", 30),
+                "duration_frames": story_plan.get("durationInFrames", 380),
+                "props": {"plan": story_plan},
+                "plan": story_plan,
+            }
+        elif render_spec is not None:
+            render_spec_payload = render_spec.model_dump()
+        else:
+            raise ValueError("Either render_spec or story_plan must be provided to RemotionProvider.render()")
+
         with tempfile.TemporaryDirectory(prefix="ytcreate-render-") as temporary_directory:
             request_path = Path(temporary_directory) / "render-request.json"
             request_path.write_text(
                 json.dumps(
                     {
-                        "renderSpec": render_spec.model_dump(),
+                        "renderSpec": render_spec_payload,
                         "outputPath": str(output_path),
                     },
                     ensure_ascii=False,
@@ -52,7 +83,10 @@ class RemotionProvider:
                 self._format_error(completed.stdout, completed.stderr)
             )
         if not output_path.exists():
-            raise RemotionProviderError("Remotion completed but did not create an output file.")
+            raise RemotionProviderError(
+                "Remotion completed but did not create an output file.\n"
+                + self._format_error(completed.stdout, completed.stderr)
+            )
 
         size_bytes = output_path.stat().st_size
         if size_bytes <= 0:
