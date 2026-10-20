@@ -42,6 +42,7 @@ from engines.composition_planner_engine import CompositionPlannerEngine
 from engines.composition_data_filler_engine import CompositionDataFillerEngine
 from engines.video_assembly_engine import VideoAssemblyEngine
 from engines.continuous_story_compiler import ContinuousStoryCompiler
+from engines.continuous_story_engine import ContinuousStoryEngine
 from engines.youtube_metadata_engine import YoutubeMetadataEngine
 from engines.thumbnail_engine import ThumbnailEngine
 from engines.youtube_upload_engine import YoutubeUploadEngine
@@ -358,10 +359,12 @@ def build_pipeline_service(
         ),
         PipelineStage.CONTINUOUS_STORY: ContinuousStoryHandler(
             store=store,
-            llm_provider=llm_provider,
+            story_engine=ContinuousStoryEngine(
+                llm_provider=llm_provider,
+                compiler=ContinuousStoryCompiler(),
+            ),
             artifact_validator=ContinuousStoryPlanValidator(),
             stage_logger=stage_logger,
-            compiler=ContinuousStoryCompiler(),
         ),
         PipelineStage.VIDEO_ASSEMBLY: VideoAssemblyHandler(
             store=store,

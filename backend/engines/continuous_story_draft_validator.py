@@ -196,13 +196,15 @@ def validate_story_draft(
         prev_start_ms = start
 
         if total_duration_ms is not None and end > total_duration_ms:
-            errors.append(
-                DraftValidationError(
-                    code="TIMESTAMP_EXCEEDS_AUDIO_DURATION",
-                    message=f"Word '{word}' at index {i} ends at {end}ms, exceeding audio total_duration_ms ({total_duration_ms}ms).",
-                    details={"index": i, "word": word, "end_ms": end, "total_duration_ms": total_duration_ms},
+            # Skip non-word SSML tags like <break time="400ms"/> from speech timestamp duration errors
+            if not (word.startswith("<") and word.endswith(">")):
+                errors.append(
+                    DraftValidationError(
+                        code="TIMESTAMP_EXCEEDS_AUDIO_DURATION",
+                        message=f"Word '{word}' at index {i} ends at {end}ms, exceeding audio total_duration_ms ({total_duration_ms}ms).",
+                        details={"index": i, "word": word, "end_ms": end, "total_duration_ms": total_duration_ms},
+                    )
                 )
-            )
 
     # ----------------------------------------------------
     # Check: Duplicate Object IDs & Object Registry
@@ -449,12 +451,12 @@ def validate_story_draft(
                         )
                     )
 
-        # Check: exit action validates direction
-        if event.action == "exit" and not event.direction:
+        # Check: exit action validates direction if present
+        if event.action == "exit" and event.direction and event.direction not in {"left", "right", "up", "down", "fade"}:
             errors.append(
                 DraftValidationError(
-                    code="MISSING_EXIT_DIRECTION",
-                    message=f"Action 'exit' on '{event.target_id}' requires 'direction' ('left', 'right', 'up', 'down', 'fade').",
+                    code="INVALID_EXIT_DIRECTION",
+                    message=f"Action 'exit' on '{event.target_id}' has invalid 'direction' ('{event.direction}'). Allowed: ('left', 'right', 'up', 'down', 'fade').",
                     target_id=event.target_id,
                 )
             )

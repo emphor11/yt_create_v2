@@ -224,8 +224,16 @@ class GeminiProvider:
                     return _resolve_and_clean(merged_node, visited_refs | {ref_name})
 
             cleaned: dict[str, Any] = {}
+            # Normalize OpenAPI 3.1 'const' to OpenAPI 3.0 'enum' for Gemini API compatibility
+            if "const" in node and "enum" not in node:
+                cleaned["enum"] = [node["const"]]
+
+            # Normalize 'oneOf' to 'anyOf' because Gemini API enforces anyOf on polymorphic unions but collapses oneOf
+            if "oneOf" in node and "anyOf" not in node:
+                cleaned["anyOf"] = [_resolve_and_clean(item, set(visited_refs)) for item in node["oneOf"]]
+
             for k, v in node.items():
-                if k in ("additionalProperties", "$defs", "definitions"):
+                if k in ("additionalProperties", "$defs", "definitions", "discriminator", "$schema", "const", "oneOf"):
                     continue
                 cleaned[k] = _resolve_and_clean(v, set(visited_refs))
 

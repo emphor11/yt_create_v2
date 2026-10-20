@@ -65,6 +65,15 @@ VisualStateKind = Literal[
     "stamped",
     "eroded",
 ]
+VALID_VISUAL_STATES = (
+    "normal",
+    "dimmed",
+    "warning",
+    "danger",
+    "success",
+    "stamped",
+    "eroded",
+)
 
 ChartType = Literal[
     "trajectory_area",
@@ -72,6 +81,12 @@ ChartType = Literal[
     "multi_bar",
     "stack",
 ]
+VALID_CHART_TYPES = (
+    "trajectory_area",
+    "split_bar",
+    "multi_bar",
+    "stack",
+)
 
 ObjectType = Literal[
     "card",
@@ -153,10 +168,12 @@ class StoryObjectDraft(StrictBaseModel):
     # Connector-specific fields
     from_id: str | None = Field(
         default=None,
+        validation_alias=AliasChoices("from_id", "fromId", "from", "source"),
         description="Source card ID for 'connector' element."
     )
     to_id: str | None = Field(
         default=None,
+        validation_alias=AliasChoices("to_id", "toId", "to", "target"),
         description="Target card ID for 'connector' element."
     )
     label: str | None = Field(
@@ -172,6 +189,9 @@ class StoryObjectDraft(StrictBaseModel):
 
         # 2. Type-specific field exclusivity and requirements
         if self.type == "card":
+            # Card requires title
+            if not self.title or not self.title.strip():
+                raise ValueError(f"Card '{self.id}' requires non-empty 'title'.")
             # Cards use title, value_fact_id, subtitle, badge, visual_state, accent
             if self.from_id is not None or self.to_id is not None or self.label is not None:
                 raise ValueError(f"Card '{self.id}' cannot specify connector fields ('from_id', 'to_id', 'label').")
@@ -223,16 +243,23 @@ class StoryObjectDraft(StrictBaseModel):
 
         elif self.type == "connector":
             # Connector requires from_id and to_id
-            if not self.from_id or not self.from_id.strip():
-                raise ValueError(f"Connector '{self.id}' requires 'from_id'.")
-            if not self.to_id or not self.to_id.strip():
-                raise ValueError(f"Connector '{self.id}' requires 'to_id'.")
+            if not self.from_id or not self.from_id.strip() or not self.to_id or not self.to_id.strip():
+                raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' requires valid from_id and to_id.")
             if self.from_id == self.to_id:
-                raise ValueError(f"Connector '{self.id}' cannot connect element to itself ('{self.from_id}').")
+                raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' cannot connect element to itself ('{self.from_id}').")
+            # Forbid card, fact, or non-connector fields on connector
+            if self.visual_state is not None:
+                raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' cannot specify card field 'visual_state'.")
+            if self.badge is not None:
+                raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' cannot specify card field 'badge'.")
             if self.value_fact_id is not None or self.fact_id is not None:
-                raise ValueError(f"Connector '{self.id}' cannot specify fact fields.")
-            if self.chart_type is not None or self.asset_id is not None:
-                raise ValueError(f"Connector '{self.id}' cannot specify chart or image fields.")
+                raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' cannot specify fact fields.")
+            if self.title is not None:
+                raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' cannot specify card field 'title'.")
+            if self.subtitle is not None:
+                raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' cannot specify card field 'subtitle'.")
+            if self.chart_type is not None or self.asset_id is not None or self.text is not None:
+                raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' cannot specify chart, image, or text fields.")
 
         return self
 
@@ -278,15 +305,17 @@ class StoryEventDraft(StrictBaseModel):
     )
     from_id: str | None = Field(
         default=None,
+        validation_alias=AliasChoices("from_id", "fromId"),
         description="Optional source card ID if action is 'connect'."
     )
     to_id: str | None = Field(
         default=None,
+        validation_alias=AliasChoices("to_id", "toId"),
         description="Optional target card ID if action is 'connect'."
     )
     state: VisualStateKind | None = Field(
         default=None,
-        validation_alias=AliasChoices("state", "visual_state"),
+        validation_alias=AliasChoices("state", "visual_state", "visualState", "to_state"),
         description="Visual state for 'change_visual_state' action ('warning', 'danger', 'dimmed', 'success', 'normal')."
     )
     badge: str | None = Field(
@@ -330,10 +359,11 @@ class StoryEventDraft(StrictBaseModel):
             if self.from_id is not None or self.to_id is not None:
                 raise ValueError(f"Action '{self.action}' cannot specify 'from_id' or 'to_id' (only allowed for 'connect').")
 
-        # 7. 'exit' requires 'direction', non-exit forbids 'direction'
-        if self.action == "exit" and not self.direction:
-            raise ValueError(f"Action 'exit' targeting '{self.target_id}' requires 'direction' ('left', 'right', 'up', 'down', 'fade').")
-        if self.action != "exit" and self.direction is not None:
+        # 7. 'exit.direction' optional with deterministic default 'fade', non-exit forbids 'direction'
+        if self.action == "exit":
+            if self.direction is None:
+                self.direction = "fade"
+        elif self.direction is not None:
             raise ValueError(f"Action '{self.action}' on '{self.target_id}' cannot specify 'direction' (only for 'exit').")
 
         return self
@@ -360,7 +390,232 @@ class ContinuousStoryDraft(StrictBaseModel):
             raise ValueError("ContinuousStoryDraft must contain at least one object.")
         if not self.events:
             raise ValueError("ContinuousStoryDraft must contain at least one event.")
+
+        # Validate connector endpoints at story draft level
+        obj_map = {obj.id: obj for obj in self.objects}
+        for obj in self.objects:
+            if obj.type == "connector":
+                if not obj.from_id or obj.from_id not in obj_map:
+                    raise ValueError(
+                        f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{obj.id}' requires valid from_id that exists in declared objects (found '{obj.from_id}')."
+                    )
+                if not obj.to_id or obj.to_id not in obj_map:
+                    raise ValueError(
+                        f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{obj.id}' requires valid to_id that exists in declared objects (found '{obj.to_id}')."
+                    )
+                if obj_map[obj.from_id].type == "connector":
+                    raise ValueError(
+                        f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{obj.id}' source 'from_id' ('{obj.from_id}') cannot be another connector."
+                    )
+                if obj_map[obj.to_id].type == "connector":
+                    raise ValueError(
+                        f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{obj.id}' target 'to_id' ('{obj.to_id}') cannot be another connector."
+                    )
+                if obj.from_id == obj.to_id:
+                    raise ValueError(
+                        f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{obj.id}' cannot connect element to itself ('{obj.from_id}')."
+                    )
         return self
+
+    @classmethod
+    def model_json_schema(cls, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        """Returns the primary grammar contract JSON schema enforcing action-specific and object-specific required fields."""
+        return build_continuous_story_contract_schema()
+
+
+def build_continuous_story_contract_schema() -> dict[str, Any]:
+    """Generates the strict, action-and-object contract JSON schema for Gemini constrained decoding."""
+    zone_enum = [
+        "top_left", "top_center", "top_right",
+        "center_left", "center", "center_right",
+        "bottom_left", "bottom_center", "bottom_right",
+        "full_screen", "full_top", "full_bottom",
+    ]
+    state_enum = ["normal", "dimmed", "warning", "danger", "success", "stamped", "eroded"]
+    chart_enum = ["trajectory_area", "split_bar", "multi_bar", "stack"]
+    direction_enum = ["left", "right", "up", "down", "fade"]
+
+    return {
+        "type": "object",
+        "properties": {
+            "story_id": {
+                "type": "string",
+                "description": "Identifier of the story (e.g. 'loan_rate_hike')."
+            },
+            "objects": {
+                "type": "array",
+                "description": "Independent, atomic visual elements that participate in the continuous scene.",
+                "items": {
+                    "anyOf": [
+                        {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Unique identifier for the card element."},
+                                "type": {"type": "string", "enum": ["card"]},
+                                "layout": {"type": "string", "enum": zone_enum, "description": "One of the 12 spatial zone names."},
+                                "purpose": {"type": "string", "description": "Editorial purpose of this visual element."},
+                                "title": {"type": "string", "description": "MANDATORY card header title."},
+                                "value_fact_id": {"type": "string", "description": "Optional reference to approved fact ID for cards displaying a factual number."},
+                                "subtitle": {"type": "string", "description": "Card explanatory subtitle or context."},
+                                "badge": {"type": "string", "description": "Status badge text."},
+                                "visual_state": {"type": "string", "enum": state_enum, "description": "Visual state."},
+                                "accent": {"type": "string", "description": "Optional accent color hex code."}
+                            },
+                            "required": ["id", "type", "layout", "title"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Unique identifier for the number element."},
+                                "type": {"type": "string", "enum": ["number"]},
+                                "layout": {"type": "string", "enum": zone_enum, "description": "One of the 12 spatial zone names."},
+                                "purpose": {"type": "string", "description": "Editorial purpose."},
+                                "fact_id": {"type": "string", "description": "Reference to approved fact ID."}
+                            },
+                            "required": ["id", "type", "layout", "fact_id"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Unique identifier for the text element."},
+                                "type": {"type": "string", "enum": ["text"]},
+                                "layout": {"type": "string", "enum": zone_enum, "description": "One of the 12 spatial zone names."},
+                                "purpose": {"type": "string", "description": "Editorial purpose."},
+                                "text": {"type": "string", "description": "Display text content."}
+                            },
+                            "required": ["id", "type", "layout", "text"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Unique identifier for the chart element."},
+                                "type": {"type": "string", "enum": ["chart"]},
+                                "layout": {"type": "string", "enum": zone_enum, "description": "One of the 12 spatial zone names."},
+                                "purpose": {"type": "string", "description": "Editorial purpose."},
+                                "fact_id": {"type": "string", "description": "Reference to approved fact ID."},
+                                "chart_type": {"type": "string", "enum": chart_enum, "description": "Chart visualization subtype."},
+                                "title": {"type": "string", "description": "Chart title."},
+                                "subtitle": {"type": "string", "description": "Chart subtitle."},
+                                "accent": {"type": "string", "description": "Accent hex code."}
+                            },
+                            "required": ["id", "type", "layout", "fact_id", "chart_type"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Unique identifier for the image element."},
+                                "type": {"type": "string", "enum": ["image"]},
+                                "layout": {"type": "string", "enum": zone_enum, "description": "One of the 12 spatial zone names."},
+                                "purpose": {"type": "string", "description": "Editorial purpose."},
+                                "asset_id": {"type": "string", "description": "Asset reference identifier."}
+                            },
+                            "required": ["id", "type", "layout", "asset_id"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Unique identifier for the connector element."},
+                                "type": {"type": "string", "enum": ["connector"]},
+                                "layout": {"type": "string", "enum": zone_enum, "description": "One of the 12 spatial zone names."},
+                                "purpose": {"type": "string", "description": "Editorial purpose."},
+                                "from_id": {"type": "string", "description": "MANDATORY source card ID."},
+                                "to_id": {"type": "string", "description": "MANDATORY target card ID."},
+                                "label": {"type": "string", "description": "Optional label on the connector arrow."}
+                            },
+                            "required": ["id", "type", "layout", "from_id", "to_id"]
+                        }
+                    ]
+                }
+            },
+            "events": {
+                "type": "array",
+                "description": "Sequential list of choreographic events bound to speech anchors.",
+                "items": {
+                    "anyOf": [
+                        {
+                            "type": "object",
+                            "properties": {
+                                "action": {"type": "string", "enum": ["enter"]},
+                                "target_id": {"type": "string", "description": "ID of visual element to enter."},
+                                "anchor": {"type": "string", "description": "Exact spoken phrase in narration where action occurs."}
+                            },
+                            "required": ["action", "target_id", "anchor"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "action": {"type": "string", "enum": ["move"]},
+                                "target_id": {"type": "string", "description": "ID of visual element to move."},
+                                "to": {"type": "string", "enum": zone_enum, "description": "MANDATORY destination zone name."},
+                                "anchor": {"type": "string", "description": "Exact spoken phrase in narration where action occurs."}
+                            },
+                            "required": ["action", "target_id", "to", "anchor"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "action": {"type": "string", "enum": ["transform_number"]},
+                                "target_id": {"type": "string", "description": "ID of visual element whose number transforms."},
+                                "to_fact_id": {"type": "string", "description": "MANDATORY approved fact ID for the transformed value."},
+                                "anchor": {"type": "string", "description": "Exact spoken phrase in narration where action occurs."}
+                            },
+                            "required": ["action", "target_id", "to_fact_id", "anchor"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "action": {"type": "string", "enum": ["transform_text"]},
+                                "target_id": {"type": "string", "description": "ID of visual element whose text transforms."},
+                                "to_text": {"type": "string", "description": "MANDATORY replacement text string."},
+                                "anchor": {"type": "string", "description": "Exact spoken phrase in narration where action occurs."}
+                            },
+                            "required": ["action", "target_id", "to_text", "anchor"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "action": {"type": "string", "enum": ["change_visual_state"]},
+                                "target_id": {"type": "string", "description": "ID of visual element whose state changes."},
+                                "state": {"type": "string", "enum": state_enum, "description": "MANDATORY target visual state."},
+                                "badge": {"type": "string", "description": "Optional badge label."},
+                                "anchor": {"type": "string", "description": "Exact spoken phrase in narration where action occurs."}
+                            },
+                            "required": ["action", "target_id", "state", "anchor"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "action": {"type": "string", "enum": ["highlight"]},
+                                "target_id": {"type": "string", "description": "ID of visual element to highlight."},
+                                "anchor": {"type": "string", "description": "Exact spoken phrase in narration where action occurs."}
+                            },
+                            "required": ["action", "target_id", "anchor"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "action": {"type": "string", "enum": ["connect"]},
+                                "target_id": {"type": "string", "description": "ID of connector element to activate."},
+                                "anchor": {"type": "string", "description": "Exact spoken phrase in narration where action occurs."}
+                            },
+                            "required": ["action", "target_id", "anchor"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "action": {"type": "string", "enum": ["exit"]},
+                                "target_id": {"type": "string", "description": "ID of visual element to exit."},
+                                "direction": {"type": "string", "enum": direction_enum, "description": "Exit animation direction ('left', 'right', 'up', 'down', 'fade'). Defaults to 'fade'."},
+                                "anchor": {"type": "string", "description": "Exact spoken phrase in narration where action occurs."}
+                            },
+                            "required": ["action", "target_id", "anchor"]
+                        }
+                    ]
+                }
+            }
+        },
+        "required": ["story_id", "objects", "events"]
+    }
 
 
 class ContinuousStoryPlanArtifact(BaseModel):

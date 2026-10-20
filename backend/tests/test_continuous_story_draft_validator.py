@@ -339,15 +339,15 @@ def test_valid_exit_action(valid_draft: ContinuousStoryDraft, loan_fixture: dict
     assert result.valid is True
 
 
-def test_reject_exit_missing_direction(valid_draft: ContinuousStoryDraft):
+def test_exit_missing_direction_defaults_to_fade(valid_draft: ContinuousStoryDraft):
     raw = valid_draft.model_dump()
     raw["events"].append({
         "action": "exit",
         "target_id": "loan_card",
         "anchor": "surges to 49,919",
     })
-    with pytest.raises(pydantic.ValidationError, match="requires 'direction'"):
-        ContinuousStoryDraft.model_validate(raw)
+    draft = ContinuousStoryDraft.model_validate(raw)
+    assert draft.events[-1].direction == "fade"
 
 
 def test_reject_exit_before_object_enters(valid_draft: ContinuousStoryDraft, loan_fixture: dict):
