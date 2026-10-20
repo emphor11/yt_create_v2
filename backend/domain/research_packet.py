@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -12,3 +14,6 @@ class ResearchPacket(BaseModel):
     misconceptions: list[str] = Field(default_factory=list)
     examples: list[str] = Field(default_factory=list)
     trusted_sources: list[str] = Field(default_factory=list)
+    # Populated by the fact-normalization stage. Continuous Story must never
+    # infer this registry from prose with regexes.
+    approved_facts: dict[str, Any] = Field(default_factory=dict)

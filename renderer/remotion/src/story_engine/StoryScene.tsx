@@ -302,6 +302,7 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
                     badge={state.visualBadge}
                     stamp={state.visualStamp}
                     customAccent={state.customAccent}
+                    currentDisplayValue={state.currentDisplayValue}
                     currentValue={state.currentNumberValue}
                     currentSubtitle={state.currentSubtitleValue}
                     style={{
@@ -340,6 +341,7 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
                 >
                   <NumberPrimitive
                     props={obj.numberProps}
+                    currentDisplayValue={state.currentDisplayValue}
                     currentValue={state.currentNumberValue}
                   />
                 </Highlight>
@@ -425,14 +427,15 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
               const activeWords = plan.narration.wordTimestamps
                 .filter((w) => w.start_ms <= currentMs)
                 .slice(-8)
-                .map((w) => w.word)
+                .map((w) => w.word.replace(/<[^>]*>/g, "").trim())
+                .filter(Boolean)
                 .join(" ");
               return activeWords;
             }
             const currentCue = [...(plan.narration.cues || [])]
               .reverse()
               .find((c) => frame >= c.frame);
-            return currentCue ? currentCue.text : "";
+            return currentCue ? currentCue.text.replace(/<[^>]*>/g, "").trim() : "";
           })()}
         </div>
       )}

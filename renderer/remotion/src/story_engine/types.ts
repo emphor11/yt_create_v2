@@ -44,6 +44,7 @@ export interface FactualProvenance {
 }
 
 export interface NumberProps {
+  displayValue?: string;
   value: number;
   format: "currency_inr" | "percentage" | "plain";
   prefix?: string;
@@ -61,6 +62,7 @@ export interface TextProps {
 export interface CardProps {
   title?: string;
   subtitle?: string;
+  displayValue?: string;
   value?: number;
   format?: "currency_inr" | "percentage" | "plain";
   valueFactId?: string;
@@ -225,6 +227,7 @@ export interface TransformNumberAction {
   startFrame: number;
   durationFrames: number;
   toValue: number;
+  toDisplayValue?: string;
   provenance?: FactualProvenance;
   anchor?: string;
 }

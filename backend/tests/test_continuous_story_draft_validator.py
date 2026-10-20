@@ -75,6 +75,8 @@ def valid_draft() -> ContinuousStoryDraft:
                 "action": "transform_number",
                 "target_id": "rate_card",
                 "anchor": "rises to 10.5",
+                "to_display_value": "10.5%",
+                "to_numeric_value": 10.5,
                 "to_fact_id": "rate_high",
             },
         ],
@@ -381,6 +383,13 @@ def test_valid_chart_draft(valid_draft: ContinuousStoryDraft, loan_fixture: dict
         "fact_id": "loan_interest_trajectory",
         "chart_type": "trajectory_area",
         "title": "20-Year Extra Interest Trajectory",
+        "points": [
+            {"xLabel": "Year 0", "yValue": 0},
+            {"xLabel": "Year 5", "yValue": 15},
+            {"xLabel": "Year 10", "yValue": 35},
+            {"xLabel": "Year 15", "yValue": 65},
+            {"xLabel": "Year 20", "yValue": 100},
+        ],
     })
     raw["events"].append({
         "action": "enter",
@@ -398,14 +407,13 @@ def test_valid_chart_draft(valid_draft: ContinuousStoryDraft, loan_fixture: dict
     assert len(result.errors) == 0
 
 
-def test_reject_chart_invalid_fact(valid_draft: ContinuousStoryDraft, loan_fixture: dict):
+def test_reject_chart_missing_data_fails(valid_draft: ContinuousStoryDraft):
     raw = valid_draft.model_dump()
     raw["objects"].append({
         "id": "bad_chart",
         "type": "chart",
-        "purpose": "Bad chart pointing to numeric scalar fact",
+        "purpose": "Bad chart missing both series and points",
         "layout": "full_bottom",
-        "fact_id": "rate_baseline",
         "chart_type": "trajectory_area",
     })
     raw["events"].append({
@@ -413,16 +421,8 @@ def test_reject_chart_invalid_fact(valid_draft: ContinuousStoryDraft, loan_fixtu
         "target_id": "bad_chart",
         "anchor": "heavy burden",
     })
-    draft = ContinuousStoryDraft.model_validate(raw)
-    result = validate_story_draft(
-        draft=draft,
-        approved_facts=loan_fixture["approved_facts"],
-        word_timestamps=loan_fixture["word_timestamps"],
-        total_duration_ms=loan_fixture["total_duration_ms"],
-    )
-    assert result.valid is False
-    codes = [e.code for e in result.errors]
-    assert "INVALID_CHART_FACT" in codes
+    with pytest.raises(pydantic.ValidationError, match="requires directly authored 'series' or 'points'"):
+        ContinuousStoryDraft.model_validate(raw)
 
 
 # ----------------------------------------------------
@@ -490,3 +490,37 @@ def test_zone_occupancy_allowed_after_exit(valid_draft: ContinuousStoryDraft, lo
         total_duration_ms=loan_fixture["total_duration_ms"],
     )
     assert result.valid is True
+
+
+def test_validator_searches_anchor_after_card_enter_for_repeating_words():
+    """Verifies that an event anchor searches after the card has entered when words repeat."""
+    word_timestamps = [
+        {"word": "equity", "start_ms": 1000, "end_ms": 1300},
+        {"word": "catch", "start_ms": 5000, "end_ms": 5500},
+        {"word": "equity", "start_ms": 8000, "end_ms": 8300},
+    ]
+    raw_draft = {
+        "story_id": "repeat_anchor_validator_test",
+        "objects": [
+            {
+                "id": "card_test",
+                "type": "card",
+                "layout": "center",
+                "title": "Test Card",
+                "display_value": "100",
+                "numeric_value": 100,
+            }
+        ],
+        "events": [
+            {"action": "enter", "target_id": "card_test", "anchor": "catch"},
+            {"action": "exit", "target_id": "card_test", "anchor": "equity"},
+        ],
+    }
+    draft = ContinuousStoryDraft.model_validate(raw_draft)
+    result = validate_story_draft(
+        draft=draft,
+        word_timestamps=word_timestamps,
+        total_duration_ms=10000,
+    )
+    assert result.valid is True
+

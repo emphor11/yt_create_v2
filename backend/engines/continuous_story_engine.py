@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-import re
 from typing import Any
 
 from app.assets import load_prompt
@@ -12,6 +11,7 @@ from domain.continuous_story_plan import (
     VALID_CHART_TYPES,
     VALID_VISUAL_STATES,
     VALID_ZONES,
+    build_continuous_story_contract_schema,
 )
 from domain.research_packet import ResearchPacket
 from domain.script_visual_strategy import ScriptVisualStrategy
@@ -25,14 +25,6 @@ from providers.llm_provider import (
     LLMProvider,
     LLMProviderMetadata,
 )
-
-_MONEY_RE = re.compile(
-    r"(?<![A-Za-z])(?:₹|rs(?:\.)?|inr)\s*(\d[\d,]*(?:\.\d+)?)\s*(lakh|lakhs|crore|crores)?",
-    re.IGNORECASE,
-)
-_PERCENT_RE = re.compile(r"([\d]+(?:\.\d+)?)\s*%")
-_BPS_RE = re.compile(r"([\d]+(?:\.\d+)?)\s*(?:basis\s*points?|bps\b)", re.IGNORECASE)
-
 
 @dataclass(frozen=True)
 class ContinuousStoryEngineResult:
@@ -70,168 +62,6 @@ def _format_inr(val: float | int) -> str:
     if rest:
         parts.insert(0, rest)
     return "₹" + ",".join(parts) + "," + last3
-
-
-def _get_clause_for_match(source: str, start: int, end: int) -> str:
-    """Isolates the phrase or clause around a regex match to prevent context bleed."""
-    delims = [",", ";", ".", " - ", "—", "\n"]
-    clause_start = 0
-    for d in delims:
-        idx = source[:start].rfind(d)
-        if idx != -1 and idx + len(d) > clause_start:
-            clause_start = idx + len(d)
-    clause_end = len(source)
-    for d in delims:
-        idx = source[end:].find(d)
-        if idx != -1 and (end + idx) < clause_end:
-            clause_end = end + idx
-    clause = source[clause_start:clause_end].strip()
-    if len(clause) < 20:
-        clause = source[max(0, start - 50):min(len(source), end + 50)]
-    return clause
-
-
-def _infer_semantic_meaning(clause: str, val: float, kind: str) -> tuple[str, list[str]]:
-    """Infers factual meaning and allowed narrative roles from surrounding clause text."""
-    c = clause.lower()
-    if kind == "money":
-        if any(w in c for w in ["pure interest", "interest alone", "in interest", "interest outgo", "interest payment", "interest payments"]):
-            return "total lifetime interest outgo", ["card_value", "final_consequence", "transform_target"]
-        if any(w in c for w in ["total amount paid", "total payment", "total payments", "total paid", "entire tenure", "lifetime outgo"]):
-            return "total loan repayment over 30 years", ["card_value", "final_consequence", "transform_target"]
-        if any(w in c for w in ["saving", "savings", "saves", "slashes"]):
-            return "lifetime interest savings via prepayment", ["card_value", "solution_payoff"]
-        if any(w in c for w in ["loan", "principal", "borrower"]) or (val >= 500000 and "loan" in c):
-            return "home loan principal amount", ["card_value", "comparison_baseline", "baseline_hero"]
-        if any(w in c for w in ["emi", "monthly"]):
-            return "standard monthly EMI payment", ["card_value", "operational_metric"]
-        return f"monetary fact ({_format_inr(val)})", ["card_value"]
-    elif kind == "percent":
-        if any(w in c for w in ["interest rate", "rate of", "loan at"]):
-            return "annual interest rate", ["card_value", "context_metric"]
-        if any(w in c for w in ["bank interest", "toward interest", "servicing the interest", "initial emi", "early"]):
-            return "share of initial EMI going toward interest", ["card_value", "mechanism_warning"]
-        return f"percentage metric ({val}%)", ["card_value"]
-    elif kind == "bps":
-        return f"{val} bps rate shift", ["card_value", "context_metric"]
-    return "numeric fact", ["card_value"]
-
-
-def _numeric_facts_from_research(research_packet: ResearchPacket) -> dict[str, Any]:
-    """Promote explicit numeric evidence into typed compiler facts with semantic grounding."""
-    facts: dict[str, Any] = {}
-    seen_semantic_keys: set[tuple[Any, str, str]] = set()
-    counter = 1
-
-    sources = [
-        *research_packet.verified_facts,
-        *research_packet.statistics,
-        *research_packet.examples,
-    ]
-
-    for source in sources:
-        for match in _MONEY_RE.finditer(source):
-            raw_val = float(match.group(1).replace(",", ""))
-            unit = (match.group(2) or "").lower()
-            if unit.startswith("lakh"):
-                raw_val *= 100_000
-            elif unit.startswith("crore"):
-                raw_val *= 10_000_000
-            value = int(raw_val) if raw_val.is_integer() else raw_val
-
-            clause = _get_clause_for_match(source, match.start(), match.end())
-            meaning, allowed_use = _infer_semantic_meaning(clause, value, "money")
-            sem_key = (value, "currency_inr", meaning)
-            if sem_key in seen_semantic_keys:
-                continue
-            seen_semantic_keys.add(sem_key)
-
-            display = _format_inr(value)
-            facts[f"research_money_{counter}"] = {
-                "value": value,
-                "format": "currency_inr",
-                "meaning": meaning,
-                "display": display,
-                "allowed_use": allowed_use,
-                "label": meaning,
-                "subtitle": clause[:120],
-                "provenance": {"formula": "research_grounded", "source": source},
-            }
-            counter += 1
-
-        for match in _PERCENT_RE.finditer(source):
-            value = float(match.group(1))
-            value = int(value) if value.is_integer() else value
-
-            clause = _get_clause_for_match(source, match.start(), match.end())
-            meaning, allowed_use = _infer_semantic_meaning(clause, value, "percent")
-            sem_key = (value, "percentage", meaning)
-            if sem_key in seen_semantic_keys:
-                continue
-            seen_semantic_keys.add(sem_key)
-
-            display = f"{value}%"
-            facts[f"research_percent_{counter}"] = {
-                "value": value,
-                "format": "percentage",
-                "meaning": meaning,
-                "display": display,
-                "allowed_use": allowed_use,
-                "label": meaning,
-                "subtitle": clause[:120],
-                "provenance": {"formula": "research_grounded", "source": source},
-            }
-            counter += 1
-
-        for match in _BPS_RE.finditer(source):
-            value = float(match.group(1))
-            value = int(value) if value.is_integer() else value
-
-            clause = _get_clause_for_match(source, match.start(), match.end())
-            meaning, allowed_use = _infer_semantic_meaning(clause, value, "bps")
-            sem_key = (value, "basis_points", meaning)
-            if sem_key in seen_semantic_keys:
-                continue
-            seen_semantic_keys.add(sem_key)
-
-            display = f"{value} bps"
-            facts[f"research_bps_{counter}"] = {
-                "value": value,
-                "format": "basis_points",
-                "meaning": meaning,
-                "display": display,
-                "allowed_use": allowed_use,
-                "label": meaning,
-                "subtitle": clause[:120],
-                "provenance": {"formula": "research_grounded", "source": source},
-            }
-            counter += 1
-
-    if not facts:
-        num_re = re.compile(r"\b(\d[\d,]*(?:\.\d+)?)\b")
-        for source in sources:
-            for match in num_re.finditer(source):
-                val_str = match.group(1).replace(",", "")
-                try:
-                    val = float(val_str)
-                    if val <= 0:
-                        continue
-                    val = int(val) if val.is_integer() else val
-                    facts[f"research_num_{counter}"] = {
-                        "value": val,
-                        "format": "plain",
-                        "meaning": f"numeric fact ({val})",
-                        "display": str(val),
-                        "allowed_use": ["card_value"],
-                        "label": f"numeric fact ({val})",
-                        "subtitle": source[:120],
-                        "provenance": {"formula": "research_grounded", "source": source},
-                    }
-                    counter += 1
-                except ValueError:
-                    continue
-
-    return facts
 
 
 def _normalize_zone(val: Any, default: str = "center") -> str:
@@ -376,11 +206,10 @@ def format_programmatic_repair_prompt(
                             '   "to" must be one of:\n'
                             "   " + ", ".join(f'"{z}"' for z in VALID_ZONES) + "\n"
                         )
-                    elif "requires 'to_fact_id'" in msg or "to_fact_id" in loc:
+                    elif "transform_number" in msg or "to_fact_id" in msg or "to_display_value" in msg or "to_numeric_value" in msg:
                         specific_guidance = (
-                            '   Missing required field: "to_fact_id"\n'
-                            "   Choose one exact approved fact ID from the supplied fact registry.\n"
-                            f"   Valid fact IDs: {valid_fact_ids}\n"
+                            '   Missing required fields: "to_display_value" and "to_numeric_value"\n'
+                            '   Directly author both "to_display_value" (e.g. "₹1.38 Cr") and "to_numeric_value" (e.g. 13800000).\n'
                         )
                     elif "requires 'state'" in msg or "state" in loc:
                         specific_guidance = (
@@ -408,6 +237,11 @@ def format_programmatic_repair_prompt(
                         specific_guidance = (
                             '   Missing required field: "title"\n'
                             "   Every card must have a non-empty header title string.\n"
+                        )
+                    elif obj_type == "chart" and ("series" in msg or "points" in msg):
+                        specific_guidance = (
+                            '   Missing required field: "series" or "points"\n'
+                            "   Directly author chart series or points data without relying on fact lookup.\n"
                         )
 
             lines.append(f"{err_idx}. {loc_str}:\n{item_info}{specific_guidance}   Detail: {msg}\n")
@@ -437,66 +271,148 @@ def format_programmatic_repair_prompt(
 def build_continuous_story_prompt(
     story_id: str,
     narration_text: str,
-    approved_facts: dict[str, Any],
+    approved_facts: dict[str, Any] | None = None,
+    visual_strategy: Any | None = None,
+    available_assets: list[str] | None = None,
 ) -> tuple[str, str]:
-    """Builds system and user prompts for Gemini visual choreography with semantic fact grounding."""
+    """Builds system and user prompts for Gemini visual choreography in open direct-authoring mode."""
     system_prompt = load_prompt("continuous_story_system.txt")
 
-    semantic_registry: dict[str, dict[str, Any]] = {}
-    for fid, fval in approved_facts.items():
-        if isinstance(fval, dict):
-            val = fval.get("value")
-            fmt = fval.get("format", "plain")
-            meaning = fval.get("meaning") or fval.get("label") or fid
-            display = fval.get("display")
-            if not display:
-                if fmt == "currency_inr" and isinstance(val, (int, float)):
-                    display = _format_inr(val)
-                elif fmt == "percentage" and isinstance(val, (int, float)):
-                    display = f"{val}%"
-                elif fmt == "basis_points" and isinstance(val, (int, float)):
-                    display = f"{val} bps"
-                else:
-                    display = str(val) if val is not None else "chart_data"
-            allowed_use = fval.get("allowed_use", ["card_value", "transform_target"])
-            semantic_registry[fid] = {
-                "meaning": meaning,
-                "display": display,
-                "format": fmt,
-                "allowed_use": allowed_use,
-            }
-        else:
-            semantic_registry[fid] = {
-                "meaning": str(fval),
-                "display": str(fval),
-                "format": "plain",
-                "allowed_use": ["card_value"],
-            }
+    approved_facts = approved_facts or {}
+    available_assets = available_assets or []
+    assets_str = (
+        ", ".join(repr(a) for a in available_assets)
+        if available_assets
+        else "(None provided — use card, number, text, chart, connector primitives)"
+    )
 
-    registry_json_str = json.dumps(semantic_registry, indent=2, ensure_ascii=False)
-    fact_ids_str = ", ".join(repr(fid) for fid in approved_facts) or "(none)"
+    strategy_str = ""
+    if visual_strategy:
+        if hasattr(visual_strategy, "model_dump"):
+            strat_json = json.dumps(visual_strategy.model_dump(), indent=2, ensure_ascii=False)
+        elif isinstance(visual_strategy, dict):
+            strat_json = json.dumps(visual_strategy, indent=2, ensure_ascii=False)
+        else:
+            strat_json = str(visual_strategy)
+        strategy_str = f"VISUAL STRATEGY:\n{strat_json}\n\n"
+
+    facts_str = ""
+    if approved_facts:
+        semantic_registry: dict[str, dict[str, Any]] = {}
+        for fid, fval in approved_facts.items():
+            if isinstance(fval, dict):
+                val = fval.get("value")
+                fmt = fval.get("format", "plain")
+                meaning = fval.get("meaning") or fval.get("label") or fid
+                display = fval.get("display")
+                if not display:
+                    if fmt == "currency_inr" and isinstance(val, (int, float)):
+                        display = _format_inr(val)
+                    elif fmt == "percentage" and isinstance(val, (int, float)):
+                        display = f"{val}%"
+                    elif fmt == "basis_points" and isinstance(val, (int, float)):
+                        display = f"{val} bps"
+                    else:
+                        display = str(val) if val is not None else "chart_data"
+                allowed_use = fval.get("allowed_use", ["card_value", "transform_target"])
+                semantic_registry[fid] = {
+                    "meaning": meaning,
+                    "display": display,
+                    "format": fmt,
+                    "allowed_use": allowed_use,
+                }
+            else:
+                semantic_registry[fid] = {
+                    "meaning": str(fval),
+                    "display": str(fval),
+                    "format": "plain",
+                    "allowed_use": ["card_value"],
+                }
+        registry_json_str = json.dumps(semantic_registry, indent=2, ensure_ascii=False)
+        fact_ids_str = ", ".join(repr(fid) for fid in approved_facts) or "(none)"
+        facts_str = f"SEMANTIC FACT REGISTRY (Reference):\n```json\n{registry_json_str}\n```\n\nAPPROVED FACT IDS: {fact_ids_str}\n\n"
 
     user_prompt = (
         f"STORY ID: {story_id}\n\n"
         f"NARRATION TEXT (Spoken Audio Track):\n"
         f"\"{narration_text}\"\n\n"
-        f"SEMANTIC FACT REGISTRY (Every card value, standalone number, chart, and transform_number MUST reference an approved fact_id from this registry):\n"
-        f"```json\n{registry_json_str}\n```\n\n"
-        f"APPROVED FACT IDS: {fact_ids_str}\n\n"
-        "FACT USE INSTRUCTIONS:\n"
-        "- Choose facts by their 'meaning' and 'allowed_use' rather than arbitrary IDs.\n"
-        "- Baseline vs. Consequence: Use baseline facts (e.g. loan principal) for initial hero/context cards. Use consequence facts (e.g. total 30-year payout, lifetime interest outgo) for consequence beats or transform_number targets.\n"
-        "- Solution: Use savings facts for solution/prepayment beats.\n"
-        "- transform_number MUST use a fact representing a genuine consequential change (e.g. principal -> total payout).\n\n"
-        "RULES REMINDER:\n"
-        "- Every card requires a non-empty 'title'. 'value_fact_id' is optional for conceptual cards, but required when displaying a numeric fact.\n"
-        "- Standalone numbers require 'fact_id'. Standalone charts require 'fact_id' and 'chart_type'.\n"
-        "- Connectors MUST specify non-empty 'from_id' and 'to_id' referencing declared surface objects, and must NEVER include card fields (such as visual_state, badge, title, subtitle, or value_fact_id).\n"
-        "- Use only the 12 spatial layout zone names: top_left, top_center, top_right, center_left, center, center_right, bottom_left, bottom_center, bottom_right, full_screen, full_top, full_bottom.\n"
-        "- Prevent stacking: Do not enter a surface into an occupied zone.\n"
+        f"{strategy_str}"
+        f"{facts_str}"
+        f"AVAILABLE IMAGE ASSETS:\n{assets_str}\n\n"
+        "OPEN DIRECT-AUTHORING MODE INSTRUCTIONS:\n"
+        "Decide which visual primitive best communicates each narration beat across the continuous scene:\n"
+        "1. 'card': For key entities, metric cards, or concept blocks. Directly author 'title', 'subtitle', 'display_value' (e.g. '₹50 Lakhs', '8.5%'), 'numeric_value' (e.g. 5000000, 8.5), 'badge', 'visual_state', 'accent', 'layout'.\n"
+        "   - For qualitative/conceptual cards without numbers, omit display_value and numeric_value.\n"
+        "2. 'number': For standalone dramatic numeric callouts. Directly author 'display_value', 'numeric_value', 'purpose', 'layout'.\n"
+        "3. 'text': For standalone quotes, definitions, question banners, or chapter labels. Directly author 'text', 'purpose', 'layout'.\n"
+        "4. 'chart': For trajectories, comparisons, distributions. You MUST directly author non-empty 'points' (e.g. [{\"xLabel\": \"Year 1\", \"yValue\": 100}, ...]) or 'series'. Directly author 'chart_type' ('trajectory_area', 'split_bar', 'multi_bar', 'stack'), 'title', 'subtitle', 'layout'.\n"
+        "5. 'image': For visual proof or illustrations. Use only asset IDs from the available image assets above.\n"
+        "6. 'connector': For causal flow between surface objects. Provide 'from_id', 'to_id', 'label', 'layout'. Never include card, number, or visual-state fields on connectors.\n\n"
+        "AVAILABLE MOTION ACTIONS:\n"
+        "- 'enter': target_id, anchor (exact spoken phrase)\n"
+        "- 'exit': target_id, direction ('left', 'right', 'up', 'down', 'fade'), anchor\n"
+        "- 'move': target_id, to (zone), anchor\n"
+        "- 'transform_number': target_id, to_display_value (e.g. '₹1.38 Cr'), to_numeric_value (13800000), anchor\n"
+        "- 'change_visual_state': target_id, state ('normal', 'dimmed', 'warning', 'danger', 'success', 'eroded'), badge, anchor\n"
+        "- 'connect': target_id (connector id), anchor\n"
+        "- 'highlight': target_id, anchor\n\n"
+        "SPATIAL LAYOUT ZONES:\n"
+        "- Grid zones: top_left, top_center, top_right, center_left, center, center_right, bottom_left, bottom_center, bottom_right\n"
+        "- Macro zones: full_screen, full_top, full_bottom\n"
+        "- Prevent stacking: Do not enter a surface into an occupied zone without an exit.\n\n"
         "Output strictly valid ContinuousStoryDraft JSON following all rules."
     )
     return system_prompt, user_prompt
+
+
+def _validate_direct_authoring_contract(
+    draft: ContinuousStoryDraft,
+    available_assets: list[str] | set[str] | None = None,
+) -> None:
+    """Validates that Gemini provides all required direct-authored fields for each primitive."""
+    errors: list[str] = []
+    if available_assets is not None and not isinstance(available_assets, set):
+        available_assets = set(available_assets)
+
+    for obj in draft.objects:
+        if obj.type == "card":
+            if not obj.title or not obj.title.strip():
+                errors.append(f"Card '{obj.id}' requires non-empty direct 'title'.")
+        elif obj.type == "number":
+            if not obj.display_value and obj.numeric_value is None:
+                errors.append(f"Standalone number '{obj.id}' requires direct 'display_value' or 'numeric_value'.")
+        elif obj.type == "text":
+            if not obj.text or not obj.text.strip():
+                errors.append(f"Text element '{obj.id}' requires non-empty direct 'text'.")
+        elif obj.type == "chart":
+            if not obj.chart_type:
+                errors.append(f"Chart '{obj.id}' requires 'chart_type'.")
+            if not obj.series and not obj.points:
+                errors.append(f"Chart '{obj.id}' requires directly authored 'series' or 'points'.")
+        elif obj.type == "image":
+            if not obj.asset_id or not obj.asset_id.strip():
+                errors.append(f"Image '{obj.id}' requires 'asset_id'.")
+            elif not available_assets:
+                errors.append(f"Image '{obj.id}' is used, but available_assets list is empty or not provided.")
+            elif obj.asset_id not in available_assets:
+                errors.append(f"Image '{obj.id}' references unknown asset_id '{obj.asset_id}'. Available assets: {sorted(available_assets)}")
+        elif obj.type == "connector":
+            if not obj.from_id or not obj.to_id:
+                errors.append(f"Connector '{obj.id}' requires 'from_id' and 'to_id'.")
+            if obj.visual_state or obj.badge or obj.title or obj.subtitle or obj.display_value or obj.numeric_value:
+                errors.append(f"Connector '{obj.id}' must not contain card, number, or visual-state fields.")
+
+    for event in draft.events:
+        if event.action == "transform_number":
+            if not event.to_display_value or not event.to_display_value.strip():
+                errors.append(f"transform_number on '{event.target_id}' requires 'to_display_value'.")
+            if event.to_numeric_value is None:
+                errors.append(f"transform_number on '{event.target_id}' requires 'to_numeric_value'.")
+
+    if errors:
+        raise ContinuousStoryEngineError(
+            "Stage 7 failed: direct-authoring contract violation: " + " ".join(errors)
+        )
 
 
 class ContinuousStoryEngine:
@@ -504,7 +420,7 @@ class ContinuousStoryEngine:
     Engine that generates and compiles Continuous Story Choreography.
 
     Owns:
-    1. Extracting and structuring approved facts from Research/Strategy.
+    1. Managing open direct authoring across all 6 visual primitives.
     2. Prompt construction using continuous_story_system.txt.
     3. LLM choreography generation via Gemini.
     4. Two-tier self-healing repair loops (schema contract & spatial/temporal simulation).
@@ -527,9 +443,10 @@ class ContinuousStoryEngine:
         strategy: ScriptVisualStrategy,
         research_packet: ResearchPacket,
         approved_facts: dict[str, Any] | None = None,
+        available_assets: list[str] | None = None,
         mock_draft: ContinuousStoryDraft | dict[str, Any] | None = None,
     ) -> ContinuousStoryEngineResult:
-        # 1. Resolve approved facts from explicit argument or fallback to research
+        # Resolve approved facts if provided (optional in open direct authoring mode)
         if approved_facts is None:
             strat_dict = strategy.model_dump() if hasattr(strategy, "model_dump") else {}
             res_dict = research_packet.model_dump() if hasattr(research_packet, "model_dump") else {}
@@ -538,7 +455,7 @@ class ContinuousStoryEngine:
             elif isinstance(res_dict, dict) and res_dict.get("approved_facts"):
                 approved_facts = res_dict["approved_facts"]
             else:
-                approved_facts = _numeric_facts_from_research(research_packet)
+                approved_facts = {}
 
         story_id = f"story_{project_id}"
         word_timestamps_raw = [
@@ -572,6 +489,7 @@ class ContinuousStoryEngine:
                 approved_facts=approved_facts,
                 word_timestamps=word_timestamps_raw,
                 total_duration_ms=total_duration_ms,
+                available_assets=available_assets,
             )
             if not draft_validation.valid:
                 print_local_preflight_report(raw_gemini_payload, draft_errors=draft_validation.errors)
@@ -591,8 +509,10 @@ class ContinuousStoryEngine:
                 story_id=story_id,
                 narration_text=voice_track.full_script_text,
                 approved_facts=approved_facts,
+                visual_strategy=strategy,
+                available_assets=available_assets,
             )
-            draft_schema = ContinuousStoryDraft.model_json_schema()
+            draft_schema = build_continuous_story_contract_schema()
             req = LLMJsonRequest(
                 messages=[
                     LLMMessage(role="system", content=system_prompt),
@@ -601,7 +521,7 @@ class ContinuousStoryEngine:
                 schema_name="ContinuousStoryDraft",
                 response_schema=draft_schema,
                 temperature=0.0,
-                max_tokens=4096,
+                max_tokens=8192,
             )
             response = self.llm_provider.generate_json(req)
             raw_gemini_payload = response.payload
@@ -629,7 +549,7 @@ class ContinuousStoryEngine:
                     schema_name="ContinuousStoryDraftRepair",
                     response_schema=draft_schema,
                     temperature=0.0,
-                    max_tokens=4096,
+                    max_tokens=8192,
                 )
                 repaired = self.llm_provider.generate_json(repair_req)
                 raw_gemini_payload = repaired.payload
@@ -650,6 +570,7 @@ class ContinuousStoryEngine:
                 approved_facts=approved_facts,
                 word_timestamps=word_timestamps_raw,
                 total_duration_ms=total_duration_ms,
+                available_assets=available_assets,
             )
             if not draft_validation.valid:
                 print_local_preflight_report(raw_gemini_payload, draft_errors=draft_validation.errors)
@@ -672,7 +593,7 @@ class ContinuousStoryEngine:
                     schema_name="ContinuousStoryDraftTemporalRepair",
                     response_schema=draft_schema,
                     temperature=0.0,
-                    max_tokens=4096,
+                    max_tokens=8192,
                 )
                 repaired = self.llm_provider.generate_json(repair_req)
                 raw_gemini_payload = repaired.payload
@@ -692,6 +613,7 @@ class ContinuousStoryEngine:
                     approved_facts=approved_facts,
                     word_timestamps=word_timestamps_raw,
                     total_duration_ms=total_duration_ms,
+                    available_assets=available_assets,
                 )
                 if not draft_validation.valid:
                     print_local_preflight_report(raw_gemini_payload, draft_errors=draft_validation.errors)
@@ -704,6 +626,10 @@ class ContinuousStoryEngine:
 
             # Preflight report on successful candidate
             print_local_preflight_report(raw_gemini_payload)
+
+        # Real Gemini drafts must use direct authored values.
+        if mock_draft is None:
+            _validate_direct_authoring_contract(draft, available_assets)
 
         # 4. Deterministic compilation
         fixture_context = {

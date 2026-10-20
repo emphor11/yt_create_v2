@@ -93,7 +93,7 @@ def _clean_token(text: str) -> str:
     return re.sub(r"[^\w\.]", "", text.lower())
 
 
-def _get_anchor_start_ms(anchor: str, word_timestamps: list[dict[str, Any]]) -> int | None:
+def _get_anchor_start_ms(anchor: str, word_timestamps: list[dict[str, Any]], min_start_ms: int = 0) -> int | None:
     """Returns the start_ms of the anchor phrase in word timestamps, or None if not found."""
     clean_anchor_tokens = [_clean_token(t) for t in anchor.split() if _clean_token(t)]
     if not clean_anchor_tokens:
@@ -103,6 +103,8 @@ def _get_anchor_start_ms(anchor: str, word_timestamps: list[dict[str, Any]]) -> 
 
     # 1. Contiguous subsequence search
     for i in range(len(clean_words) - len(clean_anchor_tokens) + 1):
+        if word_timestamps[i].get("start_ms", 0) < min_start_ms:
+            continue
         match = True
         for j in range(len(clean_anchor_tokens)):
             if clean_words[i + j] != clean_anchor_tokens[j] and clean_anchor_tokens[j] not in clean_words[i + j]:
@@ -114,49 +116,40 @@ def _get_anchor_start_ms(anchor: str, word_timestamps: list[dict[str, Any]]) -> 
     # 2. Fallback: match first token
     first = clean_anchor_tokens[0]
     for i, w in enumerate(clean_words):
+        if word_timestamps[i].get("start_ms", 0) < min_start_ms:
+            continue
         if first == w or first in w:
             return word_timestamps[i].get("start_ms", 0)
+
+    # 3. If min_start_ms > 0 and no match was found after min_start_ms, fall back to search from 0
+    # so causality checks (ACTION_BEFORE_OBJECT_ENTER, EXIT_BEFORE_OBJECT_ENTER) can reject premature anchors.
+    if min_start_ms > 0:
+        return _get_anchor_start_ms(anchor, word_timestamps, min_start_ms=0)
 
     return None
 
 
-def _find_anchor_in_words(anchor: str, word_timestamps: list[dict[str, Any]]) -> bool:
+def _find_anchor_in_words(anchor: str, word_timestamps: list[dict[str, Any]], min_start_ms: int = 0) -> bool:
     """Checks if anchor phrase tokens exist in narration word timestamps as a contiguous sub-sequence."""
-    clean_anchor_tokens = [_clean_token(t) for t in anchor.split() if _clean_token(t)]
-    if not clean_anchor_tokens:
-        return False
-
-    clean_words = [_clean_token(w.get("word", "")) for w in word_timestamps]
-
-    for i in range(len(clean_words) - len(clean_anchor_tokens) + 1):
-        match = True
-        for j in range(len(clean_anchor_tokens)):
-            if clean_words[i + j] != clean_anchor_tokens[j] and clean_anchor_tokens[j] not in clean_words[i + j]:
-                match = False
-                break
-        if match:
-            return True
-
-    # Fallback to single token match
-    first = clean_anchor_tokens[0]
-    for w in clean_words:
-        if first == w or first in w:
-            return True
-
-    return False
+    return _get_anchor_start_ms(anchor, word_timestamps, min_start_ms=min_start_ms) is not None
 
 
 def validate_story_draft(
     draft: ContinuousStoryDraft,
-    approved_facts: dict[str, Any],
-    word_timestamps: list[dict[str, Any]],
+    approved_facts: dict[str, Any] | None = None,
+    word_timestamps: list[dict[str, Any]] | None = None,
     total_duration_ms: int | None = None,
+    available_assets: list[str] | set[str] | None = None,
 ) -> DraftValidationResult:
     """
-    Validates a parsed ContinuousStoryDraft against approved facts, speech timestamps,
-    causality, and spatial zone occupancy.
+    Validates a parsed ContinuousStoryDraft against speech timestamps,
+    causality, asset availability, and spatial zone occupancy.
     """
     errors: list[DraftValidationError] = []
+    approved_facts = approved_facts or {}
+    word_timestamps = word_timestamps or []
+    if available_assets is not None and not isinstance(available_assets, set):
+        available_assets = set(available_assets)
 
     # ----------------------------------------------------
     # Check: Word Timestamps Integrity
@@ -238,8 +231,8 @@ def validate_story_draft(
                 )
             )
 
-        # Check fact_id exists in approved_facts
-        if obj.fact_id is not None:
+        # Check fact_id exists in approved_facts if approved_facts is non-empty
+        if approved_facts and obj.fact_id is not None:
             if obj.fact_id not in approved_facts:
                 errors.append(
                     DraftValidationError(
@@ -265,7 +258,7 @@ def validate_story_draft(
                     fact_data = approved_facts[obj.fact_id]
                     has_series = "series" in fact_data and isinstance(fact_data["series"], list) and len(fact_data["series"]) > 0
                     has_segments = "segments" in fact_data and isinstance(fact_data["segments"], list) and len(fact_data["segments"]) > 0
-                    if not (has_series or has_segments):
+                    if not (has_series or has_segments or obj.series or obj.points):
                         errors.append(
                             DraftValidationError(
                                 code="INVALID_CHART_FACT",
@@ -275,8 +268,8 @@ def validate_story_draft(
                             )
                         )
 
-        # Check value_fact_id on cards
-        if obj.type == "card" and obj.value_fact_id is not None:
+        # Check value_fact_id on cards if approved_facts is non-empty
+        if approved_facts and obj.type == "card" and obj.value_fact_id is not None:
             if obj.value_fact_id not in approved_facts:
                 errors.append(
                     DraftValidationError(
@@ -297,6 +290,34 @@ def validate_story_draft(
                             details={"value_fact_id": obj.value_fact_id, "value": fact_val},
                         )
                     )
+
+        # Check image asset_id against available asset library
+        if obj.type == "image":
+            if not obj.asset_id or not obj.asset_id.strip():
+                errors.append(
+                    DraftValidationError(
+                        code="MISSING_ASSET_ID",
+                        message=f"Image '{obj.id}' requires a valid non-empty 'asset_id'.",
+                        target_id=obj.id,
+                    )
+                )
+            elif not available_assets:
+                errors.append(
+                    DraftValidationError(
+                        code="EMPTY_AVAILABLE_ASSETS",
+                        message=f"Image '{obj.id}' is used, but available_assets list is empty or not provided.",
+                        target_id=obj.id,
+                    )
+                )
+            elif obj.asset_id not in available_assets:
+                errors.append(
+                    DraftValidationError(
+                        code="UNKNOWN_ASSET_ID",
+                        message=f"Image '{obj.id}' references unknown asset_id '{obj.asset_id}'. Available assets: {sorted(available_assets)}",
+                        target_id=obj.id,
+                        details={"asset_id": obj.asset_id},
+                    )
+                )
 
         # Connector endpoint validation (must target surface elements)
         if obj.type == "connector":
@@ -362,8 +383,8 @@ def validate_story_draft(
                 )
             )
 
-        # Check: to_fact_id exists in approved_facts
-        if event.to_fact_id is not None:
+        # Check: to_fact_id exists in approved_facts if approved_facts is non-empty
+        if approved_facts and event.to_fact_id is not None:
             if event.action != "transform_number":
                 errors.append(
                     DraftValidationError(
@@ -468,16 +489,27 @@ def validate_story_draft(
     exit_times_ms: dict[str, int] = {}
 
     for event in draft.events:
-        t_ms = _get_anchor_start_ms(event.anchor, word_timestamps)
-        if t_ms is not None:
-            if event.action == "enter":
+        if event.action == "enter":
+            t_ms = _get_anchor_start_ms(event.anchor, word_timestamps)
+            if t_ms is not None:
                 if event.target_id not in enter_times_ms or t_ms < enter_times_ms[event.target_id]:
                     enter_times_ms[event.target_id] = t_ms
-            elif event.action == "exit":
-                exit_times_ms[event.target_id] = t_ms
 
     for event in draft.events:
-        event_time_ms = _get_anchor_start_ms(event.anchor, word_timestamps)
+        min_start = 0
+        if event.action != "enter":
+            min_start = enter_times_ms.get(event.target_id, 0)
+            if event.action == "connect":
+                target_obj_conn = object_map.get(event.target_id)
+                if target_obj_conn and target_obj_conn.type == "connector":
+                    min_start = max(
+                        enter_times_ms.get(target_obj_conn.from_id, 0),
+                        enter_times_ms.get(target_obj_conn.to_id, 0),
+                    )
+
+        event_time_ms = _get_anchor_start_ms(event.anchor, word_timestamps, min_start_ms=min_start)
+        if event.action == "exit" and event_time_ms is not None:
+            exit_times_ms[event.target_id] = event_time_ms
         if event_time_ms is None or event.target_id not in object_map:
             continue
 
@@ -566,7 +598,7 @@ def validate_story_draft(
         moves_for_obj: list[tuple[int, str]] = []
         for event in draft.events:
             if event.action == "move" and event.target_id == obj.id and event.to:
-                m_t = _get_anchor_start_ms(event.anchor, word_timestamps)
+                m_t = _get_anchor_start_ms(event.anchor, word_timestamps, min_start_ms=enter_t or 0)
                 if m_t is not None:
                     moves_for_obj.append((m_t, event.to))
         moves_for_obj.sort(key=lambda m: m[0])

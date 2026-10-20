@@ -10,7 +10,6 @@ from domain.voice_track import VoiceTrack, WordTimestamp
 from engines.continuous_story_engine import (
     ContinuousStoryEngine,
     ContinuousStoryEngineError,
-    _numeric_facts_from_research,
     _normalize_zone,
     _safe_contract_repair,
     _safe_temporal_repair,
@@ -55,6 +54,26 @@ def sample_research_packet():
         audience="borrowers",
         channel="Finance",
         verified_facts=["₹50 lakhs loan at 8.5% interest rate with 100 bps hike"],
+        approved_facts={
+            "research_money_1": {
+                "value": 5000000,
+                "format": "currency_inr",
+                "display": "₹50,00,000",
+                "meaning": "home loan principal amount",
+            },
+            "research_percent_2": {
+                "value": 8.5,
+                "format": "percentage",
+                "display": "8.5%",
+                "meaning": "annual interest rate",
+            },
+            "research_bps_3": {
+                "value": 100,
+                "format": "basis_points",
+                "display": "100 bps",
+                "meaning": "rate shift",
+            },
+        },
     )
 
 
@@ -74,31 +93,15 @@ def sample_strategy():
     )
 
 
-def test_numeric_facts_extraction_from_research(sample_research_packet):
-    facts = _numeric_facts_from_research(sample_research_packet)
-    assert "research_money_1" in facts
-    assert facts["research_money_1"]["value"] == 5000000
-    assert facts["research_money_1"]["format"] == "currency_inr"
-    assert facts["research_money_1"]["meaning"] == "home loan principal amount"
-    assert facts["research_money_1"]["display"] == "₹50,00,000"
-    assert "baseline_hero" in facts["research_money_1"]["allowed_use"]
-
-    assert "research_percent_2" in facts
-    assert facts["research_percent_2"]["value"] == 8.5
-    assert facts["research_percent_2"]["format"] == "percentage"
-    assert facts["research_percent_2"]["meaning"] == "annual interest rate"
-    assert facts["research_percent_2"]["display"] == "8.5%"
-    assert "context_metric" in facts["research_percent_2"]["allowed_use"]
-
-    assert "research_bps_3" in facts
-    assert facts["research_bps_3"]["value"] == 100
-    assert facts["research_bps_3"]["format"] == "basis_points"
-    assert facts["research_bps_3"]["display"] == "100 bps"
+def test_structured_facts_are_loaded_from_the_research_packet(sample_research_packet):
+    assert sample_research_packet.approved_facts["research_money_1"]["value"] == 5000000
+    assert sample_research_packet.approved_facts["research_percent_2"]["display"] == "8.5%"
+    assert sample_research_packet.approved_facts["research_bps_3"]["format"] == "basis_points"
 
 
 def test_semantic_fact_registry_in_prompt(sample_research_packet):
     from engines.continuous_story_engine import build_continuous_story_prompt
-    facts = _numeric_facts_from_research(sample_research_packet)
+    facts = sample_research_packet.approved_facts
     _, user_prompt = build_continuous_story_prompt("story_test", "Test narration", facts)
     assert "SEMANTIC FACT REGISTRY" in user_prompt
     assert "home loan principal amount" in user_prompt
@@ -199,6 +202,9 @@ def test_continuous_story_engine_with_llm_provider(
                 "layout": "center",
                 "purpose": "Principal card",
                 "value_fact_id": "research_money_1",
+                "display_value": "₹50 Lakhs",
+                "numeric_value": 5000000,
+                "subtitle": "Starting principal",
                 "title": "Home Loan Principal",
             },
         ],
@@ -911,10 +917,9 @@ def test_format_programmatic_repair_prompt_structure():
     assert 'Missing required field: "to"' in prompt
     assert '"top_left"' in prompt
 
-    # 4. Error on transform_number missing 'to_fact_id'
+    # 4. Error on transform_number missing direct values
     assert 'events[1]' in prompt
-    assert 'Missing required field: "to_fact_id"' in prompt
-    assert "research_money_1" in prompt
+    assert 'Missing required fields: "to_display_value" and "to_numeric_value"' in prompt
 
     # 5. Error on change_visual_state missing 'state'
     assert 'events[2]' in prompt
@@ -941,6 +946,138 @@ def test_print_local_preflight_report_output(capsys):
     assert "Invalid fields / validation issues:" in captured
     assert "objects[0]" in captured
     assert "events[0]" in captured
+
+
+def test_open_direct_authoring_mode_without_approved_facts(
+    sample_voice_track,
+    sample_strategy,
+):
+    packet = ResearchPacket(
+        topic="Home Loan Comparison",
+        audience="borrowers",
+        channel="Finance",
+        verified_facts=[
+            "Home loan principal is 50 lakh with rate at 8.5 percent.",
+            "Total repayment reaches 1.38 crore rupees over 30 years.",
+        ],
+    )
+    # In open direct-authoring mode, empty approved_facts should NOT raise an error
+    result = ContinuousStoryEngine().run(
+        project_id="open_authoring_story",
+        voice_track=sample_voice_track,
+        strategy=sample_strategy,
+        research_packet=packet,
+        approved_facts={},
+        available_assets=["chart_icon", "bank_logo"],
+        mock_draft={
+            "story_id": "open_authoring_story",
+            "objects": [
+                {
+                    "id": "card_hero",
+                    "type": "card",
+                    "layout": "center_left",
+                    "title": "Home Loan",
+                    "display_value": "₹50 Lakhs",
+                    "numeric_value": 5000000,
+                    "subtitle": "30-Year Term",
+                },
+                {
+                    "id": "num_rate",
+                    "type": "number",
+                    "layout": "center_right",
+                    "display_value": "8.5%",
+                    "numeric_value": 8.5,
+                    "purpose": "Interest rate",
+                },
+                {
+                    "id": "txt_note",
+                    "type": "text",
+                    "layout": "top_center",
+                    "text": "Fixed rate benchmark",
+                },
+                {
+                    "id": "chart_repay",
+                    "type": "chart",
+                    "layout": "bottom_center",
+                    "chart_type": "split_bar",
+                    "title": "Repayment Breakdown",
+                    "subtitle": "Principal vs Interest",
+                    "points": [
+                        {"label": "Principal", "value": 50},
+                        {"label": "Interest", "value": 88},
+                    ],
+                },
+                {
+                    "id": "img_bank",
+                    "type": "image",
+                    "layout": "top_left",
+                    "asset_id": "bank_logo",
+                },
+                {
+                    "id": "conn_hero_rate",
+                    "type": "connector",
+                    "layout": "center",
+                    "from_id": "card_hero",
+                    "to_id": "num_rate",
+                    "label": "governed by",
+                },
+            ],
+            "events": [
+                {"action": "enter", "target_id": "card_hero", "anchor": "50 lakh"},
+                {"action": "enter", "target_id": "num_rate", "anchor": "8.5 percent"},
+                {"action": "enter", "target_id": "txt_note", "anchor": "starts at"},
+                {"action": "enter", "target_id": "chart_repay", "anchor": "interest"},
+                {"action": "enter", "target_id": "img_bank", "anchor": "rupee"},
+                {"action": "enter", "target_id": "conn_hero_rate", "anchor": "home loan"},
+            ],
+        },
+    )
+    assert result.draft.story_id == "open_authoring_story"
+    assert len(result.draft.objects) == 6
+    assert result.draft.objects[3].chart_type == "split_bar"
+    assert len(result.draft.objects[3].points) == 2
+    assert result.draft.objects[4].asset_id == "bank_logo"
+    assert result.draft.objects[5].from_id == "card_hero"
+    assert result.draft.objects[5].to_id == "num_rate"
+    assert result.artifact.plan is not None
+
+
+def test_direct_authoring_draft_validation():
+    payload = {
+        "story_id": "direct_draft_validation",
+        "objects": [
+            {
+                "id": "card_hero",
+                "type": "card",
+                "layout": "center",
+                "title": "Principal Loan",
+                "display_value": "₹50 Lakhs",
+                "numeric_value": 5000000,
+                "subtitle": "Initial amount borrowed",
+            }
+        ],
+        "events": [
+            {
+                "action": "enter",
+                "target_id": "card_hero",
+                "anchor": "borrowed",
+            },
+            {
+                "action": "transform_number",
+                "target_id": "card_hero",
+                "anchor": "climbs to",
+                "to_display_value": "₹1.38 Cr",
+                "to_numeric_value": 13800000,
+            },
+        ],
+    }
+
+    draft = ContinuousStoryDraft.model_validate(payload)
+    assert draft.objects[0].display_value == "₹50 Lakhs"
+    assert draft.objects[0].numeric_value == 5000000
+    assert draft.objects[0].subtitle == "Initial amount borrowed"
+    assert draft.events[1].to_display_value == "₹1.38 Cr"
+    assert draft.events[1].to_numeric_value == 13800000
 
 
 

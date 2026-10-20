@@ -33,6 +33,7 @@ export interface EvaluatedObjectState {
   scale: number;
   zIndex: number;
   isEntered: boolean;
+  currentDisplayValue?: string;
   currentNumberValue?: number;
   currentTextValue?: string;
   currentSubtitleValue?: string;
@@ -319,6 +320,7 @@ export function evaluateFrame(
 
     // 4. Number transformation action
     let currentNumberValue: number | undefined = obj.cardProps?.value ?? obj.numberProps?.value;
+    let currentDisplayValue: string | undefined = obj.cardProps?.displayValue ?? obj.numberProps?.displayValue;
     const transformEvents = targetEvents.filter(
       (e): e is TransformNumberAction => e.action === "transform_number"
     );
@@ -327,6 +329,9 @@ export function evaluateFrame(
     for (const trans of transformEvents) {
       if (frame >= trans.startFrame + trans.durationFrames) {
         currentNumberValue = trans.toValue;
+        if (trans.toDisplayValue) {
+          currentDisplayValue = trans.toDisplayValue;
+        }
         startVal = trans.toValue;
       } else if (frame >= trans.startFrame) {
         const p = interpolate(
@@ -521,6 +526,7 @@ export function evaluateFrame(
       scale: finalScale,
       zIndex,
       isEntered,
+      currentDisplayValue,
       currentNumberValue,
       currentTextValue,
       currentSubtitleValue,

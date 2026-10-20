@@ -4,6 +4,7 @@ import { tokens } from "../../design-tokens.ts";
 
 interface CardComponentProps {
   props: CardProps;
+  currentDisplayValue?: string;
   currentValue?: number;
   currentSubtitle?: string;
   visualState?: VisualStateKind;
@@ -35,7 +36,7 @@ function formatValue(
   } else if (fmt === "percentage") {
     str = formatPercentage(val, decimals);
   } else {
-    str = Math.round(val).toLocaleString();
+    str = Number.isInteger(val) ? val.toLocaleString() : val.toString();
   }
   if (prefix) str = `${prefix}${str}`;
   if (suffix) str = `${str}${suffix}`;
@@ -44,6 +45,7 @@ function formatValue(
 
 export const Card: React.FC<CardComponentProps> = ({
   props,
+  currentDisplayValue,
   currentValue,
   currentSubtitle,
   visualState: dynamicVisualState,
@@ -83,12 +85,16 @@ export const Card: React.FC<CardComponentProps> = ({
   }
 
   // Value resolution for atomic card
+  const displayToUse = currentDisplayValue || props.displayValue;
   const valToDisplay = currentValue !== undefined ? currentValue : props.value;
-  const hasValue = valToDisplay !== undefined;
-  const formattedValue = hasValue
+  const hasValue = Boolean(displayToUse) || (valToDisplay !== undefined && valToDisplay !== null);
+
+  const formattedValue = displayToUse
+    ? displayToUse
+    : (valToDisplay !== undefined && valToDisplay !== null)
     ? formatValue(
         valToDisplay,
-        props.format ?? "currency_inr",
+        props.format ?? "plain",
         props.decimals ?? 1,
         props.prefix,
         props.suffix
@@ -235,7 +241,10 @@ export const Card: React.FC<CardComponentProps> = ({
             color: tokens.text.muted,
             marginTop: 6,
             zIndex: 2,
-            whiteSpace: "nowrap",
+            lineHeight: 1.35,
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
             overflow: "hidden",
             textOverflow: "ellipsis",
           }}

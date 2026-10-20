@@ -347,9 +347,18 @@ class GeminiProvider:
     @staticmethod
     def _extract_text(response_body: dict[str, Any]) -> str:
         try:
-            return response_body["candidates"][0]["content"]["parts"][0]["text"]
-        except (KeyError, IndexError, TypeError) as error:
-            raise LLMProviderError("Gemini API response did not contain text output.") from error
+            candidates = response_body.get("candidates", [])
+            if candidates:
+                parts = candidates[0].get("content", {}).get("parts", [])
+                for part in parts:
+                    if isinstance(part, dict) and "text" in part and not part.get("thought"):
+                        return part["text"]
+                for part in parts:
+                    if isinstance(part, dict) and "text" in part:
+                        return part["text"]
+        except Exception as error:
+            raise LLMProviderError(f"Gemini API response did not contain text output: {response_body}") from error
+        raise LLMProviderError(f"Gemini API response did not contain text output: {response_body}")
 
     @staticmethod
     def _finish_reason(response_body: dict[str, Any]) -> str | None:

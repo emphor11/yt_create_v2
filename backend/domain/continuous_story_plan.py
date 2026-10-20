@@ -119,9 +119,19 @@ class StoryObjectDraft(StrictBaseModel):
         default=None,
         description="Card header title (card elements only)."
     )
+    display_value: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("display_value", "displayValue", "value_display", "formatted_value"),
+        description="Formatted human-friendly display string authored directly by AI (e.g. '₹50 Lakhs', '8.5%', '₹1.38 Cr', '₹5,000')."
+    )
+    numeric_value: float | None = Field(
+        default=None,
+        validation_alias=AliasChoices("numeric_value", "numericValue", "raw_value"),
+        description="Raw numeric value for animated counters and mathematical grounding."
+    )
     value_fact_id: str | None = Field(
         default=None,
-        description="Reference to approved fact ID for card metric (card elements only)."
+        description="Required for numeric cards. Identifies the approved fact for verification and provenance; it does not replace the directly authored display_value or numeric_value."
     )
     subtitle: str | None = Field(
         default=None,
@@ -153,10 +163,18 @@ class StoryObjectDraft(StrictBaseModel):
         description="Display text content for standalone 'text' element."
     )
 
-    # Chart-specific fields
+    # Chart-specific fields (Directly Authored)
     chart_type: ChartType | None = Field(
         default=None,
-        description="Chart visualization subtype ('trajectory_area', 'split_bar', etc.)."
+        description="Chart visualization subtype ('trajectory_area', 'split_bar', 'multi_bar', 'stack')."
+    )
+    series: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Direct chart series list: [{id, name, color, points: [{xLabel, yValue}]}]."
+    )
+    points: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Direct chart points for simple single-series charts: [{xLabel, yValue}]."
     )
 
     # Image-specific fields
@@ -192,42 +210,47 @@ class StoryObjectDraft(StrictBaseModel):
             # Card requires title
             if not self.title or not self.title.strip():
                 raise ValueError(f"Card '{self.id}' requires non-empty 'title'.")
-            # Cards use title, value_fact_id, subtitle, badge, visual_state, accent
+            # Cards use title, value_fact_id, subtitle, badge, visual_state, accent, display_value, numeric_value
             if self.from_id is not None or self.to_id is not None or self.label is not None:
                 raise ValueError(f"Card '{self.id}' cannot specify connector fields ('from_id', 'to_id', 'label').")
-            if self.chart_type is not None:
-                raise ValueError(f"Card '{self.id}' cannot specify 'chart_type' (charts only).")
+            if self.chart_type is not None or self.series is not None or self.points is not None:
+                raise ValueError(f"Card '{self.id}' cannot specify chart fields ('chart_type', 'series', 'points').")
             if self.asset_id is not None:
                 raise ValueError(f"Card '{self.id}' cannot specify 'asset_id' (images only).")
             if self.text is not None:
                 raise ValueError(f"Card '{self.id}' cannot specify standalone 'text' (use 'title' or 'subtitle').")
 
         elif self.type == "number":
-            # Standalone number requires fact_id (or value_fact_id)
-            effective_fact = self.fact_id or self.value_fact_id
-            if not effective_fact or not effective_fact.strip():
-                raise ValueError(f"Standalone number '{self.id}' requires 'fact_id'.")
-            if self.from_id is not None or self.to_id is not None:
+            # Standalone number requires display_value or numeric_value
+            effective_has_number = (
+                (self.display_value is not None and bool(str(self.display_value).strip()))
+                or self.numeric_value is not None
+                or (self.fact_id is not None and bool(str(self.fact_id).strip()))
+                or (self.value_fact_id is not None and bool(str(self.value_fact_id).strip()))
+            )
+            if not effective_has_number:
+                raise ValueError(f"Standalone number '{self.id}' requires 'display_value' or 'numeric_value'.")
+            if self.from_id is not None or self.to_id is not None or self.label is not None:
                 raise ValueError(f"Number '{self.id}' cannot specify connector fields.")
-            if self.chart_type is not None or self.asset_id is not None:
+            if self.chart_type is not None or self.series is not None or self.points is not None or self.asset_id is not None:
                 raise ValueError(f"Number '{self.id}' cannot specify chart or image fields.")
 
         elif self.type == "text":
             # Standalone text requires 'text'
             if not self.text or not self.text.strip():
                 raise ValueError(f"Standalone text '{self.id}' requires non-empty 'text'.")
-            if self.from_id is not None or self.to_id is not None:
+            if self.from_id is not None or self.to_id is not None or self.label is not None:
                 raise ValueError(f"Text '{self.id}' cannot specify connector fields.")
-            if self.chart_type is not None or self.asset_id is not None or self.value_fact_id is not None:
+            if self.chart_type is not None or self.series is not None or self.points is not None or self.asset_id is not None or self.value_fact_id is not None:
                 raise ValueError(f"Text '{self.id}' cannot specify chart, image, or fact fields.")
 
         elif self.type == "chart":
-            # Chart requires fact_id and chart_type
-            if not self.fact_id or not self.fact_id.strip():
-                raise ValueError(f"Chart '{self.id}' requires 'fact_id'.")
+            # Chart requires chart_type and direct data (series or points).
             if not self.chart_type:
-                raise ValueError(f"Chart '{self.id}' requires 'chart_type' (e.g. 'trajectory_area').")
-            if self.from_id is not None or self.to_id is not None:
+                raise ValueError(f"Chart '{self.id}' requires 'chart_type' (e.g. 'trajectory_area', 'split_bar', 'multi_bar', 'stack').")
+            if not self.series and not self.points:
+                raise ValueError(f"Chart '{self.id}' requires directly authored 'series' or 'points'.")
+            if self.from_id is not None or self.to_id is not None or self.label is not None:
                 raise ValueError(f"Chart '{self.id}' cannot specify connector fields.")
             if self.asset_id is not None:
                 raise ValueError(f"Chart '{self.id}' cannot specify 'asset_id'.")
@@ -236,9 +259,9 @@ class StoryObjectDraft(StrictBaseModel):
             # Image requires asset_id
             if not self.asset_id or not self.asset_id.strip():
                 raise ValueError(f"Image '{self.id}' requires 'asset_id'.")
-            if self.from_id is not None or self.to_id is not None:
+            if self.from_id is not None or self.to_id is not None or self.label is not None:
                 raise ValueError(f"Image '{self.id}' cannot specify connector fields.")
-            if self.chart_type is not None or self.fact_id is not None:
+            if self.chart_type is not None or self.series is not None or self.points is not None or self.fact_id is not None:
                 raise ValueError(f"Image '{self.id}' cannot specify chart or fact fields.")
 
         elif self.type == "connector":
@@ -247,7 +270,7 @@ class StoryObjectDraft(StrictBaseModel):
                 raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' requires valid from_id and to_id.")
             if self.from_id == self.to_id:
                 raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' cannot connect element to itself ('{self.from_id}').")
-            # Forbid card, fact, or non-connector fields on connector
+            # Forbid card, fact, chart, number, or visual-state fields on connector
             if self.visual_state is not None:
                 raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' cannot specify card field 'visual_state'.")
             if self.badge is not None:
@@ -258,7 +281,9 @@ class StoryObjectDraft(StrictBaseModel):
                 raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' cannot specify card field 'title'.")
             if self.subtitle is not None:
                 raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' cannot specify card field 'subtitle'.")
-            if self.chart_type is not None or self.asset_id is not None or self.text is not None:
+            if self.display_value is not None or self.numeric_value is not None:
+                raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' cannot specify number fields.")
+            if self.chart_type is not None or self.series is not None or self.points is not None or self.asset_id is not None or self.text is not None:
                 raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' cannot specify chart, image, or text fields.")
 
         return self
@@ -295,9 +320,19 @@ class StoryEventDraft(StrictBaseModel):
         validation_alias=AliasChoices("to", "position", "destination", "layout"),
         description="Target destination zone for 'move' action (e.g. 'center_left'). Required for move."
     )
+    to_display_value: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("to_display_value", "toDisplayValue", "to_value_display"),
+        description="New formatted display string for 'transform_number' action (e.g. '₹5,000', '₹0', '3 Years')."
+    )
+    to_numeric_value: float | None = Field(
+        default=None,
+        validation_alias=AliasChoices("to_numeric_value", "toNumericValue", "to_value"),
+        description="New numeric float value for 'transform_number' action."
+    )
     to_fact_id: str | None = Field(
         default=None,
-        description="New fact ID for 'transform_number' action (on card or number). Required for transform_number."
+        description="Required approved fact ID for the new numeric value in a transform_number action."
     )
     to_text: str | None = Field(
         default=None,
@@ -339,9 +374,12 @@ class StoryEventDraft(StrictBaseModel):
         if self.action == "move" and self.to is None:
             raise ValueError(f"Action 'move' targeting '{self.target_id}' requires 'to' destination zone.")
 
-        # 3. 'transform_number' requires 'to_fact_id'
-        if self.action == "transform_number" and (not self.to_fact_id or not self.to_fact_id.strip()):
-            raise ValueError(f"Action 'transform_number' targeting '{self.target_id}' requires 'to_fact_id'.")
+        # 3. 'transform_number' requires both 'to_display_value' and 'to_numeric_value'
+        if self.action == "transform_number":
+            if not self.to_display_value or not self.to_display_value.strip():
+                raise ValueError(f"Action 'transform_number' targeting '{self.target_id}' requires 'to_display_value'.")
+            if self.to_numeric_value is None:
+                raise ValueError(f"Action 'transform_number' targeting '{self.target_id}' requires 'to_numeric_value'.")
 
         # 4. 'change_visual_state' requires 'state'
         if self.action == "change_visual_state" and not self.state:
@@ -455,8 +493,10 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                                 "layout": {"type": "string", "enum": zone_enum, "description": "One of the 12 spatial zone names."},
                                 "purpose": {"type": "string", "description": "Editorial purpose of this visual element."},
                                 "title": {"type": "string", "description": "MANDATORY card header title."},
-                                "value_fact_id": {"type": "string", "description": "Optional reference to approved fact ID for cards displaying a factual number."},
-                                "subtitle": {"type": "string", "description": "Card explanatory subtitle or context."},
+                                "display_value": {"type": "string", "description": "Direct human-friendly display value (e.g. '₹50 Lakhs', '8.5%', '₹1.38 Cr', '₹5,000')."},
+                                "numeric_value": {"type": "number", "description": "Raw numeric value for animated counters and math validation."},
+                                "value_fact_id": {"type": "string", "description": "Required for numeric cards: approved fact identity used for verification and provenance."},
+                                "subtitle": {"type": "string", "description": "Card explanatory subtitle authored directly by AI (concise 3-6 words)."},
                                 "badge": {"type": "string", "description": "Status badge text."},
                                 "visual_state": {"type": "string", "enum": state_enum, "description": "Visual state."},
                                 "accent": {"type": "string", "description": "Optional accent color hex code."}
@@ -470,9 +510,11 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                                 "type": {"type": "string", "enum": ["number"]},
                                 "layout": {"type": "string", "enum": zone_enum, "description": "One of the 12 spatial zone names."},
                                 "purpose": {"type": "string", "description": "Editorial purpose."},
-                                "fact_id": {"type": "string", "description": "Reference to approved fact ID."}
+                                "display_value": {"type": "string", "description": "Direct formatted number string (e.g. '₹1.38 Cr', '8.5%')."},
+                                "numeric_value": {"type": "number", "description": "Numeric float value."},
+                                "fact_id": {"type": "string", "description": "Optional reference to approved fact ID."}
                             },
-                            "required": ["id", "type", "layout", "fact_id"]
+                            "required": ["id", "type", "layout", "display_value"]
                         },
                         {
                             "type": "object",
@@ -492,13 +534,49 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                                 "type": {"type": "string", "enum": ["chart"]},
                                 "layout": {"type": "string", "enum": zone_enum, "description": "One of the 12 spatial zone names."},
                                 "purpose": {"type": "string", "description": "Editorial purpose."},
-                                "fact_id": {"type": "string", "description": "Reference to approved fact ID."},
-                                "chart_type": {"type": "string", "enum": chart_enum, "description": "Chart visualization subtype."},
+                                "chart_type": {"type": "string", "enum": chart_enum, "description": "Chart visualization subtype ('trajectory_area', 'split_bar', 'multi_bar', 'stack')."},
                                 "title": {"type": "string", "description": "Chart title."},
                                 "subtitle": {"type": "string", "description": "Chart subtitle."},
-                                "accent": {"type": "string", "description": "Accent hex code."}
+                                "series": {
+                                    "type": "array",
+                                    "description": "Optional list of chart data series: [{id, name, color, points: [{xLabel, yValue}]}].",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": {"type": "string"},
+                                            "name": {"type": "string"},
+                                            "color": {"type": "string"},
+                                            "points": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "xLabel": {"type": "string"},
+                                                        "yValue": {"type": "number"}
+                                                    },
+                                                    "required": ["xLabel", "yValue"]
+                                                }
+                                            }
+                                        },
+                                        "required": ["name", "points"]
+                                    }
+                                },
+                                "points": {
+                                    "type": "array",
+                                    "description": "Optional direct chart data points for simple trajectory: [{xLabel, yValue}].",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "xLabel": {"type": "string"},
+                                            "yValue": {"type": "number"}
+                                        },
+                                        "required": ["xLabel", "yValue"]
+                                    }
+                                },
+                                "accent": {"type": "string", "description": "Accent hex code."},
+                                "fact_id": {"type": "string", "description": "Optional reference to approved fact ID."}
                             },
-                            "required": ["id", "type", "layout", "fact_id", "chart_type"]
+                            "required": ["id", "type", "layout", "chart_type", "points"]
                         },
                         {
                             "type": "object",
@@ -556,10 +634,12 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                             "properties": {
                                 "action": {"type": "string", "enum": ["transform_number"]},
                                 "target_id": {"type": "string", "description": "ID of visual element whose number transforms."},
-                                "to_fact_id": {"type": "string", "description": "MANDATORY approved fact ID for the transformed value."},
+                                "to_display_value": {"type": "string", "description": "MANDATORY new formatted display string authored directly (e.g. '₹5,000', '₹0', '3 Years')."},
+                                "to_numeric_value": {"type": "number", "description": "MANDATORY new numeric value authored directly."},
+                                "to_fact_id": {"type": "string", "description": "Optional approved fact ID for the transformed value."},
                                 "anchor": {"type": "string", "description": "Exact spoken phrase in narration where action occurs."}
                             },
-                            "required": ["action", "target_id", "to_fact_id", "anchor"]
+                            "required": ["action", "target_id", "to_display_value", "to_numeric_value", "anchor"]
                         },
                         {
                             "type": "object",

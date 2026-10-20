@@ -4,6 +4,7 @@ import { tokens } from "../../design-tokens";
 
 interface NumberComponentProps {
   props: NumberProps;
+  currentDisplayValue?: string;
   currentValue?: number;
   style?: React.CSSProperties;
 }
@@ -19,22 +20,28 @@ function formatPercentage(val: number, decimals: number = 1): string {
 
 export const NumberPrimitive: React.FC<NumberComponentProps> = ({
   props,
+  currentDisplayValue,
   currentValue,
   style,
 }) => {
+  const displayToUse = currentDisplayValue || props.displayValue;
   const val = currentValue !== undefined ? currentValue : props.value;
 
   let formatted = "";
-  if (props.format === "currency_inr") {
+  if (displayToUse) {
+    formatted = displayToUse;
+  } else if (props.format === "currency_inr") {
     formatted = formatINR(val);
   } else if (props.format === "percentage") {
     formatted = formatPercentage(val, props.decimals ?? 1);
   } else {
-    formatted = Math.round(val).toLocaleString();
+    formatted = Number.isInteger(val) ? val.toLocaleString() : val.toString();
   }
 
-  if (props.prefix) formatted = `${props.prefix}${formatted}`;
-  if (props.suffix) formatted = `${formatted}${props.suffix}`;
+  if (!displayToUse) {
+    if (props.prefix) formatted = `${props.prefix}${formatted}`;
+    if (props.suffix) formatted = `${formatted}${props.suffix}`;
+  }
 
   return (
     <div
