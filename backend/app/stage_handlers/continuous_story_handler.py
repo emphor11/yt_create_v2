@@ -35,11 +35,13 @@ class ContinuousStoryHandler:
         stage_logger: StageLogger | None = None,
         llm_provider: LLMProvider | None = None,
         compiler: ContinuousStoryCompiler | None = None,
+        asset_resolver: Any = None,
     ) -> None:
         self.store = store
         self.story_engine = story_engine or ContinuousStoryEngine(
             llm_provider=llm_provider,
             compiler=compiler,
+            asset_resolver=asset_resolver,
         )
         self.artifact_validator = artifact_validator or ContinuousStoryPlanValidator()
         self.stage_logger = stage_logger or StageLogger()

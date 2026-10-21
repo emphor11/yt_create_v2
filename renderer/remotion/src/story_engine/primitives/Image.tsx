@@ -60,6 +60,20 @@ export const ImagePrimitive: React.FC<ImagePrimitiveProps> = ({ props, style }) 
         </div>
       )}
 
+      {/* Dark Overlay / Tint Treatment */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: caption ? "18%" : 0,
+          background: props.overlayTint || "linear-gradient(180deg, rgba(15, 23, 42, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%)",
+          pointerEvents: "none",
+          zIndex: 2,
+        }}
+      />
+
       {/* Main Image */}
       {imageSrc ? (
         <img

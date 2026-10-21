@@ -16,6 +16,11 @@ from domain.continuous_story_plan import (
 from domain.research_packet import ResearchPacket
 from domain.script_visual_strategy import ScriptVisualStrategy
 from domain.voice_track import VoiceTrack
+from engines.continuous_story_asset_resolver import (
+    ContinuousStoryAssetResolver,
+    ContinuousStoryAssetResolverError,
+    ResolvedImageAsset,
+)
 from engines.continuous_story_compiler import ContinuousStoryCompiler, resolve_anchor_frame
 from engines.continuous_story_draft_validator import validate_story_draft
 from pydantic import ValidationError
@@ -168,17 +173,33 @@ def print_local_preflight_report(
     print("-----------------------------------------\n")
 
 
+EXACT_REPAIR_INSTRUCTION = (
+    "Every anchor must be copied character-for-character from the verbatim narration.\n"
+    "Do not paraphrase.\n"
+    "Do not summarize.\n"
+    "Do not invent anchor text.\n"
+    "Use a unique phrase of at least 3 meaningful words.\n\n"
+    "An exit anchor must occur strictly after the target object's enter anchor.\n"
+    "Never use the same anchor for enter and exit.\n"
+    "If there is no later spoken phrase, omit the exit event instead of inventing one."
+)
+
+
 def format_programmatic_repair_prompt(
     raw_payload: dict[str, Any],
     validation_error: Exception | None = None,
     draft_errors: list[Any] | None = None,
     approved_facts: dict[str, Any] | None = None,
+    narration_text: str | None = None,
 ) -> str:
     """Builds a surgical, error-specific repair prompt from Pydantic and draft validator errors."""
     lines: list[str] = [
         "The previous JSON is invalid. Return the complete corrected JSON.\n",
-        "Errors:\n",
+        f"Repair Instructions:\n{EXACT_REPAIR_INSTRUCTION}\n",
     ]
+    if narration_text and narration_text.strip():
+        lines.append(f"Complete Verbatim Spoken Narration:\n\"\"\"\n{narration_text.strip()}\n\"\"\"\n")
+    lines.append("Errors:\n")
     err_idx = 1
     objects = raw_payload.get("objects", [])
     events = raw_payload.get("events", [])
@@ -276,7 +297,95 @@ def format_programmatic_repair_prompt(
             msg = getattr(err, "message", str(err))
             target_id = getattr(err, "target_id", None)
             target_str = f" on '{target_id}'" if target_id else ""
-            lines.append(f"{err_idx}. [{code}]{target_str}:\n   {msg}\n")
+            details = getattr(err, "details", {}) or {}
+
+            guidance = ""
+            if code == "EXIT_BEFORE_OBJECT_ENTER":
+                enter_anchor = details.get("enter_anchor", "")
+                enter_time = details.get("enter_time_ms", "")
+                exit_anchor = details.get("exit_anchor", "")
+                exit_time = details.get("exit_time_ms", "")
+                guidance = (
+                    f"   Conflict details:\n"
+                    f"     - Original enter anchor: '{enter_anchor}' (starts at {enter_time}ms)\n"
+                    f"     - Attempted exit anchor: '{exit_anchor}' (starts at {exit_time}ms)\n"
+                    f"   Required fix:\n"
+                    f"     An exit anchor must occur strictly after the target object's enter anchor.\n"
+                    f"     Never use the same anchor for enter and exit.\n"
+                    f"     If there is no later spoken phrase, omit the exit event instead of inventing one.\n"
+                )
+            elif code == "ANCHOR_NOT_FOUND":
+                anchor_val = details.get("anchor", "")
+                guidance = (
+                    f"   Invalid anchor: '{anchor_val}'\n"
+                    f"   Required fix: Every anchor must be copied character-for-character from the verbatim narration above. Do not paraphrase or invent text.\n"
+                )
+            elif code == "CONNECT_BEFORE_CARDS_ENTER":
+                ep_role = details.get("endpoint_role", "endpoint")
+                ep_id = details.get("endpoint_id", "")
+                ep_enter_t = details.get("endpoint_enter_time_ms", "")
+                ep_anchor = details.get("endpoint_enter_anchor", "")
+                conn_t = details.get("connect_time_ms", "")
+                conn_anchor = details.get("connect_anchor", "")
+                guidance = (
+                    f"   Conflict details:\n"
+                    f"     - Connector connects at {conn_t}ms (anchor: '{conn_anchor}')\n"
+                    f"     - But {ep_role} card '{ep_id}' enters at {ep_enter_t}ms (enter anchor: '{ep_anchor}')\n"
+                    f"   Required fix:\n"
+                    f"     A connector can only connect strictly AFTER BOTH source ('from_id') and target ('to_id') cards have entered.\n"
+                    f"     Change the connector's anchor to a spoken phrase occurring AFTER both endpoint cards are already on screen.\n"
+                )
+            elif code == "ZONE_OCCUPANCY_COLLISION":
+                zone = details.get("zone", "")
+                other_id = details.get("colliding_with", "")
+                s_ms = details.get("start_ms", "")
+                e_ms = details.get("end_ms", "")
+                s_sec = f"{s_ms/1000:.1f}s" if isinstance(s_ms, (int, float)) else str(s_ms)
+                e_sec = f"{e_ms/1000:.1f}s" if isinstance(e_ms, (int, float)) else str(e_ms)
+                guidance = (
+                    f"   Spatial collision details:\n"
+                    f"     - Zone '{zone}' is occupied by '{other_id}' during {s_sec} to {e_sec} ({s_ms}ms–{e_ms}ms).\n"
+                    f"   Required fix:\n"
+                    f"     Two elements cannot occupy the same zone at the same time.\n"
+                    f"     Option A: Place '{target_id}' into a different, free zone (e.g. left, right, top_left, top_right, bottom_left, bottom_right, center).\n"
+                    f"     Option B: Add an explicit 'exit' event to remove '{other_id}' before '{target_id}' enters zone '{zone}'.\n"
+                )
+            elif code == "MACRO_LAYOUT_COLLISION":
+                macro_zone = details.get("macro_zone", "")
+                conflict_zone = details.get("conflicting_zone", "")
+                other_id = details.get("colliding_with", "")
+                s_ms = details.get("start_ms", "")
+                e_ms = details.get("end_ms", "")
+                s_sec = f"{s_ms/1000:.1f}s" if isinstance(s_ms, (int, float)) else str(s_ms)
+                e_sec = f"{e_ms/1000:.1f}s" if isinstance(e_ms, (int, float)) else str(e_ms)
+                guidance = (
+                    f"   Macro layout collision details:\n"
+                    f"     - Macro zone '{macro_zone}' conflicts with '{conflict_zone}' (occupied by '{other_id}') during {s_sec} to {e_sec} ({s_ms}ms–{e_ms}ms).\n"
+                    f"   Required fix:\n"
+                    f"     Macro/split zones cannot overlap in time with child/conflicting zones.\n"
+                    f"     Assign '{target_id}' or '{other_id}' to non-conflicting zones, or exit one before the other enters.\n"
+                )
+            elif code == "MISSING_ENTER_EVENT":
+                guidance = (
+                    f"   Missing enter event for '{target_id}'.\n"
+                    f"   Required fix: Every object in 'objects' must have an explicit 'enter' (or 'connect' for connector) event in 'events'.\n"
+                    f"   Add an enter event for '{target_id}' with an exact anchor phrase from the narration.\n"
+                )
+            elif code == "ACTION_BEFORE_OBJECT_ENTER":
+                enter_anchor = details.get("enter_anchor", "")
+                enter_time = details.get("enter_time_ms", "")
+                ev_anchor = details.get("event_anchor", "")
+                ev_time = details.get("event_time_ms", "")
+                act = details.get("action", "action")
+                guidance = (
+                    f"   Action before enter details:\n"
+                    f"     - '{target_id}' enters at {enter_time}ms (enter anchor: '{enter_anchor}')\n"
+                    f"     - But '{act}' action occurs at {ev_time}ms (anchor: '{ev_anchor}')\n"
+                    f"   Required fix:\n"
+                    f"     All actions on '{target_id}' must occur strictly after it enters the canvas.\n"
+                )
+
+            lines.append(f"{err_idx}. [{code}]{target_str}:\n   {msg}\n{guidance}")
             err_idx += 1
 
     lines.append(f"Previous JSON: {json.dumps(raw_payload, ensure_ascii=False)}\n")
@@ -302,7 +411,7 @@ def build_continuous_story_prompt(
     assets_str = (
         ", ".join(repr(a) for a in available_assets)
         if available_assets
-        else "(None provided — use card, number, text, chart, connector primitives)"
+        else "(None pre-loaded — request real-world images dynamically using 'asset_request')"
     )
 
     strategy_str = ""
@@ -364,11 +473,12 @@ def build_continuous_story_prompt(
         "2. 'number': For standalone dramatic numeric callouts. Directly author 'display_value', 'numeric_value', 'purpose', 'layout'.\n"
         "3. 'text': For standalone quotes, definitions, question banners, or chapter labels. Directly author 'text', 'purpose', 'layout'.\n"
         "4. 'chart': For trajectories, comparisons, distributions. You MUST directly author non-empty 'points' (e.g. [{\"xLabel\": \"Year 1\", \"yValue\": 100}, ...]) or 'series'. Directly author 'chart_type' ('trajectory_area', 'split_bar', 'multi_bar', 'stack'), 'title', 'subtitle', 'layout'.\n"
-        "5. 'image': For visual proof or illustrations. Use only asset IDs from the available image assets above.\n"
+        "5. 'image': For visual proof, real-world context, institutions, or physical assets (e.g. bank building, stock exchange floor, investment firm office). Layout must be a grid zone (e.g. 'center_left', 'center_right', 'center'). Do NOT use 'full_screen' when cards, numbers, or characters are visible. Request an image by providing 'asset_request': {'query': '<specific descriptive search phrase, e.g. modern bank exterior, no visible logo>', 'orientation': 'landscape', 'style': 'photo'}. Gemini must not invent asset IDs or URLs — the asset resolver searches Pexels/Pixabay and downloads the image automatically.\n"
         "6. 'connector': For causal flow between surface objects. Provide 'from_id', 'to_id', 'label', 'layout'. Never include card, number, or visual-state fields on connectors.\n"
         "7. 'character': For representing the human experiencing the financial decision (salaried employee, home buyer, investor). Directly author 'character_style' ('futuristic_stick'), 'role', 'pose' ('idle', 'walk', 'point', 'think', 'worried', 'celebrate'), 'facing' ('left', 'right'), and optionally 'emotion' ('neutral', 'focused', 'concerned', 'surprised', 'happy'), 'accent', 'layout'. Never include card, number, chart, or image fields on characters.\n\n"
         "PROFESSIONAL COMPOSITION REQUIREMENTS:\n"
         "- Do not make the story card-only. If two or more cards are present, include at least one supporting primitive that adds a different visual language.\n"
+        "- Use an 'image' when the narration describes real-world institutions, banks, stock exchanges, corporate offices, or physical assets to visually ground the scene.\n"
         "- Use a standalone 'number' for the most important numeric reveal; do not bury every major number inside a card.\n"
         "- Use a 'connector' when the narration expresses cause, consequence, flow, conversion, erosion, or a relationship between two visible objects. Declare the connector object and a separate 'connect' event.\n"
         "- Use a 'chart' when the narration describes change over time, compounding, growth, decline, comparison, a gap, a trajectory, or multiple years. Directly author the points or series from the narration.\n"
@@ -424,12 +534,12 @@ def _validate_direct_authoring_contract(
             if not obj.series and not obj.points:
                 errors.append(f"Chart '{obj.id}' requires directly authored 'series' or 'points'.")
         elif obj.type == "image":
-            if not obj.asset_id or not obj.asset_id.strip():
-                errors.append(f"Image '{obj.id}' requires 'asset_id'.")
-            elif not available_assets:
-                errors.append(f"Image '{obj.id}' is used, but available_assets list is empty or not provided.")
-            elif obj.asset_id not in available_assets:
+            if not obj.asset_request and (not obj.asset_id or not obj.asset_id.strip()):
+                errors.append(f"Image '{obj.id}' requires 'asset_request' or 'asset_id'.")
+            elif obj.asset_id and available_assets and obj.asset_id not in available_assets:
                 errors.append(f"Image '{obj.id}' references unknown asset_id '{obj.asset_id}'. Available assets: {sorted(available_assets)}")
+            elif obj.asset_id and not available_assets:
+                errors.append(f"Image '{obj.id}' references asset_id '{obj.asset_id}', but available_assets list is empty.")
         elif obj.type == "connector":
             if not obj.from_id or not obj.to_id:
                 errors.append(f"Connector '{obj.id}' requires 'from_id' and 'to_id'.")
@@ -551,9 +661,59 @@ class ContinuousStoryEngine:
         self,
         llm_provider: LLMProvider | None = None,
         compiler: ContinuousStoryCompiler | None = None,
+        asset_resolver: ContinuousStoryAssetResolver | None = None,
     ) -> None:
         self.llm_provider = llm_provider
         self.compiler = compiler or ContinuousStoryCompiler()
+        self.asset_resolver = asset_resolver or ContinuousStoryAssetResolver()
+
+    def _resolve_image_assets(
+        self,
+        draft: ContinuousStoryDraft,
+        project_id: str,
+        available_assets: list[str],
+    ) -> list[dict[str, Any]]:
+        """
+        Resolves ImageAssetRequests on image objects in the draft.
+        Attaches resolved asset_id to each image and populates available_assets.
+        """
+        resolved_records: list[dict[str, Any]] = []
+        for obj in draft.objects:
+            if obj.type == "image":
+                if obj.asset_request is not None:
+                    try:
+                        resolved = self.asset_resolver.resolve_image_asset(
+                            obj.asset_request,
+                            object_id=obj.id,
+                            project_id=project_id,
+                        )
+                    except ContinuousStoryAssetResolverError as res_err:
+                        raise ContinuousStoryEngineError(
+                            f"Stage 7 failed: {res_err}",
+                        ) from res_err
+                    except Exception as err:
+                        raise ContinuousStoryEngineError(
+                            f"Stage 7 failed: IMAGE_DOWNLOAD_FAILED: {err}",
+                        ) from err
+
+                    obj.asset_id = resolved.asset_id
+                    resolved_records.append(resolved.to_dict())
+                    if resolved.asset_id not in available_assets:
+                        available_assets.append(resolved.asset_id)
+                elif obj.asset_id and obj.asset_id.strip():
+                    if available_assets and obj.asset_id not in available_assets:
+                        raise ContinuousStoryEngineError(
+                            f"Stage 7 failed: UNKNOWN_ASSET_ID: Image '{obj.id}' references unknown asset_id '{obj.asset_id}'. Available: {sorted(available_assets)}"
+                        )
+                    elif not available_assets:
+                        raise ContinuousStoryEngineError(
+                            f"Stage 7 failed: UNKNOWN_ASSET_ID: Image '{obj.id}' references asset_id '{obj.asset_id}', but available_assets is empty."
+                        )
+                else:
+                    raise ContinuousStoryEngineError(
+                        f"Stage 7 failed: IMAGE_ASSET_REQUEST_MISSING: Image '{obj.id}' has neither asset_request nor asset_id."
+                    )
+        return resolved_records
 
     def run(
         self,
@@ -584,6 +744,8 @@ class ContinuousStoryEngine:
         ]
         max_word_end = max((w.get("end_ms", 0) for w in word_timestamps_raw), default=0)
         total_duration_ms = max(int(voice_track.duration_seconds * 1000), max_word_end)
+        available_assets_list: list[str] = list(available_assets) if available_assets is not None else []
+        resolved_assets_records: list[dict[str, Any]] = []
 
         # 2. Generate visual choreography (Gemini or mock for testing)
         raw_gemini_payload: dict[str, Any] = {}
@@ -604,12 +766,18 @@ class ContinuousStoryEngine:
                 draft = mock_draft
                 raw_gemini_payload = mock_draft.model_dump()
 
+            resolved_assets_records = self._resolve_image_assets(
+                draft=draft,
+                project_id=project_id,
+                available_assets=available_assets_list,
+            )
+
             draft_validation = validate_story_draft(
                 draft=draft,
                 approved_facts=approved_facts,
                 word_timestamps=word_timestamps_raw,
                 total_duration_ms=total_duration_ms,
-                available_assets=available_assets,
+                available_assets=available_assets_list,
             )
             if not draft_validation.valid:
                 print_local_preflight_report(raw_gemini_payload, draft_errors=draft_validation.errors)
@@ -630,7 +798,7 @@ class ContinuousStoryEngine:
                 narration_text=voice_track.full_script_text,
                 approved_facts=approved_facts,
                 visual_strategy=strategy,
-                available_assets=available_assets,
+                available_assets=available_assets_list,
             )
             draft_schema = build_continuous_story_contract_schema()
             req = LLMJsonRequest(
@@ -654,6 +822,7 @@ class ContinuousStoryEngine:
                     raw_payload=raw_gemini_payload,
                     validation_error=first_error,
                     approved_facts=approved_facts,
+                    narration_text=voice_track.full_script_text,
                 )
                 repair_req = LLMJsonRequest(
                     messages=[
@@ -684,20 +853,40 @@ class ContinuousStoryEngine:
                         provider_metadata=provider_metadata,
                     ) from second_error
 
-            # 3. Run pre-compilation draft validation (occupancy & temporal simulation)
-            draft_validation = validate_story_draft(
+            # 3. Resolve every image asset_request
+            resolved_assets_records = self._resolve_image_assets(
                 draft=draft,
-                approved_facts=approved_facts,
-                word_timestamps=word_timestamps_raw,
-                total_duration_ms=total_duration_ms,
-                available_assets=available_assets,
+                project_id=project_id,
+                available_assets=available_assets_list,
             )
-            if not draft_validation.valid:
+
+            # 4. Run pre-compilation draft validation (occupancy & temporal simulation) with iterative repair
+            max_validation_attempts = 3
+            for attempt in range(max_validation_attempts):
+                draft_validation = validate_story_draft(
+                    draft=draft,
+                    approved_facts=approved_facts,
+                    word_timestamps=word_timestamps_raw,
+                    total_duration_ms=total_duration_ms,
+                    available_assets=available_assets_list,
+                )
+                if draft_validation.valid:
+                    break
+
                 print_local_preflight_report(raw_gemini_payload, draft_errors=draft_validation.errors)
+                if attempt == max_validation_attempts - 1:
+                    error_msgs = [f"[{e.code}] {e.message}" for e in draft_validation.errors]
+                    raise ContinuousStoryEngineError(
+                        f"Stage 7 failed: invalid visual choreography contract: CONTINUOUS_STORY_VALIDATION_ERROR: {'; '.join(error_msgs)}",
+                        raw_payload=raw_gemini_payload,
+                        provider_metadata=provider_metadata,
+                    )
+
                 temporal_repair_prompt = format_programmatic_repair_prompt(
                     raw_payload=raw_gemini_payload,
                     draft_errors=draft_validation.errors,
                     approved_facts=approved_facts,
+                    narration_text=voice_track.full_script_text,
                 )
                 repair_req = LLMJsonRequest(
                     messages=[
@@ -710,7 +899,7 @@ class ContinuousStoryEngine:
                         ),
                         LLMMessage(role="user", content=temporal_repair_prompt),
                     ],
-                    schema_name="ContinuousStoryDraftTemporalRepair",
+                    schema_name=f"ContinuousStoryDraftTemporalRepair_{attempt + 1}",
                     response_schema=draft_schema,
                     temperature=0.0,
                     max_tokens=8192,
@@ -728,28 +917,18 @@ class ContinuousStoryEngine:
                         provider_metadata=provider_metadata,
                     ) from schema_err
 
-                draft_validation = validate_story_draft(
+                resolved_assets_records = self._resolve_image_assets(
                     draft=draft,
-                    approved_facts=approved_facts,
-                    word_timestamps=word_timestamps_raw,
-                    total_duration_ms=total_duration_ms,
-                    available_assets=available_assets,
+                    project_id=project_id,
+                    available_assets=available_assets_list,
                 )
-                if not draft_validation.valid:
-                    print_local_preflight_report(raw_gemini_payload, draft_errors=draft_validation.errors)
-                    error_msgs = [f"[{e.code}] {e.message}" for e in draft_validation.errors]
-                    raise ContinuousStoryEngineError(
-                        f"Stage 7 failed: invalid visual choreography contract: CONTINUOUS_STORY_VALIDATION_ERROR: {'; '.join(error_msgs)}",
-                        raw_payload=raw_gemini_payload,
-                        provider_metadata=provider_metadata,
-                    )
 
             # Preflight report on successful candidate
             print_local_preflight_report(raw_gemini_payload)
 
         # Real Gemini drafts must use direct authored values.
         if mock_draft is None:
-            _validate_direct_authoring_contract(draft, available_assets)
+            _validate_direct_authoring_contract(draft, available_assets_list)
 
         # 4. Deterministic compilation
         fixture_context = {
@@ -759,6 +938,7 @@ class ContinuousStoryEngine:
             "total_duration_ms": total_duration_ms,
             "audio_file": voice_track.audio_file_name,
             "narration_text": voice_track.full_script_text,
+            "available_assets": available_assets_list,
         }
         try:
             compiled_plan = self.compiler.compile(draft, fixture_context)
@@ -774,6 +954,7 @@ class ContinuousStoryEngine:
             plan=compiled_plan,
             draft=draft,
             audio_storage_key=voice_track.storage_key,
+            resolved_assets=resolved_assets_records,
         )
 
         return ContinuousStoryEngineResult(

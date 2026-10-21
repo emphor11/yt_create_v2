@@ -925,8 +925,53 @@ def test_format_programmatic_repair_prompt_structure():
 
     # 5. Error on change_visual_state missing 'state'
     assert 'events[2]' in prompt
-    assert 'Missing required field: "state"' in prompt
-    assert '"danger"' in prompt
+    # 6. Exact repair instruction in prompt
+    assert "Every anchor must be copied character-for-character from the verbatim narration." in prompt
+    assert "Do not paraphrase." in prompt
+    assert "Do not summarize." in prompt
+    assert "Do not invent anchor text." in prompt
+    assert "Use a unique phrase of at least 3 meaningful words." in prompt
+    assert "An exit anchor must occur strictly after the target object's enter anchor." in prompt
+    assert "Never use the same anchor for enter and exit." in prompt
+    assert "If there is no later spoken phrase, omit the exit event instead of inventing one." in prompt
+
+
+def test_repair_prompt_contains_narration_text_and_exit_conflict_details():
+    from engines.continuous_story_engine import format_programmatic_repair_prompt
+    from engines.continuous_story_draft_validator import DraftValidationError
+
+    sample_narration = "A salaried employee invests monthly for a fixed return over twenty years."
+    draft_err = DraftValidationError(
+        code="EXIT_BEFORE_OBJECT_ENTER",
+        message="Action 'exit' on 'card_x' occurs at 1000ms (exit anchor: 'invests monthly'), which is before or at its original enter anchor 'salaried employee' at 1000ms.",
+        target_id="card_x",
+        details={
+            "target_id": "card_x",
+            "exit_anchor": "invests monthly",
+            "exit_time_ms": 1000,
+            "enter_anchor": "salaried employee",
+            "enter_time_ms": 1000,
+        },
+    )
+
+    prompt = format_programmatic_repair_prompt(
+        raw_payload={"objects": [], "events": []},
+        draft_errors=[draft_err],
+        narration_text=sample_narration,
+    )
+
+    # 1. Complete verbatim narration text included
+    assert "Complete Verbatim Spoken Narration:" in prompt
+    assert sample_narration in prompt
+
+    # 2. Exact repair instructions included
+    assert "Every anchor must be copied character-for-character from the verbatim narration." in prompt
+    assert "An exit anchor must occur strictly after the target object's enter anchor." in prompt
+    assert "Never use the same anchor for enter and exit." in prompt
+
+    # 3. EXIT_BEFORE_OBJECT_ENTER conflict details included
+    assert "Original enter anchor: 'salaried employee' (starts at 1000ms)" in prompt
+    assert "Attempted exit anchor: 'invests monthly' (starts at 1000ms)" in prompt
 
 
 def test_print_local_preflight_report_output(capsys):

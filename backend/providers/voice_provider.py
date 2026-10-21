@@ -1,6 +1,8 @@
+import html
 import json
 import logging
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Protocol
@@ -225,11 +227,20 @@ class PollyVoiceProvider:
                     m_end = mark.get("end")
 
                     if m_type == "word":
+                        m_val_raw = m_val.strip()
+                        if m_val_raw.startswith("<break") or m_val_raw.startswith("<pause"):
+                            continue
+                        m_val_decoded = html.unescape(m_val)
+                        m_val_clean = re.sub(r"<[^>]+>", " ", m_val_decoded).strip()
+                        tok_check = re.sub(r"[^\w\.]", "", m_val_clean.lower()).strip(".")
+                        if not m_val_clean or not tok_check:
+                            continue
+
                         word_timestamps.append(
                             WordTimestamp(
-                                word=m_val,
+                                word=m_val_clean,
                                 start_ms=m_time,
-                                end_ms=m_time + max(100, len(m_val) * 45),
+                                end_ms=m_time + max(100, len(m_val_clean) * 45),
                                 start_char=m_start,
                                 end_char=m_end,
                             )

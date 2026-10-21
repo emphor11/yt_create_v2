@@ -17,8 +17,7 @@ Guarantees:
 4. Audio Synchronization: maps phrase anchors to exact spoken frames via word timestamps.
 5. 12-Zone Spatial Preservation: preserves clean zone layout names for Remotion layout engine.
 """
-from __future__ import annotations
-
+import html
 import re
 from typing import Any
 
@@ -32,18 +31,21 @@ def resolve_anchor_ms(
 ) -> int:
     """
     Resolves a spoken anchor phrase to its exact start time in milliseconds using audio word timestamps.
-    Enforces exact contiguous phrase matching.
-    Removed: first-token fallback, substring matching, fallback search from frame zero.
+    Enforces exact contiguous phrase matching while normalizing Polly speech mark words:
+      - HTML-decodes entities (e.g. fund&#x27;s -> fund's)
+      - Removes SSML tags (e.g. <break time="..."/>)
+      - Ignores non-spoken pause tokens
     Fails loudly with ValueError if the exact phrase is not found.
     """
     if not anchor_phrase or not anchor_phrase.strip():
         raise ValueError("Anchor phrase cannot be empty.")
 
-    anchor_clean = anchor_phrase.replace("-", " ")
+    anchor_decoded = html.unescape(anchor_phrase)
+    anchor_clean = re.sub(r"<[^>]+>", " ", anchor_decoded).replace("-", " ")
     clean_tokens = [
-        re.sub(r"[^\w\.]", "", t.lower())
+        re.sub(r"[^\w\.]", "", t.lower()).strip(".")
         for t in anchor_clean.split()
-        if re.sub(r"[^\w\.]", "", t.lower())
+        if re.sub(r"[^\w\.]", "", t.lower()).strip(".")
     ]
     if not clean_tokens:
         raise ValueError(f"Anchor phrase '{anchor_phrase}' contains no searchable speech tokens.")
@@ -52,10 +54,13 @@ def resolve_anchor_ms(
     for w in word_timestamps:
         start_ms = w.get("start_ms", 0)
         end_ms = w.get("end_ms", 0)
-        w_clean = str(w.get("word", "")).replace("-", " ")
+        w_raw = str(w.get("word", ""))
+        w_decoded = html.unescape(w_raw)
+        w_stripped = re.sub(r"<[^>]+>", " ", w_decoded)
+        w_clean = w_stripped.replace("-", " ")
         for tok in w_clean.split():
-            c_tok = re.sub(r"[^\w\.]", "", tok.lower())
-            if c_tok:
+            c_tok = re.sub(r"[^\w\.]", "", tok.lower()).strip(".")
+            if c_tok and not w_raw.strip().startswith("<break") and not w_raw.strip().startswith("<pause"):
                 token_entries.append((c_tok, start_ms, end_ms))
 
     num_tokens = len(clean_tokens)
@@ -423,16 +428,37 @@ class ContinuousStoryCompiler:
         fixture: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Compiles an image visual element with available asset verification."""
+        if not obj.asset_id:
+            raise ValueError(
+                f"IMAGE_ASSET_REQUEST_MISSING: Image '{obj.id}' has unresolved asset_request before compilation."
+            )
+
         if fixture and "available_assets" in fixture:
             avail = fixture.get("available_assets")
             if not avail:
                 raise ValueError(
-                    f"Image '{obj.id}' is used, but available_assets list is empty or not provided."
+                    f"UNKNOWN_ASSET_ID: Image '{obj.id}' is used, but available_assets list is empty or not provided."
                 )
             if obj.asset_id not in avail:
                 raise ValueError(
-                    f"Image '{obj.id}' references unknown asset_id '{obj.asset_id}'. Available assets: {sorted(avail)}"
+                    f"UNKNOWN_ASSET_ID: Image '{obj.id}' references unknown asset_id '{obj.asset_id}'. Available assets: {sorted(avail)}"
                 )
+
+        image_props: dict[str, Any] = {
+            "assetId": obj.asset_id,
+        }
+        if obj.alt:
+            image_props["alt"] = obj.alt
+        if obj.caption:
+            image_props["caption"] = obj.caption
+        if obj.badge:
+            image_props["badge"] = obj.badge
+        if obj.fit:
+            image_props["fit"] = obj.fit
+        if obj.border_color:
+            image_props["borderColor"] = obj.border_color
+        if obj.border_radius is not None:
+            image_props["borderRadius"] = obj.border_radius
 
         return {
             "id": obj.id,
@@ -440,9 +466,7 @@ class ContinuousStoryCompiler:
             "layout": obj.layout,
             "width": 1920 if obj.layout == "full_screen" else 640,
             "height": 1080 if obj.layout == "full_screen" else 360,
-            "imageProps": {
-                "assetId": obj.asset_id,
-            },
+            "imageProps": image_props,
         }
 
     def _compile_character(self, obj: StoryObjectDraft) -> dict[str, Any]:

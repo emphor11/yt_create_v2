@@ -163,6 +163,7 @@ export interface ImageProps {
   borderColor?: string;
   borderRadius?: number;
   fit?: "cover" | "contain";
+  overlayTint?: string;
 }
 
 export interface ConnectorProps {

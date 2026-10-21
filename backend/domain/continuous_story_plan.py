@@ -111,6 +111,38 @@ ObjectType = Literal[
 ]
 
 
+class ImageAssetRequest(StrictBaseModel):
+    """Visual asset specification requested by Gemini for real-world photo grounding."""
+    query: str = Field(description="Search query describing the real-world image.")
+    orientation: Literal["landscape", "portrait", "square"] = Field(
+        default="landscape",
+        description="Image orientation: 'landscape', 'portrait', or 'square'."
+    )
+    style: Literal["photo", "illustration"] = Field(
+        default="photo",
+        description="Visual style: 'photo' or 'illustration'."
+    )
+    composition: str | None = Field(
+        default=None,
+        description="Short visual composition instruction (e.g. 'subject on the left with empty space on the right')."
+    )
+    mood: str | None = Field(
+        default=None,
+        description="Optional visual mood (e.g. 'serious institutional finance documentary')."
+    )
+    avoid: list[str] = Field(
+        default_factory=list,
+        description="Optional list of unwanted visual properties (e.g. ['logos', 'watermarks', 'text-heavy signs', 'identifiable faces'])."
+    )
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("ImageAssetRequest 'query' must be a non-empty string.")
+        return v.strip()
+
+
 class StoryObjectDraft(StrictBaseModel):
     """
     An independent, atomic visual element declared by the AI.
@@ -191,9 +223,33 @@ class StoryObjectDraft(StrictBaseModel):
     )
 
     # Image-specific fields
+    asset_request: ImageAssetRequest | None = Field(
+        default=None,
+        description="Visual specification requested by AI to search and resolve a real-world image."
+    )
     asset_id: str | None = Field(
         default=None,
         description="Asset reference identifier for 'image' element."
+    )
+    alt: str | None = Field(
+        default=None,
+        description="Alternative descriptive text for image accessibility."
+    )
+    caption: str | None = Field(
+        default=None,
+        description="Optional caption text displayed beneath image."
+    )
+    fit: Literal["cover", "contain"] | None = Field(
+        default="cover",
+        description="Object fit scaling mode ('cover' or 'contain')."
+    )
+    border_color: str | None = Field(
+        default=None,
+        description="Optional border color hex code for image frame."
+    )
+    border_radius: float | int | None = Field(
+        default=None,
+        description="Optional border radius in pixels for image frame (default: 16)."
     )
 
     # Connector-specific fields
@@ -291,13 +347,27 @@ class StoryObjectDraft(StrictBaseModel):
                 raise ValueError(f"Chart '{self.id}' cannot specify 'asset_id'.")
 
         elif self.type == "image":
-            # Image requires asset_id
-            if not self.asset_id or not self.asset_id.strip():
-                raise ValueError(f"Image '{self.id}' requires 'asset_id'.")
+            # Image requires asset_request or asset_id
+            if not self.asset_request and (not self.asset_id or not self.asset_id.strip()):
+                raise ValueError(f"IMAGE_ASSET_REQUEST_MISSING: Image '{self.id}' requires 'asset_request' or 'asset_id'.")
             if self.from_id is not None or self.to_id is not None or self.label is not None:
                 raise ValueError(f"Image '{self.id}' cannot specify connector fields.")
-            if self.chart_type is not None or self.series is not None or self.points is not None or self.fact_id is not None:
-                raise ValueError(f"Image '{self.id}' cannot specify chart or fact fields.")
+            if self.chart_type is not None or self.series is not None or self.points is not None:
+                raise ValueError(f"Image '{self.id}' cannot specify chart fields.")
+            if self.fact_id is not None or self.value_fact_id is not None:
+                raise ValueError(f"Image '{self.id}' cannot specify fact fields.")
+            if self.display_value is not None or self.numeric_value is not None:
+                raise ValueError(f"Image '{self.id}' cannot specify number fields.")
+            if self.character_style is not None or self.role is not None or self.pose is not None or self.facing is not None or self.emotion is not None:
+                raise ValueError(f"Image '{self.id}' cannot specify character fields.")
+            if self.text is not None:
+                raise ValueError(f"Image '{self.id}' cannot specify text field.")
+            if self.title is not None:
+                raise ValueError(f"Image '{self.id}' cannot specify card field 'title'.")
+            if self.subtitle is not None:
+                raise ValueError(f"Image '{self.id}' cannot specify card field 'subtitle'.")
+            if self.visual_state is not None:
+                raise ValueError(f"Image '{self.id}' cannot specify card field 'visual_state'.")
 
         elif self.type == "connector":
             # Connector requires from_id and to_id
@@ -723,9 +793,32 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                                 "type": {"type": "string", "enum": ["image"]},
                                 "layout": {"type": "string", "enum": zone_enum, "description": "One of the 12 spatial zone names."},
                                 "purpose": {"type": "string", "description": "Editorial purpose."},
-                                "asset_id": {"type": "string", "description": "Asset reference identifier."}
+                                "asset_request": {
+                                    "type": "object",
+                                    "description": "Visual specification describing the real-world image to resolve.",
+                                    "properties": {
+                                        "query": {"type": "string", "description": "MANDATORY search query describing the real-world image (e.g. 'modern bank exterior, no visible logo')."},
+                                        "orientation": {"type": "string", "enum": ["landscape", "portrait", "square"], "description": "Image orientation."},
+                                        "style": {"type": "string", "enum": ["photo", "illustration"], "description": "Visual style."},
+                                        "composition": {"type": "string", "description": "Short visual composition instruction."},
+                                        "mood": {"type": "string", "description": "Optional visual mood."},
+                                        "avoid": {
+                                            "type": "array",
+                                            "items": {"type": "string"},
+                                            "description": "Optional list of unwanted visual properties."
+                                        }
+                                    },
+                                    "required": ["query"]
+                                },
+                                "alt": {"type": "string", "description": "Alternative text description for accessibility."},
+                                "caption": {"type": "string", "description": "Optional caption text shown beneath image."},
+                                "badge": {"type": "string", "description": "Optional badge text overlay on image."},
+                                "fit": {"type": "string", "enum": ["cover", "contain"], "description": "Image fit style."},
+                                "border_color": {"type": "string", "description": "Optional border hex color."},
+                                "border_radius": {"type": "number", "description": "Optional border radius in pixels (default: 16)."},
+                                "asset_id": {"type": "string", "description": "Asset reference identifier (set after resolution)."}
                             },
-                            "required": ["id", "type", "layout", "asset_id"]
+                            "required": ["id", "type", "layout", "asset_request"]
                         },
                         {
                             "type": "object",
@@ -895,6 +988,10 @@ class ContinuousStoryPlanArtifact(BaseModel):
         default=None,
         description="The validated AI-authored continuous story draft (for provenance & lineage)."
     )
+    resolved_assets: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Metadata for resolved real-world image assets."
+    )
 
     def to_remotion_props(self) -> dict[str, Any]:
         """Returns the inputProps dictionary formatted for Remotion StoryScene."""
@@ -906,6 +1003,7 @@ class ContinuousStoryPlanArtifact(BaseModel):
         plan: dict[str, Any],
         draft: ContinuousStoryDraft | None = None,
         audio_storage_key: str | None = None,
+        resolved_assets: list[dict[str, Any]] | None = None,
     ) -> ContinuousStoryPlanArtifact:
         """Constructs an artifact instance from a compiled Remotion StoryPlan dictionary."""
         return cls(
@@ -919,4 +1017,5 @@ class ContinuousStoryPlanArtifact(BaseModel):
             audio_storage_key=audio_storage_key,
             plan=plan,
             draft=draft,
+            resolved_assets=resolved_assets or [],
         )

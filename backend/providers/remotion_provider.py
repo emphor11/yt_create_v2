@@ -29,6 +29,7 @@ class RemotionProvider:
         public_dir = self.renderer_root / "public"
         public_dir.mkdir(parents=True, exist_ok=True)
         target_path = public_dir / filename
+        target_path.parent.mkdir(parents=True, exist_ok=True)
         if not target_path.exists() or target_path.stat().st_size != source_path.stat().st_size:
             import shutil
             shutil.copy2(source_path, target_path)

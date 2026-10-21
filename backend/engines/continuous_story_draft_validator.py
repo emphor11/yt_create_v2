@@ -32,6 +32,7 @@ Enforces 16 strict pre-compilation rules:
 """
 from __future__ import annotations
 
+import html
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -90,7 +91,7 @@ class DraftValidationResult:
 
 def _clean_token(text: str) -> str:
     """Normalize word token for speech anchor matching."""
-    return re.sub(r"[^\w\.]", "", text.lower())
+    return re.sub(r"[^\w\.]", "", text.lower()).strip(".")
 
 
 def _get_anchor_start_ms(anchor: str, word_timestamps: list[dict[str, Any]], min_start_ms: int = 0) -> int | None:
@@ -98,7 +99,8 @@ def _get_anchor_start_ms(anchor: str, word_timestamps: list[dict[str, Any]], min
     if not anchor or not word_timestamps:
         return None
 
-    anchor_clean = anchor.replace("-", " ")
+    anchor_decoded = html.unescape(anchor)
+    anchor_clean = re.sub(r"<[^>]+>", " ", anchor_decoded).replace("-", " ")
     clean_anchor_tokens = [_clean_token(t) for t in anchor_clean.split() if _clean_token(t)]
     if not clean_anchor_tokens:
         return None
@@ -107,10 +109,13 @@ def _get_anchor_start_ms(anchor: str, word_timestamps: list[dict[str, Any]], min
     for w in word_timestamps:
         start_ms = w.get("start_ms", 0)
         end_ms = w.get("end_ms", 0)
-        w_clean = str(w.get("word", "")).replace("-", " ")
+        w_raw = str(w.get("word", ""))
+        w_decoded = html.unescape(w_raw)
+        w_stripped = re.sub(r"<[^>]+>", " ", w_decoded)
+        w_clean = w_stripped.replace("-", " ")
         for tok in w_clean.split():
             c_tok = _clean_token(tok)
-            if c_tok:
+            if c_tok and not w_raw.strip().startswith("<break") and not w_raw.strip().startswith("<pause"):
                 token_entries.append((c_tok, start_ms, end_ms))
 
     num_tokens = len(clean_anchor_tokens)
@@ -321,13 +326,22 @@ def validate_story_draft(
         # Check image asset_id against available asset library
         if obj.type == "image":
             if not obj.asset_id or not obj.asset_id.strip():
-                errors.append(
-                    DraftValidationError(
-                        code="MISSING_ASSET_ID",
-                        message=f"Image '{obj.id}' requires a valid non-empty 'asset_id'.",
-                        target_id=obj.id,
+                if not getattr(obj, "asset_request", None):
+                    errors.append(
+                        DraftValidationError(
+                            code="IMAGE_ASSET_REQUEST_MISSING",
+                            message=f"Image '{obj.id}' requires 'asset_request' or 'asset_id'.",
+                            target_id=obj.id,
+                        )
                     )
-                )
+                else:
+                    errors.append(
+                        DraftValidationError(
+                            code="IMAGE_ASSET_UNRESOLVED",
+                            message=f"Image '{obj.id}' has unresolved asset_request before compilation.",
+                            target_id=obj.id,
+                        )
+                    )
             elif not available_assets:
                 errors.append(
                     DraftValidationError(
@@ -532,14 +546,16 @@ def validate_story_draft(
     # Check: Temporal Causality (Actions After Enter)
     # ----------------------------------------------------
     enter_times_ms: dict[str, int] = {}
+    enter_anchors: dict[str, str] = {}
     exit_times_ms: dict[str, int] = {}
 
     for event in draft.events:
-        if event.action == "enter":
+        if event.action in ("enter", "connect"):
             t_ms = _get_anchor_start_ms(event.anchor, word_timestamps)
             if t_ms is not None:
                 if event.target_id not in enter_times_ms or t_ms < enter_times_ms[event.target_id]:
                     enter_times_ms[event.target_id] = t_ms
+                    enter_anchors[event.target_id] = event.anchor
         elif event.action == "exit":
             min_s = enter_times_ms.get(event.target_id, 0)
             t_ms = _get_anchor_start_ms(event.anchor, word_timestamps, min_start_ms=min_s)
@@ -584,12 +600,20 @@ def validate_story_draft(
                     )
                 )
             elif event_time_ms < enter_t:
+                orig_enter_anchor = enter_anchors.get(event.target_id, "")
                 errors.append(
                     DraftValidationError(
                         code="ACTION_BEFORE_OBJECT_ENTER",
-                        message=f"Action '{event.action}' on '{event.target_id}' occurs at {event_time_ms}ms, before its enter time ({enter_t}ms).",
+                        message=f"Action '{event.action}' on '{event.target_id}' occurs at {event_time_ms}ms, before its enter time ({enter_t}ms, enter anchor: '{orig_enter_anchor}').",
                         target_id=event.target_id,
-                        details={"event_time_ms": event_time_ms, "enter_time_ms": enter_t},
+                        details={
+                            "action": event.action,
+                            "target_id": event.target_id,
+                            "event_anchor": event.anchor,
+                            "event_time_ms": event_time_ms,
+                            "enter_anchor": orig_enter_anchor,
+                            "enter_time_ms": enter_t,
+                        },
                     )
                 )
 
@@ -616,34 +640,70 @@ def validate_story_draft(
                     )
                 )
             elif event_time_ms <= enter_t:
+                orig_enter_anchor = enter_anchors.get(event.target_id, "")
                 errors.append(
                     DraftValidationError(
                         code="EXIT_BEFORE_OBJECT_ENTER",
-                        message=f"Action 'exit' on '{event.target_id}' occurs at {event_time_ms}ms, which is before or at its enter time ({enter_t}ms).",
+                        message=(
+                            f"Action 'exit' on '{event.target_id}' occurs at {event_time_ms}ms (exit anchor: '{event.anchor}'), "
+                            f"which is before or at its original enter anchor '{orig_enter_anchor}' at {enter_t}ms. "
+                            f"An exit anchor must occur strictly after the target object's enter anchor."
+                        ),
                         target_id=event.target_id,
+                        details={
+                            "target_id": event.target_id,
+                            "exit_anchor": event.anchor,
+                            "exit_time_ms": event_time_ms,
+                            "enter_anchor": orig_enter_anchor,
+                            "enter_time_ms": enter_t,
+                        },
                     )
                 )
 
-        elif event.action == "connect":
+        elif event.action == "connect" or (event.action == "enter" and target_obj.type == "connector"):
             from_card = target_obj.from_id
             to_card = target_obj.to_id
             from_enter_t = enter_times_ms.get(from_card)
             to_enter_t = enter_times_ms.get(to_card)
 
             if from_enter_t is None or event_time_ms < from_enter_t:
+                orig_enter = enter_anchors.get(from_card, "")
                 errors.append(
                     DraftValidationError(
                         code="CONNECT_BEFORE_CARDS_ENTER",
-                        message=f"Connector '{event.target_id}' connects at {event_time_ms}ms, but source '{from_card}' enters at {from_enter_t}ms.",
+                        message=(
+                            f"Connector '{event.target_id}' connects at {event_time_ms}ms (anchor: '{event.anchor}'), "
+                            f"but source '{from_card}' enters at {from_enter_t}ms (enter anchor: '{orig_enter}')."
+                        ),
                         target_id=event.target_id,
+                        details={
+                            "endpoint_role": "source",
+                            "endpoint_id": from_card,
+                            "endpoint_enter_time_ms": from_enter_t,
+                            "endpoint_enter_anchor": orig_enter,
+                            "connect_time_ms": event_time_ms,
+                            "connect_anchor": event.anchor,
+                        },
                     )
                 )
             if to_enter_t is None or event_time_ms < to_enter_t:
+                orig_enter = enter_anchors.get(to_card, "")
                 errors.append(
                     DraftValidationError(
                         code="CONNECT_BEFORE_CARDS_ENTER",
-                        message=f"Connector '{event.target_id}' connects at {event_time_ms}ms, but target '{to_card}' enters at {to_enter_t}ms.",
+                        message=(
+                            f"Connector '{event.target_id}' connects at {event_time_ms}ms (anchor: '{event.anchor}'), "
+                            f"but target '{to_card}' enters at {to_enter_t}ms (enter anchor: '{orig_enter}')."
+                        ),
                         target_id=event.target_id,
+                        details={
+                            "endpoint_role": "target",
+                            "endpoint_id": to_card,
+                            "endpoint_enter_time_ms": to_enter_t,
+                            "endpoint_enter_anchor": orig_enter,
+                            "connect_time_ms": event_time_ms,
+                            "connect_anchor": event.anchor,
+                        },
                     )
                 )
 
@@ -708,7 +768,14 @@ def validate_story_draft(
                                         f"between {overlap_start}ms and {overlap_end}ms."
                                     ),
                                     target_id=id2,
-                                    details={"zone": z1, "colliding_with": id1, "start_ms": overlap_start, "end_ms": overlap_end},
+                                    details={
+                                        "zone": z1,
+                                        "colliding_with": id1,
+                                        "start_ms": overlap_start,
+                                        "end_ms": overlap_end,
+                                        "element_1": id1,
+                                        "element_2": id2,
+                                    },
                                 )
                             )
                         # Macro layout conflicts
@@ -721,7 +788,15 @@ def validate_story_draft(
                                         f"between {overlap_start}ms and {overlap_end}ms."
                                     ),
                                     target_id=id1,
-                                    details={"macro_zone": z1, "conflicting_zone": z2, "colliding_with": id2},
+                                    details={
+                                        "macro_zone": z1,
+                                        "conflicting_zone": z2,
+                                        "colliding_with": id2,
+                                        "start_ms": overlap_start,
+                                        "end_ms": overlap_end,
+                                        "element_1": id1,
+                                        "element_2": id2,
+                                    },
                                 )
                             )
                         elif z2 in MACRO_ZONE_CONFLICTS and z1 in MACRO_ZONE_CONFLICTS[z2]:
@@ -733,7 +808,15 @@ def validate_story_draft(
                                         f"between {overlap_start}ms and {overlap_end}ms."
                                     ),
                                     target_id=id2,
-                                    details={"macro_zone": z2, "conflicting_zone": z1, "colliding_with": id1},
+                                    details={
+                                        "macro_zone": z2,
+                                        "conflicting_zone": z1,
+                                        "colliding_with": id1,
+                                        "start_ms": overlap_start,
+                                        "end_ms": overlap_end,
+                                        "element_1": id2,
+                                        "element_2": id1,
+                                    },
                                 )
                             )
 

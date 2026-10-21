@@ -371,6 +371,11 @@ def test_reject_exit_before_object_enters(valid_draft: ContinuousStoryDraft, loa
     assert result.valid is False
     codes = [e.code for e in result.errors]
     assert "EXIT_BEFORE_OBJECT_ENTER" in codes
+    exit_err = next(e for e in result.errors if e.code == "EXIT_BEFORE_OBJECT_ENTER")
+    assert "original enter anchor '8.5'" in exit_err.message
+    assert exit_err.details["enter_anchor"] == "8.5"
+    assert exit_err.details["enter_time_ms"] > exit_err.details["exit_time_ms"]
+    assert "An exit anchor must occur strictly after the target object's enter anchor." in exit_err.message
 
 
 def test_valid_chart_draft(valid_draft: ContinuousStoryDraft, loan_fixture: dict):

@@ -312,19 +312,35 @@ Never invent chart values. If the narration does not provide enough numerical in
 IMAGE
 ----------------------------------------------------------------------
 
-Use an image only when it genuinely improves the explanation.
+Use a real-world image when it visually grounds the subject matter (e.g. institutional banks, official documents, real estate, currency reserves, corporate headquarters).
 
-Use only an asset_id from the supplied available image asset list.
+Gemini does not download images, output URLs, local paths, or invent asset IDs.
+Instead, output an `asset_request` describing the desired real-world image.
 
 Required fields:
 
 - id
 - type: "image"
-- layout
-- asset_id
-- purpose
+- layout: one of the 12 spatial zones (e.g. "center_left", "center", "center_right")
+- purpose: editorial reason for this image
+- asset_request: object with:
+  - query: required non-empty search query (e.g. "modern bank exterior, no visible logo")
+  - orientation: "landscape" (recommended) | "portrait" | "square"
+  - style: "photo" | "illustration"
+  - composition: optional composition cue (e.g. "subject on left with space on right")
+  - mood: optional visual mood (e.g. "serious institutional finance documentary")
+  - avoid: optional list of visual elements to avoid (e.g. ["logos", "watermarks", "text-heavy signs", "identifiable faces"])
 
-Never invent asset IDs or file paths.
+Optional image presentation fields:
+- alt: descriptive text for the image
+- caption: optional short caption
+- badge: optional status badge
+- fit: "cover" | "contain"
+- border_color: optional hex color
+- border_radius: optional border radius in pixels (default: 16)
+
+Never invent asset IDs, file paths, or URLs.
+Do not include fact_id, value_fact_id, chart fields, connector fields, number fields, or character fields on an image.
 
 ----------------------------------------------------------------------
 CONNECTOR
@@ -766,6 +782,7 @@ Use:
 - connectors for relationships;
 - charts for change over time;
 - text for hooks and conclusions;
+- images for grounding real-world institutions, markets, or physical assets;
 - visual states for emotional emphasis.
 
 Do not use a card for every visual beat.
@@ -816,7 +833,7 @@ Before returning the JSON, verify:
 8. Every card has title, display_value, and subtitle.
 9. Every standalone number has display_value and numeric_value.
 10. Every chart has chart_type and points or series.
-11. Every image uses a supplied available asset_id.
+11. Every image specifies an asset_request with a query describing the desired photo.
 12. Every connector has valid distinct from_id and to_id values.
 13. Connector endpoints reference declared non-connector objects.
 14. Connectors contain no card, number, chart, image, or visual-state fields.

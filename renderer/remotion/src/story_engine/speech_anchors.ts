@@ -10,6 +10,16 @@ export interface WordTimestamp {
  * Automatically resolves a phrase anchor (e.g. "50 lakh", "rises to 10.5", "monthly EMI")
  * to the exact spoken frame using real word-level audio timestamps.
  */
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&#x27;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
 export function resolveAnchorFrame(
   words: { word: string; start_ms: number; end_ms: number }[],
   anchorPhrase: string,
@@ -20,7 +30,9 @@ export function resolveAnchorFrame(
     throw new Error("Anchor phrase cannot be empty.");
   }
 
-  const cleanAnchor = anchorPhrase.replace(/-/g, " ");
+  const cleanAnchor = decodeHtmlEntities(anchorPhrase)
+    .replace(/<[^>]+>/g, " ")
+    .replace(/-/g, " ");
   const cleanTokens = cleanAnchor
     .toLowerCase()
     .replace(/[^\w\s\.]/g, "")
@@ -33,14 +45,19 @@ export function resolveAnchorFrame(
 
   const tokenEntries: { token: string; start_ms: number }[] = [];
   for (const w of words) {
-    const wClean = String(w.word || "").replace(/-/g, " ");
+    const wRaw = String(w.word || "");
+    const wDecoded = decodeHtmlEntities(wRaw);
+    const wStripped = wDecoded.replace(/<[^>]+>/g, " ");
+    const wClean = wStripped.replace(/-/g, " ");
     const parts = wClean
       .toLowerCase()
       .replace(/[^\w\s\.]/g, "")
       .split(/\s+/)
       .filter(Boolean);
     for (const p of parts) {
-      tokenEntries.push({ token: p, start_ms: w.start_ms });
+      if (p && !p.startsWith("break") && !p.startsWith("pause")) {
+        tokenEntries.push({ token: p, start_ms: w.start_ms });
+      }
     }
   }
 

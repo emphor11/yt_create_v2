@@ -41,6 +41,16 @@ class RenderEngine:
                         continuous_story_plan.audio_file_name,
                     )
 
+            # Stage any resolved image assets into Remotion public assets directory
+            for obj in continuous_story_plan.plan.get("objects", []):
+                if obj.get("type") == "image":
+                    asset_id = obj.get("imageProps", {}).get("assetId")
+                    if asset_id:
+                        storage_key = f"projects/{project_id}/runs/{run_id}/{asset_id}"
+                        media_file = self.media_storage.path_for_key(storage_key)
+                        if media_file.exists():
+                            self.remotion_provider.stage_public_asset(media_file, asset_id)
+
             file_name = f"{scene_id}.mp4"
             storage_key = f"projects/{project_id}/runs/{run_id}/{file_name}"
             output_path = self.media_storage.ensure_parent(storage_key)
