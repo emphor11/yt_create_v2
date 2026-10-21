@@ -233,10 +233,10 @@ def format_programmatic_repair_prompt(
                             "   Remove all card fields (such as title, subtitle, visual_state, badge, value_fact_id) from this connector.\n"
                             "   A connector may contain only: id, type, layout, from_id, to_id, label, purpose.\n"
                         )
-                    elif obj_type == "card" and "title" in msg:
+                    elif obj_type == "card" and ("title" in msg or "display_value" in msg or "subtitle" in msg):
                         specific_guidance = (
-                            '   Missing required field: "title"\n'
-                            "   Every card must have a non-empty header title string.\n"
+                            '   Missing required field: "title", "display_value", or "subtitle"\n'
+                            "   Every card must have non-empty 'title', 'display_value', and 'subtitle'.\n"
                         )
                     elif obj_type == "chart" and ("series" in msg or "points" in msg):
                         specific_guidance = (
@@ -341,8 +341,7 @@ def build_continuous_story_prompt(
         f"AVAILABLE IMAGE ASSETS:\n{assets_str}\n\n"
         "OPEN DIRECT-AUTHORING MODE INSTRUCTIONS:\n"
         "Decide which visual primitive best communicates each narration beat across the continuous scene:\n"
-        "1. 'card': For key entities, metric cards, or concept blocks. Directly author 'title', 'subtitle', 'display_value' (e.g. '₹50 Lakhs', '8.5%'), 'numeric_value' (e.g. 5000000, 8.5), 'badge', 'visual_state', 'accent', 'layout'.\n"
-        "   - For qualitative/conceptual cards without numbers, omit display_value and numeric_value.\n"
+        "1. 'card': For key entities, metric cards, or concept blocks. Directly author 'title', 'display_value' (e.g. '₹50 Lakhs', '8.5%', '+₹15.6 Lakhs'), 'subtitle' (concise 2–6 words), and optionally 'numeric_value' (e.g. 5000000, 8.5 for quantitative cards), 'badge', 'visual_state', 'accent', 'layout'. Every card MUST have title, display_value, and subtitle.\n"
         "2. 'number': For standalone dramatic numeric callouts. Directly author 'display_value', 'numeric_value', 'purpose', 'layout'.\n"
         "3. 'text': For standalone quotes, definitions, question banners, or chapter labels. Directly author 'text', 'purpose', 'layout'.\n"
         "4. 'chart': For trajectories, comparisons, distributions. You MUST directly author non-empty 'points' (e.g. [{\"xLabel\": \"Year 1\", \"yValue\": 100}, ...]) or 'series'. Directly author 'chart_type' ('trajectory_area', 'split_bar', 'multi_bar', 'stack'), 'title', 'subtitle', 'layout'.\n"
@@ -378,6 +377,10 @@ def _validate_direct_authoring_contract(
         if obj.type == "card":
             if not obj.title or not obj.title.strip():
                 errors.append(f"Card '{obj.id}' requires non-empty direct 'title'.")
+            if not obj.display_value or not str(obj.display_value).strip():
+                errors.append(f"Card '{obj.id}' requires non-empty direct 'display_value'.")
+            if not obj.subtitle or not obj.subtitle.strip():
+                errors.append(f"Card '{obj.id}' requires non-empty direct 'subtitle'.")
         elif obj.type == "number":
             if not obj.display_value and obj.numeric_value is None:
                 errors.append(f"Standalone number '{obj.id}' requires direct 'display_value' or 'numeric_value'.")

@@ -85,6 +85,21 @@ function resolvePlanEvents(plan: StoryPlan): StoryAction[] {
   });
 }
 
+function parseNumericFromDisplay(display?: string): number | undefined {
+  if (!display) return undefined;
+  const cleaned = display.replace(/,/g, "").trim();
+  const crMatch = cleaned.match(/([\d.]+)\s*(?:cr|crore)/i);
+  if (crMatch) return parseFloat(crMatch[1]) * 10000000;
+  const lakhMatch = cleaned.match(/([\d.]+)\s*(?:lakh|lakhs|l)/i);
+  if (lakhMatch) return parseFloat(lakhMatch[1]) * 100000;
+  const numMatch = cleaned.match(/[-+]?[\d.]+/);
+  if (numMatch) {
+    const parsed = parseFloat(numMatch[0]);
+    return isNaN(parsed) ? undefined : parsed;
+  }
+  return undefined;
+}
+
 /**
  * Evaluates the full continuous world state at a specific frame.
  */
@@ -315,6 +330,9 @@ export function evaluateFrame(
           opacity = 0;
           isEntered = false;
         }
+      } else {
+        opacity = 0;
+        isEntered = false;
       }
     }
 
@@ -325,7 +343,8 @@ export function evaluateFrame(
       (e): e is TransformNumberAction => e.action === "transform_number"
     );
 
-    let startVal = obj.cardProps?.value ?? obj.numberProps?.value ?? 0;
+    const explicitVal = obj.cardProps?.value ?? obj.numberProps?.value;
+    let startVal = explicitVal !== undefined ? explicitVal : (parseNumericFromDisplay(currentDisplayValue) ?? 0);
     for (const trans of transformEvents) {
       if (frame >= trans.startFrame + trans.durationFrames) {
         currentNumberValue = trans.toValue;

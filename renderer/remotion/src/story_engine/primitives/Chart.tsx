@@ -19,9 +19,13 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
   const themeColor = accentColor || tokens.accent.cyan;
 
   // 1. Trajectory Area Chart (e.g. 10-Year Inflation Decay or 20-Year Loan Burden)
-  if (chartType === "trajectory_area" && series && series.length > 0) {
-    const s = series[0];
-    const points = s.points;
+  const trajectoryPoints =
+    series && series.length > 0 && series[0].points && series[0].points.length > 0
+      ? series[0].points
+      : ((props as any).points as typeof series extends (infer S)[] ? S extends { points: infer P } ? P : never : never);
+
+  if (chartType === "trajectory_area" && trajectoryPoints && trajectoryPoints.length > 0) {
+    const points = trajectoryPoints;
     const width = 560;
     const height = 280;
     const padX = 50;
@@ -29,15 +33,17 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
     const plotW = width - padX * 2;
     const plotH = height - padY * 2;
 
-    const yValues = points.map((p) => p.yValue);
+    const yValues = points.map((p) => p.yValue ?? (p as any).value ?? 0);
     const minY = 0;
-    const maxY = Math.max(...yValues) * 1.15;
+    const maxY = Math.max(1, Math.max(...yValues) * 1.15);
 
-    // Coordinate mapping
+    // Coordinate mapping (safe against single point division by zero)
+    const divisor = Math.max(1, points.length - 1);
     const coords = points.map((p, idx) => {
-      const px = padX + (idx / (points.length - 1)) * plotW;
-      const py = padY + plotH - ((p.yValue - minY) / (maxY - minY)) * plotH;
-      return { x: px, y: py, label: p.xLabel, value: p.yValue };
+      const val = p.yValue ?? (p as any).value ?? 0;
+      const px = padX + (idx / divisor) * plotW;
+      const py = padY + plotH - ((val - minY) / (maxY - minY)) * plotH;
+      return { x: px, y: py, label: p.xLabel ?? (p as any).label ?? `Pt ${idx + 1}`, value: val };
     });
 
     // Generate smooth SVG curve path
@@ -216,9 +222,44 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
     );
   }
 
-  // 2. Split Bar / Stack Breakdown (e.g. CTC Deduction breakdown or Portfolio split)
-  const segmentList = segments || [];
-  const total = totalValue || segmentList.reduce((sum, s) => sum + s.value, 0) || 1;
+  // 2. Split Bar / Stack / Multi Bar Breakdown
+  const palette = [
+    tokens.accent.cyan || "#38BDF8",
+    tokens.accent.rose || "#F43F5E",
+    tokens.accent.emerald || "#10B981",
+    tokens.accent.amber || "#F59E0B",
+    tokens.accent.primary || "#3B82F6",
+    "#8B5CF6",
+    "#EC4899",
+  ];
+
+  let segmentList: { label: string; value: number; color: string }[] = segments || [];
+  if (segmentList.length === 0) {
+    if (series && series.length > 1) {
+      segmentList = series.map((s, idx) => {
+        const lastPt = s.points && s.points.length > 0 ? s.points[s.points.length - 1] : null;
+        return {
+          label: s.name || s.id || `Series ${idx + 1}`,
+          value: lastPt ? (lastPt.yValue ?? (lastPt as any).value ?? 0) : 0,
+          color: s.color || palette[idx % palette.length],
+        };
+      });
+    } else if (series && series.length === 1 && series[0].points && series[0].points.length > 0) {
+      segmentList = series[0].points.map((p: any, idx: number) => ({
+        label: p.xLabel || p.label || `Item ${idx + 1}`,
+        value: p.yValue !== undefined ? p.yValue : (p.value ?? 0),
+        color: p.color || palette[idx % palette.length],
+      }));
+    } else if ((props as any).points && (props as any).points.length > 0) {
+      segmentList = (props as any).points.map((p: any, idx: number) => ({
+        label: p.xLabel || p.label || `Item ${idx + 1}`,
+        value: p.yValue !== undefined ? p.yValue : (p.value ?? 0),
+        color: p.color || palette[idx % palette.length],
+      }));
+    }
+  }
+
+  const total = totalValue || segmentList.reduce((sum, s) => sum + Math.abs(s.value), 0) || 1;
 
   return (
     <div
@@ -266,84 +307,92 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
         )}
       </div>
 
-      {/* Segmented Progress Track */}
-      <div
-        style={{
-          width: "100%",
-          height: 18,
-          borderRadius: 9,
-          backgroundColor: "rgba(255, 255, 255, 0.08)",
-          overflow: "hidden",
-          display: "flex",
-          boxShadow: "inset 0 1px 3px rgba(0,0,0,0.4)",
-        }}
-      >
-        {segmentList.map((seg, i) => {
-          const pct = (seg.value / total) * 100 * Math.min(1, Math.max(0, progress));
-          return (
-            <div
-              key={i}
-              style={{
-                width: `${pct}%`,
-                height: "100%",
-                backgroundColor: seg.color,
-                transition: "width 0.2s ease-out",
-                boxShadow: `0 0 10px ${seg.color}66`,
-              }}
-            />
-          );
-        })}
-      </div>
+      {segmentList.length > 0 ? (
+        <>
+          {/* Segmented Progress Track */}
+          <div
+            style={{
+              width: "100%",
+              height: 18,
+              borderRadius: 9,
+              backgroundColor: "rgba(255, 255, 255, 0.08)",
+              overflow: "hidden",
+              display: "flex",
+              boxShadow: "inset 0 1px 3px rgba(0,0,0,0.4)",
+            }}
+          >
+            {segmentList.map((seg, i) => {
+              const pct = (Math.abs(seg.value) / total) * 100 * Math.min(1, Math.max(0, progress));
+              return (
+                <div
+                  key={i}
+                  style={{
+                    width: `${pct}%`,
+                    height: "100%",
+                    backgroundColor: seg.color,
+                    transition: "width 0.2s ease-out",
+                    boxShadow: `0 0 10px ${seg.color}66`,
+                  }}
+                />
+              );
+            })}
+          </div>
 
-      {/* Legend / Values List */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 12,
-          marginTop: 16,
-          flexWrap: "wrap",
-        }}
-      >
-        {segmentList.map((seg, i) => {
-          const pct = Math.round((seg.value / total) * 100);
-          return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 2,
-                  backgroundColor: seg.color,
-                  boxShadow: `0 0 6px ${seg.color}`,
-                }}
-              />
-              <div>
-                <span
-                  style={{
-                    fontFamily: tokens.font.family,
-                    fontSize: 12,
-                    color: tokens.text.secondary,
-                    marginRight: 6,
-                  }}
-                >
-                  {seg.label}
-                </span>
-                <span
-                  style={{
-                    fontFamily: tokens.font.family,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: tokens.text.primary,
-                  }}
-                >
-                  {pct}%
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+          {/* Legend / Values List */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              marginTop: 16,
+              flexWrap: "wrap",
+            }}
+          >
+            {segmentList.map((seg, i) => {
+              const pct = Math.round((Math.abs(seg.value) / total) * 100);
+              return (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: 2,
+                      backgroundColor: seg.color,
+                      boxShadow: `0 0 6px ${seg.color}`,
+                    }}
+                  />
+                  <div>
+                    <span
+                      style={{
+                        fontFamily: tokens.font.family,
+                        fontSize: 12,
+                        color: tokens.text.secondary,
+                        marginRight: 6,
+                      }}
+                    >
+                      {seg.label}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: tokens.font.family,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: tokens.text.primary,
+                      }}
+                    >
+                      {pct}%
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: tokens.text.muted, fontSize: 14 }}>
+          {title || "Chart Data"}
+        </div>
+      )}
     </div>
   );
 };

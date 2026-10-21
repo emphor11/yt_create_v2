@@ -872,8 +872,10 @@ def test_schema_card_contract_matches_pydantic_policy():
         variant for variant in schema["properties"]["objects"]["items"]["anyOf"]
         if variant["properties"]["type"]["enum"] == ["card"]
     )
-    # Title is required on cards
+    # Title, display_value, and subtitle are required on cards
     assert "title" in card_schema["required"]
+    assert "display_value" in card_schema["required"]
+    assert "subtitle" in card_schema["required"]
     # value_fact_id is optional on cards
     assert "value_fact_id" not in card_schema["required"]
     assert "value_fact_id" in card_schema["properties"]
@@ -905,7 +907,7 @@ def test_format_programmatic_repair_prompt_structure():
 
     # 1. Error on bad_card title
     assert 'objects[0]' in prompt
-    assert 'Every card must have a non-empty header title string' in prompt
+    assert "Every card must have non-empty 'title', 'display_value', and 'subtitle'" in prompt
 
     # 2. Error on bad_conn missing from_id, to_id and card fields
     assert 'objects[1]' in prompt
@@ -1078,6 +1080,39 @@ def test_direct_authoring_draft_validation():
     assert draft.objects[0].subtitle == "Initial amount borrowed"
     assert draft.events[1].to_display_value == "₹1.38 Cr"
     assert draft.events[1].to_numeric_value == 13800000
+
+
+def test_direct_authoring_contract_requires_card_display_value_and_subtitle():
+    from engines.continuous_story_engine import _validate_direct_authoring_contract
+
+    # Missing display_value
+    draft_no_val = ContinuousStoryDraft.model_validate({
+        "story_id": "test_missing_val",
+        "objects": [{"id": "c1", "type": "card", "layout": "center", "title": "My Card", "subtitle": "Some Subtitle"}],
+        "events": [{"action": "enter", "target_id": "c1", "anchor": "test"}]
+    })
+    with pytest.raises(ContinuousStoryEngineError) as exc_val:
+        _validate_direct_authoring_contract(draft_no_val)
+    assert "Card 'c1' requires non-empty direct 'display_value'." in str(exc_val.value)
+
+    # Missing subtitle
+    draft_no_sub = ContinuousStoryDraft.model_validate({
+        "story_id": "test_missing_sub",
+        "objects": [{"id": "c2", "type": "card", "layout": "center", "title": "My Card", "display_value": "₹10 Lakhs"}],
+        "events": [{"action": "enter", "target_id": "c2", "anchor": "test"}]
+    })
+    with pytest.raises(ContinuousStoryEngineError) as exc_sub:
+        _validate_direct_authoring_contract(draft_no_sub)
+    assert "Card 'c2' requires non-empty direct 'subtitle'." in str(exc_sub.value)
+
+    # Valid card with title, display_value, and subtitle passes
+    draft_valid = ContinuousStoryDraft.model_validate({
+        "story_id": "test_valid",
+        "objects": [{"id": "c3", "type": "card", "layout": "center", "title": "My Card", "display_value": "₹10 Lakhs", "subtitle": "Some Subtitle"}],
+        "events": [{"action": "enter", "target_id": "c3", "anchor": "test"}]
+    })
+    _validate_direct_authoring_contract(draft_valid)
+
 
 
 

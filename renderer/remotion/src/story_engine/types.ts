@@ -126,7 +126,8 @@ export interface ChartProps {
 }
 
 export interface ImageProps {
-  src: string;
+  src?: string;
+  assetId?: string;
   alt?: string;
   caption?: string;
   badge?: string;

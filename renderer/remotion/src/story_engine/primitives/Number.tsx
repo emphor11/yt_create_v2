@@ -30,15 +30,19 @@ export const NumberPrimitive: React.FC<NumberComponentProps> = ({
   let formatted = "";
   if (displayToUse) {
     formatted = displayToUse;
-  } else if (props.format === "currency_inr") {
-    formatted = formatINR(val);
-  } else if (props.format === "percentage") {
-    formatted = formatPercentage(val, props.decimals ?? 1);
+  } else if (val !== undefined && val !== null && !isNaN(val)) {
+    if (props.format === "currency_inr") {
+      formatted = formatINR(val);
+    } else if (props.format === "percentage") {
+      formatted = formatPercentage(val, props.decimals ?? 1);
+    } else {
+      formatted = Number.isInteger(val) ? val.toLocaleString() : val.toString();
+    }
   } else {
-    formatted = Number.isInteger(val) ? val.toLocaleString() : val.toString();
+    formatted = "";
   }
 
-  if (!displayToUse) {
+  if (!displayToUse && formatted) {
     if (props.prefix) formatted = `${props.prefix}${formatted}`;
     if (props.suffix) formatted = `${formatted}${props.suffix}`;
   }

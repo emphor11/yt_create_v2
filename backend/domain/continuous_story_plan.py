@@ -501,7 +501,7 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                                 "visual_state": {"type": "string", "enum": state_enum, "description": "Visual state."},
                                 "accent": {"type": "string", "description": "Optional accent color hex code."}
                             },
-                            "required": ["id", "type", "layout", "title"]
+                            "required": ["id", "type", "layout", "title", "display_value", "subtitle"]
                         },
                         {
                             "type": "object",

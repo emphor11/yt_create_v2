@@ -119,20 +119,24 @@ Required fields:
 - type: "card"
 - layout
 - title
+- display_value
+- subtitle
 
 Optional fields:
 
-- display_value
 - numeric_value
-- subtitle
 - badge
 - visual_state
 - accent
 - purpose
 
-For a numeric card, provide both:
+Every card must provide both:
 
-- display_value: the human-readable value
+- display_value: the human-readable value (e.g. "₹50 Lakhs", "8.5%", "₹3.4 Cr", "5% to 6%")
+- subtitle: short context, normally 2–6 words
+
+When the card is quantitative, also provide:
+
 - numeric_value: the raw numeric value
 
 Examples:
@@ -169,6 +173,8 @@ Conceptual card:
   "type": "card",
   "layout": "center_right",
   "title": "Interest Trap",
+  "display_value": "+₹15.6 Lakhs",
+  "numeric_value": 1560000,
   "subtitle": "Cost grows over time",
   "visual_state": "warning",
   "purpose": "Introduce the hidden consequence"
@@ -793,7 +799,7 @@ Before returning the JSON, verify all of the following:
 5. Every object uses one valid zone.
 6. No object contains parent_id or children.
 7. No object contains pixel coordinates.
-8. Cards have a title.
+8. Cards have a title, display_value, and subtitle.
 9. Standalone numbers have display_value and numeric_value.
 10. Charts have chart_type and direct points or series.
 11. Images use only supplied available asset IDs.

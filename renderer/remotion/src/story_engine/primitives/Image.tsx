@@ -9,10 +9,15 @@ interface ImagePrimitiveProps {
 }
 
 export const ImagePrimitive: React.FC<ImagePrimitiveProps> = ({ props, style }) => {
-  const { src, alt, caption, badge, borderColor, borderRadius = 16, fit = "cover" } = props;
+  const { alt, caption, badge, borderColor, borderRadius = 16, fit = "cover" } = props;
 
-  // Resolve local public or absolute src
-  const imageSrc = src.startsWith("http") || src.startsWith("data:") ? src : staticFile(src);
+  // Resolve local public or absolute src (supports both src and assetId gracefully)
+  const rawSrc = props.src || props.assetId || "";
+  const imageSrc = !rawSrc
+    ? ""
+    : rawSrc.startsWith("http") || rawSrc.startsWith("data:")
+    ? rawSrc
+    : staticFile(rawSrc);
 
   return (
     <div
@@ -56,16 +61,33 @@ export const ImagePrimitive: React.FC<ImagePrimitiveProps> = ({ props, style }) 
       )}
 
       {/* Main Image */}
-      <img
-        src={imageSrc}
-        alt={alt ?? "story media"}
-        style={{
-          width: "100%",
-          height: caption ? "82%" : "100%",
-          objectFit: fit,
-          display: "block",
-        }}
-      />
+      {imageSrc ? (
+        <img
+          src={imageSrc}
+          alt={alt ?? "story media"}
+          style={{
+            width: "100%",
+            height: caption ? "82%" : "100%",
+            objectFit: fit,
+            display: "block",
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            width: "100%",
+            height: caption ? "82%" : "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: tokens.text.muted,
+            fontSize: 14,
+            fontFamily: tokens.font.family,
+          }}
+        >
+          {props.assetId || "Media Asset"}
+        </div>
+      )}
 
       {/* Caption Bar */}
       {caption && (
