@@ -96,6 +96,8 @@ export function getDefaultDimensionsForType(type: PrimitiveType): { width: numbe
       return { width: 340, height: 160 };
     case "text":
       return { width: 400, height: 90 };
+    case "character":
+      return { width: 240, height: 360 };
     case "card":
     default:
       return { width: 420, height: 240 };

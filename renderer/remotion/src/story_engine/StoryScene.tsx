@@ -12,6 +12,7 @@ import {
   DocumentPrimitive,
   ChartPrimitive,
   ImagePrimitive,
+  Character,
 } from "./primitives/index.ts";
 import { tokens } from "../design-tokens.ts";
 
@@ -379,6 +380,48 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
                       text: state.currentTextValue || obj.textProps.text,
                       color: state.currentTextColor || obj.textProps.color,
                     }}
+                  />
+                </Highlight>
+              </div>
+            );
+          }
+
+          // 7. Render Character Primitive
+          if (obj.type === "character" && obj.characterProps) {
+            return (
+              <div
+                key={obj.id}
+                style={{
+                  position: "absolute",
+                  left: state.x,
+                  top: state.y,
+                  width: state.width,
+                  height: state.height,
+                  opacity: state.opacity,
+                  transform: `translateY(${state.translateY}px) scale(${state.scale})`,
+                  zIndex: state.zIndex,
+                }}
+              >
+                <Highlight
+                  intensity={state.highlightIntensity}
+                  color={state.highlightColor || state.customAccent || obj.characterProps.accentColor || tokens.accent.cyan}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    boxShadow: dominanceGlow,
+                    borderRadius: 16,
+                  }}
+                >
+                  <Character
+                    props={obj.characterProps}
+                    currentPose={state.characterPose || obj.characterProps.pose}
+                    prevPose={state.characterPrevPose}
+                    poseProgress={state.characterPoseProgress ?? 1}
+                    currentEmotion={state.characterEmotion || obj.characterProps.emotion}
+                    currentFacing={state.characterFacing || obj.characterProps.facing}
+                    visualState={state.visualState}
+                    customAccent={state.customAccent}
+                    style={{ width: "100%", height: "100%" }}
                   />
                 </Highlight>
               </div>

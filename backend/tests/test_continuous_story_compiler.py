@@ -8,7 +8,13 @@ from pathlib import Path
 import pytest
 
 from domain.continuous_story_plan import ContinuousStoryDraft
-from engines.continuous_story_compiler import ContinuousStoryCompiler, compile_story_draft, resolve_anchor_frame
+from engines.continuous_story_compiler import (
+    ContinuousStoryCompiler,
+    compile_story_draft,
+    resolve_anchor_frame,
+    resolve_anchor_ms,
+    generate_timing_report,
+)
 
 
 @pytest.fixture
@@ -737,4 +743,93 @@ def test_anchor_searches_after_card_enter_for_repeating_words():
     assert enter_event["startFrame"] == 150
     # Exit at 'equity' AFTER enter (8000ms = 240 frames @ 30fps), NOT the one at 1000ms (30 frames)
     assert exit_event["startFrame"] == 240
+
+
+def test_resolve_anchor_ms_strict_contiguous_phrase_matching():
+    """
+    Requirement:
+    Replace fuzzy anchor matching with exact contiguous phrase matching.
+    Remove:
+      - first-token fallback
+      - substring matching
+      - fallback search from frame zero
+    If the exact phrase is not found, the pipeline should fail loudly.
+    """
+    words = [
+        {"word": "A", "start_ms": 0, "end_ms": 200},
+        {"word": "fifty", "start_ms": 200, "end_ms": 500},
+        {"word": "lakh", "start_ms": 500, "end_ms": 800},
+        {"word": "rupee", "start_ms": 800, "end_ms": 1100},
+        {"word": "home", "start_ms": 1100, "end_ms": 1400},
+        {"word": "loan", "start_ms": 1400, "end_ms": 1700},
+    ]
+
+    # 1. Exact contiguous match works
+    assert resolve_anchor_ms(words, "fifty lakh rupee") == 200
+
+    # 2. Non-contiguous tokens must fail loudly (no skipping words)
+    with pytest.raises(ValueError, match="could not be resolved to any spoken word"):
+        resolve_anchor_ms(words, "fifty rupee")
+
+    # 3. Substring within a word must fail loudly (e.g. 'akh' in 'lakh')
+    with pytest.raises(ValueError, match="could not be resolved to any spoken word"):
+        resolve_anchor_ms(words, "akh")
+
+    # 4. First-token only fallback removed: if phrase is 'fifty crore', 'fifty' is present but 'fifty crore' is not
+    with pytest.raises(ValueError, match="could not be resolved to any spoken word"):
+        resolve_anchor_ms(words, "fifty crore")
+
+    # 5. Fallback search from frame zero removed: if searched after min_start_ms=1000,
+    # 'fifty lakh' (at 200ms) must NOT fall back to 200ms and must fail loudly!
+    with pytest.raises(ValueError, match="could not be resolved to any spoken word"):
+        resolve_anchor_ms(words, "fifty lakh", min_start_ms=1000)
+
+
+def test_generate_timing_report_format():
+    """
+    Requirement: Add a timing report before rendering:
+    Object: interest_card
+    Anchor: "eighty-eight point four lakhs rupees"
+    Matched timestamp: 33.73s
+    Start frame: 1012
+    Enter event: present
+    Visible interval: 33.73s – 41.83s
+    """
+    plan = {
+        "id": "timing_report_test",
+        "fps": 30,
+        "durationInFrames": 1500,
+        "objects": [
+            {
+                "id": "interest_card",
+                "type": "card",
+                "layout": "center",
+            }
+        ],
+        "events": [
+            {
+                "action": "enter",
+                "targetId": "interest_card",
+                "startFrame": 1012,
+                "durationFrames": 20,
+                "anchor": "eighty-eight point four lakhs rupees",
+            },
+            {
+                "action": "exit",
+                "targetId": "interest_card",
+                "startFrame": 1255,  # 1255 / 30 = 41.83s
+                "durationFrames": 20,
+                "anchor": "end of interval",
+            },
+        ],
+    }
+
+    report = generate_timing_report(plan)
+    assert "Object: interest_card" in report
+    assert 'Anchor: "eighty-eight point four lakhs rupees"' in report
+    assert "Matched timestamp: 33.73s" in report
+    assert "Start frame: 1012" in report
+    assert "Enter event: present" in report
+    assert "Visible interval: 33.73s – 41.83s" in report
+
 

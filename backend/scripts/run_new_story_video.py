@@ -190,6 +190,14 @@ def run_pipeline_for_topic(topic: str, angle: str, audience: str, channel: str):
     print(f"  * Duration:      {v_payload.get('duration_frames')} frames @ {v_payload.get('fps')}fps ({(v_payload.get('duration_frames', 0) / v_payload.get('fps', 30)):.1f}s)")
     print("=" * 75)
 
+    artifact_dir = Path("/Users/dakshyadav/.gemini/antigravity/brain/0ea3762c-60ae-40de-96c0-ce19c83dda9d")
+    if artifact_dir.exists():
+        import shutil
+        dest = artifact_dir / "e2e_story.mp4"
+        shutil.copy2(video_path, dest)
+        print(f"  * Copied video to artifact directory: {dest}")
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run full continuous story pipeline for a new topic.")

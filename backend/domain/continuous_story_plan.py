@@ -88,6 +88,18 @@ VALID_CHART_TYPES = (
     "stack",
 )
 
+CharacterStyle = Literal["futuristic_stick"]
+VALID_CHARACTER_STYLES = ("futuristic_stick",)
+
+CharacterPose = Literal["idle", "walk", "point", "think", "worried", "celebrate"]
+VALID_CHARACTER_POSES = ("idle", "walk", "point", "think", "worried", "celebrate")
+
+CharacterEmotion = Literal["neutral", "focused", "concerned", "surprised", "happy"]
+VALID_CHARACTER_EMOTIONS = ("neutral", "focused", "concerned", "surprised", "happy")
+
+CharacterFacing = Literal["left", "right"]
+VALID_CHARACTER_FACINGS = ("left", "right")
+
 ObjectType = Literal[
     "card",
     "number",
@@ -95,6 +107,7 @@ ObjectType = Literal[
     "chart",
     "image",
     "connector",
+    "character",
 ]
 
 
@@ -199,6 +212,28 @@ class StoryObjectDraft(StrictBaseModel):
         description="Optional label on the connector arrow (e.g. 'Drives payment')."
     )
 
+    # Character-specific fields
+    character_style: CharacterStyle | None = Field(
+        default=None,
+        description="Character visual style (must be 'futuristic_stick')."
+    )
+    role: str | None = Field(
+        default=None,
+        description="Character narrative role (e.g. 'salaried employee')."
+    )
+    pose: CharacterPose | None = Field(
+        default=None,
+        description="Initial character pose ('idle', 'walk', 'point', 'think', 'worried', 'celebrate')."
+    )
+    emotion: CharacterEmotion | None = Field(
+        default=None,
+        description="Initial character emotion ('neutral', 'focused', 'concerned', 'surprised', 'happy'). Defaults to 'neutral' for characters."
+    )
+    facing: CharacterFacing | None = Field(
+        default=None,
+        description="Direction character faces ('left' or 'right')."
+    )
+
     @model_validator(mode="after")
     def validate_atomic_object_rules(self) -> StoryObjectDraft:
         # 1. Non-empty ID
@@ -286,6 +321,66 @@ class StoryObjectDraft(StrictBaseModel):
             if self.chart_type is not None or self.series is not None or self.points is not None or self.asset_id is not None or self.text is not None:
                 raise ValueError(f"CONTINUOUS_STORY_CONTRACT_ERROR: Connector '{self.id}' cannot specify chart, image, or text fields.")
 
+        elif self.type == "character":
+            if not self.character_style or self.character_style != "futuristic_stick":
+                raise ValueError(f"Character '{self.id}' requires 'character_style' to be 'futuristic_stick'.")
+            if not self.role or not self.role.strip():
+                raise ValueError(f"Character '{self.id}' requires non-empty 'role'.")
+            if not self.pose or self.pose not in VALID_CHARACTER_POSES:
+                raise ValueError(f"Character '{self.id}' requires valid 'pose' ({', '.join(VALID_CHARACTER_POSES)}).")
+            if not self.facing or self.facing not in VALID_CHARACTER_FACINGS:
+                raise ValueError(f"Character '{self.id}' requires valid 'facing' ({', '.join(VALID_CHARACTER_FACINGS)}).")
+            if self.emotion is not None and self.emotion not in VALID_CHARACTER_EMOTIONS:
+                raise ValueError(f"Character '{self.id}' specifies invalid 'emotion' ('{self.emotion}').")
+            if self.emotion is None:
+                self.emotion = "neutral"
+
+            # Strictly forbid non-character fields
+            leaked_fields = []
+            if self.title is not None:
+                leaked_fields.append("title")
+            if self.subtitle is not None:
+                leaked_fields.append("subtitle")
+            if self.display_value is not None:
+                leaked_fields.append("display_value")
+            if self.numeric_value is not None:
+                leaked_fields.append("numeric_value")
+            if self.value_fact_id is not None:
+                leaked_fields.append("value_fact_id")
+            if self.fact_id is not None:
+                leaked_fields.append("fact_id")
+            if self.chart_type is not None:
+                leaked_fields.append("chart_type")
+            if self.series is not None:
+                leaked_fields.append("series")
+            if self.points is not None:
+                leaked_fields.append("points")
+            if self.asset_id is not None:
+                leaked_fields.append("asset_id")
+            if self.from_id is not None:
+                leaked_fields.append("from_id")
+            if self.to_id is not None:
+                leaked_fields.append("to_id")
+            if self.text is not None:
+                leaked_fields.append("text")
+            if leaked_fields:
+                raise ValueError(
+                    f"Character '{self.id}' cannot specify non-character fields: {', '.join(leaked_fields)}."
+                )
+
+        # Forbid character fields on other element types
+        if self.type != "character":
+            if (
+                self.character_style is not None
+                or self.role is not None
+                or self.pose is not None
+                or self.facing is not None
+                or self.emotion is not None
+            ):
+                raise ValueError(
+                    f"{self.type.title()} '{self.id}' cannot specify character fields ('character_style', 'role', 'pose', 'facing', 'emotion')."
+                )
+
         return self
 
 
@@ -302,6 +397,7 @@ class StoryEventDraft(StrictBaseModel):
         "highlight",
         "change_visual_state",
         "exit",
+        "change_pose",
     ] = Field(description="The motion behavior to trigger.")
     target_id: str = Field(
         validation_alias=AliasChoices("target_id", "target"),
@@ -361,6 +457,18 @@ class StoryEventDraft(StrictBaseModel):
         default=None,
         description="Exit animation direction for 'exit' action ('left', 'right', 'up', 'down', 'fade')."
     )
+    pose: CharacterPose | None = Field(
+        default=None,
+        description="Target pose for 'change_pose' action ('idle', 'walk', 'point', 'think', 'worried', 'celebrate')."
+    )
+    emotion: CharacterEmotion | None = Field(
+        default=None,
+        description="Optional target emotion for 'change_pose' action ('neutral', 'focused', 'concerned', 'surprised', 'happy')."
+    )
+    facing: CharacterFacing | None = Field(
+        default=None,
+        description="Optional target facing for 'change_pose' action ('left', 'right')."
+    )
 
     @model_validator(mode="after")
     def validate_action_rules(self) -> StoryEventDraft:
@@ -403,6 +511,32 @@ class StoryEventDraft(StrictBaseModel):
                 self.direction = "fade"
         elif self.direction is not None:
             raise ValueError(f"Action '{self.action}' on '{self.target_id}' cannot specify 'direction' (only for 'exit').")
+
+        # 8. 'change_pose' requires valid 'pose'
+        if self.action == "change_pose":
+            if not self.pose or self.pose not in VALID_CHARACTER_POSES:
+                raise ValueError(f"Action 'change_pose' on '{self.target_id}' requires valid 'pose' ({', '.join(VALID_CHARACTER_POSES)}).")
+            if (
+                self.to is not None
+                or self.to_display_value is not None
+                or self.to_numeric_value is not None
+                or self.to_text is not None
+                or self.to_fact_id is not None
+            ):
+                raise ValueError(f"Action 'change_pose' on '{self.target_id}' cannot specify move, transform, or fact fields.")
+            if self.direction is not None or self.from_id is not None or self.to_id is not None:
+                raise ValueError(f"Action 'change_pose' on '{self.target_id}' cannot specify direction or connector fields.")
+            if self.emotion is not None and self.emotion not in VALID_CHARACTER_EMOTIONS:
+                raise ValueError(f"Action 'change_pose' on '{self.target_id}' specifies invalid 'emotion' ('{self.emotion}').")
+            if self.facing is not None and self.facing not in VALID_CHARACTER_FACINGS:
+                raise ValueError(f"Action 'change_pose' on '{self.target_id}' specifies invalid 'facing' ('{self.facing}').")
+        else:
+            if self.pose is not None:
+                raise ValueError(f"Action '{self.action}' on '{self.target_id}' cannot specify 'pose' (only for 'change_pose').")
+            if self.emotion is not None:
+                raise ValueError(f"Action '{self.action}' on '{self.target_id}' cannot specify 'emotion' (only for 'change_pose').")
+            if self.facing is not None:
+                raise ValueError(f"Action '{self.action}' on '{self.target_id}' cannot specify 'facing' (only for 'change_pose').")
 
         return self
 
@@ -472,6 +606,10 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
     state_enum = ["normal", "dimmed", "warning", "danger", "success", "stamped", "eroded"]
     chart_enum = ["trajectory_area", "split_bar", "multi_bar", "stack"]
     direction_enum = ["left", "right", "up", "down", "fade"]
+    character_style_enum = ["futuristic_stick"]
+    pose_enum = ["idle", "walk", "point", "think", "worried", "celebrate"]
+    emotion_enum = ["neutral", "focused", "concerned", "surprised", "happy"]
+    facing_enum = ["left", "right"]
 
     return {
         "type": "object",
@@ -601,6 +739,23 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                                 "label": {"type": "string", "description": "Optional label on the connector arrow."}
                             },
                             "required": ["id", "type", "layout", "from_id", "to_id"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Unique identifier for the character element."},
+                                "type": {"type": "string", "enum": ["character"]},
+                                "layout": {"type": "string", "enum": zone_enum, "description": "One of the 12 spatial zone names."},
+                                "purpose": {"type": "string", "description": "Editorial purpose of this visual element."},
+                                "character_style": {"type": "string", "enum": character_style_enum, "description": "Character style ('futuristic_stick')."},
+                                "role": {"type": "string", "description": "Story role of the character (e.g. 'salaried employee', 'home buyer', 'investor')."},
+                                "label": {"type": "string", "description": "Optional human-readable label."},
+                                "pose": {"type": "string", "enum": pose_enum, "description": "Initial character pose ('idle', 'walk', 'point', 'think', 'worried', 'celebrate')."},
+                                "emotion": {"type": "string", "enum": emotion_enum, "description": "Initial character emotion ('neutral', 'focused', 'concerned', 'surprised', 'happy')."},
+                                "facing": {"type": "string", "enum": facing_enum, "description": "Facing direction ('left' or 'right')."},
+                                "accent": {"type": "string", "description": "Optional accent color hex code (e.g. '#38BDF8')."}
+                            },
+                            "required": ["id", "type", "layout", "character_style", "role", "pose", "facing"]
                         }
                     ]
                 }
@@ -689,6 +844,18 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                                 "anchor": {"type": "string", "description": "Exact spoken phrase in narration where action occurs."}
                             },
                             "required": ["action", "target_id", "anchor"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "action": {"type": "string", "enum": ["change_pose"]},
+                                "target_id": {"type": "string", "description": "ID of character element whose pose changes."},
+                                "pose": {"type": "string", "enum": pose_enum, "description": "Target pose ('idle', 'walk', 'point', 'think', 'worried', 'celebrate')."},
+                                "emotion": {"type": "string", "enum": emotion_enum, "description": "Optional target emotion."},
+                                "facing": {"type": "string", "enum": facing_enum, "description": "Optional updated facing direction ('left' or 'right')."},
+                                "anchor": {"type": "string", "description": "Exact spoken phrase in narration where action occurs."}
+                            },
+                            "required": ["action", "target_id", "pose", "anchor"]
                         }
                     ]
                 }

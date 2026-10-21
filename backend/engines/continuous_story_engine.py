@@ -123,9 +123,16 @@ def print_local_preflight_report(
     """Prints a clear, localized preflight summary of objects, events, and validation issues."""
     num_objects = len(raw_payload.get("objects", []))
     num_events = len(raw_payload.get("events", []))
+    object_types: dict[str, int] = {}
+    for obj in raw_payload.get("objects", []):
+        obj_type = str(obj.get("type", "unknown")) if isinstance(obj, dict) else "unknown"
+        object_types[obj_type] = object_types.get(obj_type, 0) + 1
     print("\n--- CONTINUOUS STORY PREFLIGHT REPORT ---")
     print(f"Objects: {num_objects}")
     print(f"Events:  {num_events}")
+    if object_types:
+        composition = ", ".join(f"{key}={value}" for key, value in sorted(object_types.items()))
+        print(f"Composition: {composition}")
 
     invalid_items: list[str] = []
     if isinstance(validation_error, ValidationError):
@@ -217,6 +224,11 @@ def format_programmatic_repair_prompt(
                             "   Valid values:\n"
                             "   " + ", ".join(f'\"{s}\"' for s in VALID_VISUAL_STATES) + "\n"
                         )
+                    elif action == "change_pose" or "pose" in loc or "change_pose" in msg:
+                        specific_guidance = (
+                            '   Action "change_pose" requires: "target_id" (referencing a character), "pose", "anchor".\n'
+                            '   Valid poses: "idle", "walk", "point", "think", "worried", "celebrate".\n'
+                        )
 
             # Object errors
             elif len(loc) >= 2 and loc[0] == "objects" and isinstance(loc[1], int):
@@ -242,6 +254,13 @@ def format_programmatic_repair_prompt(
                         specific_guidance = (
                             '   Missing required field: "series" or "points"\n'
                             "   Directly author chart series or points data without relying on fact lookup.\n"
+                        )
+                    elif obj_type == "character":
+                        specific_guidance = (
+                            '   Character requires: "character_style" ("futuristic_stick"), "role", "pose", "facing".\n'
+                            '   Valid poses: "idle", "walk", "point", "think", "worried", "celebrate".\n'
+                            '   Valid facing: "left", "right".\n'
+                            "   Do not specify card, chart, number, or image fields on character.\n"
                         )
 
             lines.append(f"{err_idx}. {loc_str}:\n{item_info}{specific_guidance}   Detail: {msg}\n")
@@ -346,13 +365,25 @@ def build_continuous_story_prompt(
         "3. 'text': For standalone quotes, definitions, question banners, or chapter labels. Directly author 'text', 'purpose', 'layout'.\n"
         "4. 'chart': For trajectories, comparisons, distributions. You MUST directly author non-empty 'points' (e.g. [{\"xLabel\": \"Year 1\", \"yValue\": 100}, ...]) or 'series'. Directly author 'chart_type' ('trajectory_area', 'split_bar', 'multi_bar', 'stack'), 'title', 'subtitle', 'layout'.\n"
         "5. 'image': For visual proof or illustrations. Use only asset IDs from the available image assets above.\n"
-        "6. 'connector': For causal flow between surface objects. Provide 'from_id', 'to_id', 'label', 'layout'. Never include card, number, or visual-state fields on connectors.\n\n"
+        "6. 'connector': For causal flow between surface objects. Provide 'from_id', 'to_id', 'label', 'layout'. Never include card, number, or visual-state fields on connectors.\n"
+        "7. 'character': For representing the human experiencing the financial decision (salaried employee, home buyer, investor). Directly author 'character_style' ('futuristic_stick'), 'role', 'pose' ('idle', 'walk', 'point', 'think', 'worried', 'celebrate'), 'facing' ('left', 'right'), and optionally 'emotion' ('neutral', 'focused', 'concerned', 'surprised', 'happy'), 'accent', 'layout'. Never include card, number, chart, or image fields on characters.\n\n"
+        "PROFESSIONAL COMPOSITION REQUIREMENTS:\n"
+        "- Do not make the story card-only. If two or more cards are present, include at least one supporting primitive that adds a different visual language.\n"
+        "- Use a standalone 'number' for the most important numeric reveal; do not bury every major number inside a card.\n"
+        "- Use a 'connector' when the narration expresses cause, consequence, flow, conversion, erosion, or a relationship between two visible objects. Declare the connector object and a separate 'connect' event.\n"
+        "- Use a 'chart' when the narration describes change over time, compounding, growth, decline, comparison, a gap, a trajectory, or multiple years. Directly author the points or series from the narration.\n"
+        "- Use a 'character' when the narration describes a person, household, worker, borrower, investor, customer, family, or emotional reaction. Add at least one later 'change_pose' event when the person experiences a meaningful consequence.\n"
+        "- Use standalone 'text' for a hook, question, definition, quote, or chapter transition when that communicates better than a card.\n"
+        "- A card is supporting context; it is not the default for every sentence. Prefer a varied sequence such as character -> card -> number -> connector -> chart -> reaction.\n"
+        "- Every declared object must earn its place in the narration. Do not add decorative elements merely to satisfy variety.\n"
+        "- Before returning JSON, count the primitive types and confirm the composition is not card-only and that every major visual claim has the appropriate primitive.\n\n"
         "AVAILABLE MOTION ACTIONS:\n"
         "- 'enter': target_id, anchor (exact spoken phrase)\n"
         "- 'exit': target_id, direction ('left', 'right', 'up', 'down', 'fade'), anchor\n"
         "- 'move': target_id, to (zone), anchor\n"
         "- 'transform_number': target_id, to_display_value (e.g. '₹1.38 Cr'), to_numeric_value (13800000), anchor\n"
         "- 'change_visual_state': target_id, state ('normal', 'dimmed', 'warning', 'danger', 'success', 'eroded'), badge, anchor\n"
+        "- 'change_pose': target_id (character id), pose ('idle', 'walk', 'point', 'think', 'worried', 'celebrate'), emotion, facing, anchor\n"
         "- 'connect': target_id (connector id), anchor\n"
         "- 'highlight': target_id, anchor\n\n"
         "SPATIAL LAYOUT ZONES:\n"
@@ -404,17 +435,103 @@ def _validate_direct_authoring_contract(
                 errors.append(f"Connector '{obj.id}' requires 'from_id' and 'to_id'.")
             if obj.visual_state or obj.badge or obj.title or obj.subtitle or obj.display_value or obj.numeric_value:
                 errors.append(f"Connector '{obj.id}' must not contain card, number, or visual-state fields.")
+        elif obj.type == "character":
+            if not obj.character_style or obj.character_style != "futuristic_stick":
+                errors.append(f"Character '{obj.id}' requires 'character_style' to be 'futuristic_stick'.")
+            if not obj.role or not obj.role.strip():
+                errors.append(f"Character '{obj.id}' requires non-empty 'role'.")
+            if not obj.pose or obj.pose not in ("idle", "walk", "point", "think", "worried", "celebrate"):
+                errors.append(f"Character '{obj.id}' requires valid 'pose'.")
+            if not obj.facing or obj.facing not in ("left", "right"):
+                errors.append(f"Character '{obj.id}' requires valid 'facing' ('left' or 'right').")
 
+    obj_map = {o.id: o for o in draft.objects}
     for event in draft.events:
         if event.action == "transform_number":
             if not event.to_display_value or not event.to_display_value.strip():
                 errors.append(f"transform_number on '{event.target_id}' requires 'to_display_value'.")
             if event.to_numeric_value is None:
                 errors.append(f"transform_number on '{event.target_id}' requires 'to_numeric_value'.")
+        elif event.action == "change_pose":
+            target_obj = obj_map.get(event.target_id)
+            if not target_obj:
+                errors.append(f"change_pose references non-existent target_id '{event.target_id}'.")
+            elif target_obj.type != "character":
+                errors.append(f"change_pose on '{event.target_id}' must target a 'character', but is '{target_obj.type}'.")
+            if not event.pose or event.pose not in ("idle", "walk", "point", "think", "worried", "celebrate"):
+                errors.append(f"change_pose on '{event.target_id}' requires valid 'pose'.")
 
     if errors:
         raise ContinuousStoryEngineError(
             "Stage 7 failed: direct-authoring contract violation: " + " ".join(errors)
+        )
+
+
+def _validate_editorial_composition(
+    draft: ContinuousStoryDraft,
+    narration_text: str,
+) -> None:
+    """Rejects visually impoverished drafts before compilation.
+
+    This is an editorial quality gate, not a value/fact validator. The renderer
+    already supports every primitive; this gate prevents Gemini from taking the
+    safest but least expressive path of emitting only metric cards.
+    """
+    object_types = {obj.type for obj in draft.objects}
+    card_count = sum(1 for obj in draft.objects if obj.type == "card")
+    errors: list[str] = []
+    narration = narration_text.lower()
+
+    if card_count >= 2 and not (object_types - {"card"}):
+        errors.append(
+            "CARD_ONLY_COMPOSITION: two or more cards were declared without any supporting primitive. "
+            "Use a standalone number, connector, chart, character, text, or image where the narration warrants it."
+        )
+
+    human_cues = (
+        "person", "people", "employee", "worker", "borrower", "investor", "customer",
+        "family", "household", "salary", "professional", "retiree", "saver", "their life",
+        "your money", "your salary", "someone",
+    )
+    if any(cue in narration for cue in human_cues) and "character" not in object_types:
+        errors.append(
+            "MISSING_CHARACTER_FOR_HUMAN_NARRATIVE: the narration describes a person or lived financial experience, "
+            "but no character primitive was declared."
+        )
+
+    trend_cues = (
+        "over time", "over the years", "over decades", "year by year", "compounds", "compound",
+        "growth", "grows", "trajectory", "declines", "decline", "falls", "rises", "trend",
+        "difference", "gap", "compare", "comparison", "from ", " to ",
+    )
+    if any(cue in narration for cue in trend_cues) and "chart" not in object_types:
+        errors.append(
+            "MISSING_CHART_FOR_TREND_NARRATIVE: the narration describes a trend, comparison, gap, or time progression, "
+            "but no chart primitive was declared."
+        )
+
+    causal_cues = (
+        "because", "leads to", "leads", "causes", "caused", "results in", "drives", "turns into",
+        "erodes", "eats away", "converts into", "becomes", "as a result", "which means",
+    )
+    if any(cue in narration for cue in causal_cues) and card_count >= 2 and "connector" not in object_types:
+        errors.append(
+            "MISSING_CONNECTOR_FOR_CAUSAL_NARRATIVE: the narration expresses a cause-and-effect relationship, "
+            "but no connector object was declared."
+        )
+
+    numeric_cues = (
+        "₹", "rupee", "rupees", "lakh", "crore", "%", "percent", "per cent", "years", "months",
+    )
+    if any(cue in narration for cue in numeric_cues) and card_count >= 2 and "number" not in object_types:
+        errors.append(
+            "MISSING_STANDALONE_NUMBER: the finance narration contains major numeric information, "
+            "but no standalone number primitive was declared for the primary reveal."
+        )
+
+    if errors:
+        raise ContinuousStoryEngineError(
+            "Stage 7 failed: editorial composition quality gate: " + " ".join(errors)
         )
 
 

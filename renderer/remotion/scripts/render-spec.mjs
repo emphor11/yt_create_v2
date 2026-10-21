@@ -47,6 +47,44 @@ if (renderSpec.fps) {
 }
 
 await mkdir(path.dirname(outputPath), { recursive: true });
+
+// Print timing report before rendering
+const storyPlan = renderSpec.plan || renderSpec.props?.plan;
+if (storyPlan && storyPlan.objects && storyPlan.events) {
+  const fps = storyPlan.fps || composition.fps || 30;
+  const durationFrames = storyPlan.durationInFrames || composition.durationInFrames || 380;
+  for (const obj of storyPlan.objects) {
+    const enterEv = storyPlan.events.find(
+      (e) => (e.action === "enter" || e.action === "connect") && e.targetId === obj.id
+    );
+    const exitEv = storyPlan.events.find(
+      (e) => e.action === "exit" && e.targetId === obj.id
+    );
+    if (enterEv) {
+      const anchor = enterEv.anchor || "";
+      const startFrame = enterEv.startFrame || 0;
+      const matchedTs = `${(startFrame / fps).toFixed(2)}s`;
+      const enterStatus = "present";
+      const endTs = exitEv
+        ? `${((exitEv.startFrame || durationFrames) / fps).toFixed(2)}s`
+        : `${(durationFrames / fps).toFixed(2)}s`;
+      console.log(`Object: ${obj.id}`);
+      console.log(`Anchor: "${anchor}"`);
+      console.log(`Matched timestamp: ${matchedTs}`);
+      console.log(`Start frame: ${startFrame}`);
+      console.log(`Enter event: ${enterStatus}`);
+      console.log(`Visible interval: ${matchedTs} – ${endTs}\n`);
+    } else {
+      console.log(`Object: ${obj.id}`);
+      console.log(`Anchor: ""`);
+      console.log(`Matched timestamp: N/A`);
+      console.log(`Start frame: N/A`);
+      console.log(`Enter event: missing`);
+      console.log(`Visible interval: N/A (invisible)\n`);
+    }
+  }
+}
+
 await renderMedia({
   composition,
   serveUrl,

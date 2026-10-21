@@ -15,7 +15,36 @@ export type PrimitiveType =
   | "highlight"
   | "document"
   | "chart"
-  | "image";
+  | "image"
+  | "character";
+
+export type CharacterStyle = "futuristic_stick";
+export type CharacterPose =
+  | "idle"
+  | "walk"
+  | "point"
+  | "think"
+  | "worried"
+  | "celebrate";
+export type CharacterEmotion =
+  | "neutral"
+  | "focused"
+  | "concerned"
+  | "surprised"
+  | "happy";
+export type CharacterFacing = "left" | "right";
+
+export interface CharacterProps {
+  style: CharacterStyle;
+  role: string;
+  label?: string;
+  pose: CharacterPose;
+  emotion?: CharacterEmotion;
+  facing: CharacterFacing;
+  accentColor?: string;
+  width?: number;
+  height?: number;
+}
 
 export type GridZone =
   | "top_left"
@@ -168,6 +197,7 @@ export interface StoryObject {
   imageProps?: ImageProps;
   connectorProps?: ConnectorProps;
   highlightProps?: HighlightProps;
+  characterProps?: CharacterProps;
 }
 
 // ----------------------------------------------------
@@ -201,7 +231,8 @@ export type ActionType =
   | "split"
   | "merge"
   | "change_visual_state"
-  | "exit";
+  | "exit"
+  | "change_pose";
 
 export interface EnterAction {
   action: "enter";
@@ -332,6 +363,17 @@ export interface ExitAction {
   anchor?: string;
 }
 
+export interface ChangePoseAction {
+  action: "change_pose";
+  targetId: string;
+  startFrame: number;
+  durationFrames: number;
+  pose: CharacterPose;
+  emotion?: CharacterEmotion;
+  facing?: CharacterFacing;
+  anchor?: string;
+}
+
 export type StoryAction =
   | EnterAction
   | MoveAction
@@ -344,7 +386,8 @@ export type StoryAction =
   | SplitAction
   | MergeAction
   | ChangeVisualStateAction
-  | ExitAction;
+  | ExitAction
+  | ChangePoseAction;
 
 // ----------------------------------------------------
 // Real Narration Timing

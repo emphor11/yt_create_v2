@@ -13,39 +13,56 @@ export interface WordTimestamp {
 export function resolveAnchorFrame(
   words: { word: string; start_ms: number; end_ms: number }[],
   anchorPhrase: string,
-  fps: number = 30
+  fps: number = 30,
+  minStartMs: number = 0
 ): number {
-  const cleanTokens = anchorPhrase
+  if (!anchorPhrase || !anchorPhrase.trim()) {
+    throw new Error("Anchor phrase cannot be empty.");
+  }
+
+  const cleanAnchor = anchorPhrase.replace(/-/g, " ");
+  const cleanTokens = cleanAnchor
     .toLowerCase()
     .replace(/[^\w\s\.]/g, "")
     .split(/\s+/)
     .filter(Boolean);
 
-  if (cleanTokens.length === 0) return 0;
+  if (cleanTokens.length === 0) {
+    throw new Error(`Anchor phrase '${anchorPhrase}' contains no searchable speech tokens.`);
+  }
 
-  for (let i = 0; i <= words.length - cleanTokens.length; i++) {
+  const tokenEntries: { token: string; start_ms: number }[] = [];
+  for (const w of words) {
+    const wClean = String(w.word || "").replace(/-/g, " ");
+    const parts = wClean
+      .toLowerCase()
+      .replace(/[^\w\s\.]/g, "")
+      .split(/\s+/)
+      .filter(Boolean);
+    for (const p of parts) {
+      tokenEntries.push({ token: p, start_ms: w.start_ms });
+    }
+  }
+
+  const numTokens = cleanTokens.length;
+  for (let i = 0; i <= tokenEntries.length - numTokens; i++) {
+    if (tokenEntries[i].start_ms < minStartMs) {
+      continue;
+    }
     let match = true;
-    for (let j = 0; j < cleanTokens.length; j++) {
-      const w = words[i + j].word.toLowerCase().replace(/[^\w\s\.]/g, "");
-      if (w !== cleanTokens[j] && !w.includes(cleanTokens[j])) {
+    for (let j = 0; j < numTokens; j++) {
+      if (tokenEntries[i + j].token !== cleanTokens[j]) {
         match = false;
         break;
       }
     }
     if (match) {
-      return Math.round((words[i].start_ms / 1000) * fps);
+      return Math.round((tokenEntries[i].start_ms / 1000) * fps);
     }
   }
 
-  // Fallback: look for first token
-  const first = cleanTokens[0];
-  const idx = words.findIndex((w) => {
-    const cleanW = w.word.toLowerCase().replace(/[^\w\s\.]/g, "");
-    return cleanW === first || cleanW.includes(first);
-  });
-  if (idx !== -1) {
-    return Math.round((words[idx].start_ms / 1000) * fps);
-  }
-
-  return 0;
+  throw new Error(
+    `Exact anchor phrase '${anchorPhrase}' could not be resolved to any contiguous spoken word timestamp.`
+  );
 }
+

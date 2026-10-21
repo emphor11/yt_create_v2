@@ -54,7 +54,7 @@ VALID_ZONES = {
     "full_bottom",
 }
 
-SURFACE_TYPES = {"card", "number", "text", "chart", "image"}
+SURFACE_TYPES = {"card", "number", "text", "chart", "image", "character"}
 EXIT_DURATION_MS = 800  # Conservative clearance window (approx 24-25 frames at 30fps)
 
 MACRO_ZONE_CONFLICTS: dict[str, set[str]] = {
@@ -94,44 +94,45 @@ def _clean_token(text: str) -> str:
 
 
 def _get_anchor_start_ms(anchor: str, word_timestamps: list[dict[str, Any]], min_start_ms: int = 0) -> int | None:
-    """Returns the start_ms of the anchor phrase in word timestamps, or None if not found."""
-    clean_anchor_tokens = [_clean_token(t) for t in anchor.split() if _clean_token(t)]
+    """Returns the start_ms of the exact contiguous anchor phrase in word timestamps at or after min_start_ms, or None if not found."""
+    if not anchor or not word_timestamps:
+        return None
+
+    anchor_clean = anchor.replace("-", " ")
+    clean_anchor_tokens = [_clean_token(t) for t in anchor_clean.split() if _clean_token(t)]
     if not clean_anchor_tokens:
         return None
 
-    clean_words = [_clean_token(w.get("word", "")) for w in word_timestamps]
+    token_entries: list[tuple[str, int, int]] = []
+    for w in word_timestamps:
+        start_ms = w.get("start_ms", 0)
+        end_ms = w.get("end_ms", 0)
+        w_clean = str(w.get("word", "")).replace("-", " ")
+        for tok in w_clean.split():
+            c_tok = _clean_token(tok)
+            if c_tok:
+                token_entries.append((c_tok, start_ms, end_ms))
 
-    # 1. Contiguous subsequence search
-    for i in range(len(clean_words) - len(clean_anchor_tokens) + 1):
-        if word_timestamps[i].get("start_ms", 0) < min_start_ms:
+    num_tokens = len(clean_anchor_tokens)
+    for i in range(len(token_entries) - num_tokens + 1):
+        if token_entries[i][1] < min_start_ms:
             continue
         match = True
-        for j in range(len(clean_anchor_tokens)):
-            if clean_words[i + j] != clean_anchor_tokens[j] and clean_anchor_tokens[j] not in clean_words[i + j]:
+        for j in range(num_tokens):
+            if token_entries[i + j][0] != clean_anchor_tokens[j]:
                 match = False
                 break
         if match:
-            return word_timestamps[i].get("start_ms", 0)
+            return token_entries[i][1]
 
-    # 2. Fallback: match first token
-    first = clean_anchor_tokens[0]
-    for i, w in enumerate(clean_words):
-        if word_timestamps[i].get("start_ms", 0) < min_start_ms:
-            continue
-        if first == w or first in w:
-            return word_timestamps[i].get("start_ms", 0)
-
-    # 3. If min_start_ms > 0 and no match was found after min_start_ms, fall back to search from 0
-    # so causality checks (ACTION_BEFORE_OBJECT_ENTER, EXIT_BEFORE_OBJECT_ENTER) can reject premature anchors.
-    if min_start_ms > 0:
-        return _get_anchor_start_ms(anchor, word_timestamps, min_start_ms=0)
-
+    # No first-token fallback, no substring matching, no fallback search from frame zero
     return None
 
 
 def _find_anchor_in_words(anchor: str, word_timestamps: list[dict[str, Any]], min_start_ms: int = 0) -> bool:
-    """Checks if anchor phrase tokens exist in narration word timestamps as a contiguous sub-sequence."""
+    """Checks if exact anchor phrase tokens exist in narration word timestamps as an exact contiguous sub-sequence."""
     return _get_anchor_start_ms(anchor, word_timestamps, min_start_ms=min_start_ms) is not None
+
 
 
 def validate_story_draft(
@@ -216,6 +217,32 @@ def validate_story_draft(
             )
         seen_ids.add(obj.id)
         object_map[obj.id] = obj
+
+    # ----------------------------------------------------
+    # Check: Explicit Enter Event for Every Object
+    # ----------------------------------------------------
+    entered_object_ids = {e.target_id for e in draft.events if e.action == "enter"}
+    connected_object_ids = {e.target_id for e in draft.events if e.action == "connect"}
+
+    for obj in draft.objects:
+        if obj.type == "connector":
+            if obj.id not in entered_object_ids and obj.id not in connected_object_ids:
+                errors.append(
+                    DraftValidationError(
+                        code="MISSING_ENTER_EVENT",
+                        message=f"Connector '{obj.id}' declared in draft has no explicit 'connect' or 'enter' event.",
+                        target_id=obj.id,
+                    )
+                )
+        else:
+            if obj.id not in entered_object_ids:
+                errors.append(
+                    DraftValidationError(
+                        code="MISSING_ENTER_EVENT",
+                        message=f"Object '{obj.id}' declared in draft has no explicit 'enter' event. Every object must have an explicit enter event.",
+                        target_id=obj.id,
+                    )
+                )
 
     # ----------------------------------------------------
     # Check: Object-Level Validation
@@ -443,13 +470,13 @@ def validate_story_draft(
                 )
             )
 
-        # Check: change_visual_state targets a card
+        # Check: change_visual_state targets a card or character
         if event.action == "change_visual_state":
-            if target_obj.type != "card":
+            if target_obj.type not in ("card", "character"):
                 errors.append(
                     DraftValidationError(
                         code="VISUAL_STATE_TARGET_NOT_CARD",
-                        message=f"Action 'change_visual_state' can only target a 'card' element, but '{target_obj.id}' is '{target_obj.type}'.",
+                        message=f"Action 'change_visual_state' can only target a 'card' or 'character' element, but '{target_obj.id}' is '{target_obj.type}'.",
                         target_id=target_obj.id,
                     )
                 )
@@ -471,6 +498,25 @@ def validate_story_draft(
                             target_id=event.target_id,
                         )
                     )
+
+        # Check: change_pose targets a character and specifies valid pose
+        if event.action == "change_pose":
+            if target_obj.type != "character":
+                errors.append(
+                    DraftValidationError(
+                        code="CHANGE_POSE_TARGET_NOT_CHARACTER",
+                        message=f"Action 'change_pose' can only target a 'character' primitive, but '{target_obj.id}' is a '{target_obj.type}'.",
+                        target_id=target_obj.id,
+                    )
+                )
+            if not event.pose or event.pose not in ("idle", "walk", "point", "think", "worried", "celebrate"):
+                errors.append(
+                    DraftValidationError(
+                        code="INVALID_CHARACTER_POSE",
+                        message=f"Action 'change_pose' on '{event.target_id}' has invalid pose '{event.pose}'.",
+                        target_id=event.target_id,
+                    )
+                )
 
         # Check: exit action validates direction if present
         if event.action == "exit" and event.direction and event.direction not in {"left", "right", "up", "down", "fade"}:
@@ -494,6 +540,13 @@ def validate_story_draft(
             if t_ms is not None:
                 if event.target_id not in enter_times_ms or t_ms < enter_times_ms[event.target_id]:
                     enter_times_ms[event.target_id] = t_ms
+        elif event.action == "exit":
+            min_s = enter_times_ms.get(event.target_id, 0)
+            t_ms = _get_anchor_start_ms(event.anchor, word_timestamps, min_start_ms=min_s)
+            if t_ms is not None:
+                exit_times_ms[event.target_id] = t_ms
+
+    current_exited: set[str] = set()
 
     for event in draft.events:
         min_start = 0
@@ -508,15 +561,20 @@ def validate_story_draft(
                     )
 
         event_time_ms = _get_anchor_start_ms(event.anchor, word_timestamps, min_start_ms=min_start)
-        if event.action == "exit" and event_time_ms is not None:
-            exit_times_ms[event.target_id] = event_time_ms
+        if event_time_ms is None:
+            raw_time_ms = _get_anchor_start_ms(event.anchor, word_timestamps, min_start_ms=0)
+            if raw_time_ms is not None:
+                event_time_ms = raw_time_ms
         if event_time_ms is None or event.target_id not in object_map:
             continue
 
         target_obj = object_map[event.target_id]
         enter_t = enter_times_ms.get(event.target_id)
 
-        if event.action in ("move", "highlight", "change_visual_state", "transform_number", "transform_text"):
+        if event.action == "enter":
+            current_exited.discard(event.target_id)
+
+        elif event.action in ("move", "highlight", "change_visual_state", "transform_number", "transform_text", "change_pose"):
             if enter_t is None:
                 errors.append(
                     DraftValidationError(
@@ -535,7 +593,20 @@ def validate_story_draft(
                     )
                 )
 
+            # Rule 8: If character (or object) exits, cannot receive actions after exit unless re-entered
+            exit_t = exit_times_ms.get(event.target_id)
+            if event.target_id in current_exited or (exit_t is not None and event_time_ms > exit_t):
+                errors.append(
+                    DraftValidationError(
+                        code="ACTION_AFTER_OBJECT_EXIT",
+                        message=f"Action '{event.action}' on '{event.target_id}' occurs at {event_time_ms}ms, after the object has exited at {exit_t or event_time_ms}ms.",
+                        target_id=event.target_id,
+                        details={"event_time_ms": event_time_ms, "exit_time_ms": exit_t or event_time_ms},
+                    )
+                )
+
         elif event.action == "exit":
+            current_exited.add(event.target_id)
             if enter_t is None:
                 errors.append(
                     DraftValidationError(

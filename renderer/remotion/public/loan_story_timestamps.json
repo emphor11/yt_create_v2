@@ -1,6 +1,6 @@
 {
   "audio_file": "loan_narration.mp3",
-  "total_duration_ms": 16847,
+  "total_duration_ms": 14875,
   "full_text": "A 50 lakh rupee home loan starts at 8.5 percent interest. When the benchmark rate rises to 10.5 percent... ...the monthly EMI surges to 49,919 rupees, adding a heavy burden. ...snowballing into 15.6 lakh in extra interest over 20 years.",
   "word_timestamps": [
     {
@@ -101,107 +101,107 @@
     {
       "word": "the",
       "start_ms": 7744,
-      "end_ms": 8148
+      "end_ms": 7969
     },
     {
       "word": "monthly",
-      "start_ms": 8148,
-      "end_ms": 8552
+      "start_ms": 7969,
+      "end_ms": 8194
     },
     {
       "word": "EMI",
-      "start_ms": 8552,
-      "end_ms": 8956
+      "start_ms": 8194,
+      "end_ms": 8419
     },
     {
       "word": "surges",
-      "start_ms": 8957,
-      "end_ms": 9361
+      "start_ms": 8419,
+      "end_ms": 8644
     },
     {
       "word": "to",
-      "start_ms": 9361,
-      "end_ms": 9765
+      "start_ms": 8644,
+      "end_ms": 8869
     },
     {
       "word": "49,919",
-      "start_ms": 9766,
-      "end_ms": 10170
+      "start_ms": 8869,
+      "end_ms": 9094
     },
     {
       "word": "rupees",
-      "start_ms": 10170,
-      "end_ms": 10574
+      "start_ms": 9095,
+      "end_ms": 9320
     },
     {
       "word": "adding",
-      "start_ms": 10575,
-      "end_ms": 10979
+      "start_ms": 9320,
+      "end_ms": 9545
     },
     {
       "word": "a",
-      "start_ms": 10979,
-      "end_ms": 11383
+      "start_ms": 9545,
+      "end_ms": 9770
     },
     {
       "word": "heavy",
-      "start_ms": 11384,
-      "end_ms": 11788
+      "start_ms": 9770,
+      "end_ms": 9995
     },
     {
       "word": "burden",
-      "start_ms": 11788,
-      "end_ms": 12192
+      "start_ms": 9995,
+      "end_ms": 10220
     },
     {
       "word": "snowballing",
-      "start_ms": 12543,
-      "end_ms": 12938
+      "start_ms": 10571,
+      "end_ms": 10966
     },
     {
       "word": "into",
-      "start_ms": 12938,
-      "end_ms": 13333
+      "start_ms": 10966,
+      "end_ms": 11361
     },
     {
       "word": "15.6",
-      "start_ms": 13333,
-      "end_ms": 13728
+      "start_ms": 11361,
+      "end_ms": 11756
     },
     {
       "word": "lakh",
-      "start_ms": 13729,
-      "end_ms": 14124
+      "start_ms": 11757,
+      "end_ms": 12152
     },
     {
       "word": "in",
-      "start_ms": 14124,
-      "end_ms": 14519
+      "start_ms": 12152,
+      "end_ms": 12547
     },
     {
       "word": "extra",
-      "start_ms": 14520,
-      "end_ms": 14915
+      "start_ms": 12548,
+      "end_ms": 12943
     },
     {
       "word": "interest",
-      "start_ms": 14915,
-      "end_ms": 15310
+      "start_ms": 12943,
+      "end_ms": 13338
     },
     {
       "word": "over",
-      "start_ms": 15310,
-      "end_ms": 15705
+      "start_ms": 13338,
+      "end_ms": 13733
     },
     {
       "word": "20",
-      "start_ms": 15706,
-      "end_ms": 16101
+      "start_ms": 13734,
+      "end_ms": 14129
     },
     {
       "word": "years",
-      "start_ms": 16101,
-      "end_ms": 16496
+      "start_ms": 14129,
+      "end_ms": 14524
     }
   ]
 }

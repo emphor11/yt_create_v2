@@ -524,3 +524,78 @@ def test_validator_searches_anchor_after_card_enter_for_repeating_words():
     )
     assert result.valid is True
 
+
+def test_validator_fails_when_object_missing_explicit_enter():
+    """Requirement: Every object must have an explicit enter event. Missing enter must fail validation."""
+    word_timestamps = [
+        {"word": "fixed", "start_ms": 100, "end_ms": 300},
+        {"word": "return", "start_ms": 300, "end_ms": 600},
+    ]
+    raw_draft = {
+        "story_id": "missing_enter_test",
+        "objects": [
+            {
+                "id": "card_entered",
+                "type": "card",
+                "layout": "center_left",
+                "title": "Entered Card",
+                "display_value": "₹5 Lakh",
+                "numeric_value": 500000,
+            },
+            {
+                "id": "card_without_enter",
+                "type": "card",
+                "layout": "center_right",
+                "title": "Forgotten Card",
+                "display_value": "₹10 Lakh",
+                "numeric_value": 1000000,
+            },
+        ],
+        "events": [
+            {"action": "enter", "target_id": "card_entered", "anchor": "fixed"},
+        ],
+    }
+    draft = ContinuousStoryDraft.model_validate(raw_draft)
+    result = validate_story_draft(
+        draft=draft,
+        word_timestamps=word_timestamps,
+        total_duration_ms=5000,
+    )
+    assert result.valid is False
+    assert any(e.code == "MISSING_ENTER_EVENT" and e.target_id == "card_without_enter" for e in result.errors)
+
+
+def test_validator_rejects_non_contiguous_or_substring_phrase():
+    """Requirement: Exact contiguous phrase matching only; substring or non-contiguous fails."""
+    word_timestamps = [
+        {"word": "fixed", "start_ms": 100, "end_ms": 300},
+        {"word": "deposit", "start_ms": 300, "end_ms": 500},
+        {"word": "scheme", "start_ms": 500, "end_ms": 800},
+    ]
+    raw_draft = {
+        "story_id": "non_contiguous_anchor_test",
+        "objects": [
+            {
+                "id": "test_card",
+                "type": "card",
+                "layout": "center",
+                "title": "Deposit",
+                "display_value": "100",
+                "numeric_value": 100,
+            }
+        ],
+        "events": [
+            # "fixed scheme" skips "deposit" -> non-contiguous!
+            {"action": "enter", "target_id": "test_card", "anchor": "fixed scheme"},
+        ],
+    }
+    draft = ContinuousStoryDraft.model_validate(raw_draft)
+    result = validate_story_draft(
+        draft=draft,
+        word_timestamps=word_timestamps,
+        total_duration_ms=5000,
+    )
+    assert result.valid is False
+    assert any(e.code == "ANCHOR_NOT_FOUND" for e in result.errors)
+
+

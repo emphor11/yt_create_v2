@@ -3,8 +3,10 @@ import subprocess
 from domain.render_spec import RenderSpec
 from domain.continuous_story_plan import ContinuousStoryPlanArtifact
 from domain.video import Video
+from engines.continuous_story_compiler import generate_timing_report
 from providers.media_storage import LocalMediaStorage
 from providers.remotion_provider import RemotionProvider, RemotionProviderError
+
 
 
 class RenderEngine:
@@ -42,6 +44,10 @@ class RenderEngine:
             file_name = f"{scene_id}.mp4"
             storage_key = f"projects/{project_id}/runs/{run_id}/{file_name}"
             output_path = self.media_storage.ensure_parent(storage_key)
+
+            # Generate and print timing report before rendering
+            timing_report = generate_timing_report(continuous_story_plan.plan)
+            print(timing_report)
 
             try:
                 render_output = self.remotion_provider.render(

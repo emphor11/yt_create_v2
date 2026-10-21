@@ -491,8 +491,270 @@ if (!resSequential.valid) {
 }
 console.log("✓ Clean sequential reuse of a zone after exit confirmed valid.");
 
+// ----------------------------------------------------
+// 11. CHARACTER PRIMITIVE & CHANGE_POSE DYNAMICS
+// ----------------------------------------------------
+console.log("\n--- TEST 11: Character Primitive & change_pose Motion Dynamics ---");
+
+// 11.1: Character default dimensions and layout
+const charTestPlan = {
+  id: "character_test_plan",
+  fps: 30,
+  durationInFrames: 150,
+  width: 1920,
+  height: 1080,
+  objects: [
+    {
+      id: "worker",
+      type: "character",
+      layout: "center_left",
+      characterProps: {
+        style: "futuristic_stick",
+        role: "salaried employee",
+        label: "A salaried employee",
+        pose: "idle",
+        emotion: "neutral",
+        facing: "right",
+        accentColor: "#38BDF8",
+      },
+    },
+    {
+      id: "wealth_card",
+      type: "card",
+      layout: "center_right",
+      cardProps: {
+        title: "Retirement Fund",
+        subtitle: "Target 2050",
+        displayValue: "₹2.5 Cr",
+        numericValue: 25000000,
+        accentColor: "#10B981",
+      },
+    },
+  ],
+  events: [
+    { action: "enter", targetId: "worker", startFrame: 10, durationFrames: 15 },
+    { action: "enter", targetId: "wealth_card", startFrame: 20, durationFrames: 15 },
+    { action: "change_pose", targetId: "worker", startFrame: 60, durationFrames: 20, pose: "think", emotion: "focused" },
+    { action: "change_pose", targetId: "worker", startFrame: 100, durationFrames: 20, pose: "worried", emotion: "concerned" },
+    { action: "exit", targetId: "worker", startFrame: 130, durationFrames: 15, direction: "left" },
+  ],
+};
+
+const charLayouts = resolveLayouts(charTestPlan.objects, 1920, 1080, 80);
+const workerGeom = charLayouts.get("worker");
+if (!workerGeom || workerGeom.width !== 240 || workerGeom.height !== 360) {
+  throw new Error(`FAIL: Expected character default dimensions 240x360, got ${workerGeom?.width}x${workerGeom?.height}`);
+}
+console.log(`✓ Character default dimensions verified: ${workerGeom.width}x${workerGeom.height} at (${workerGeom.x}, ${workerGeom.y})`);
+
+// 11.2: Validation of valid character story plan
+const validCharRes = validateStoryPlan(charTestPlan);
+if (!validCharRes.valid) {
+  console.error("Valid character plan validation errors:", validCharRes.errors);
+  throw new Error("FAIL: Valid character plan should pass validation!");
+}
+console.log("✓ Valid character plan passed full validation.");
+
+// 11.3: Frame evaluation of pose interpolation and state retention
+// Frame 30: Entered, initial pose = "idle"
+const evalF30 = evaluateFrame(charTestPlan, charLayouts, 30);
+const workerF30 = evalF30.objects.get("worker");
+if (workerF30.characterPose !== "idle" || workerF30.characterEmotion !== "neutral") {
+  throw new Error(`FAIL: Frame 30 character state should be idle/neutral, got ${workerF30.characterPose}/${workerF30.characterEmotion}`);
+}
+console.log(`✓ Frame 30: Initial character pose '${workerF30.characterPose}' and emotion '${workerF30.characterEmotion}' verified`);
+
+// Frame 70: Mid-transition of think (start 60, duration 20) -> poseProgress ~ 0.5
+const evalF70 = evaluateFrame(charTestPlan, charLayouts, 70);
+const workerF70 = evalF70.objects.get("worker");
+if (workerF70.characterPose !== "think" || workerF70.characterPrevPose !== "idle" || workerF70.characterPoseProgress <= 0 || workerF70.characterPoseProgress >= 1) {
+  throw new Error(`FAIL: Frame 70 should interpolate between idle and think. Got progress=${workerF70.characterPoseProgress}`);
+}
+console.log(`✓ Frame 70: Mid-transition pose interpolation cleanly verified (progress: ${workerF70.characterPoseProgress.toFixed(2)})`);
+
+// Frame 85: Transition complete -> pose = "think", poseProgress = 1
+const evalF85 = evaluateFrame(charTestPlan, charLayouts, 85);
+const workerF85 = evalF85.objects.get("worker");
+if (workerF85.characterPose !== "think" || workerF85.characterPoseProgress !== 1) {
+  throw new Error(`FAIL: Frame 85 should hold 'think' pose with progress 1, got ${workerF85.characterPose}`);
+}
+console.log(`✓ Frame 85: Settled pose '${workerF85.characterPose}' retained cleanly`);
+
+// Frame 125: Post second transition -> pose = "worried" retained cleanly before exit
+const evalF125 = evaluateFrame(charTestPlan, charLayouts, 125);
+const workerF125 = evalF125.objects.get("worker");
+if (workerF125.characterPose !== "worried" || workerF125.characterEmotion !== "concerned") {
+  throw new Error(`FAIL: Frame 125 should retain 'worried' pose, got ${workerF125.characterPose}`);
+}
+console.log(`✓ Frame 125: Second pose change '${workerF125.characterPose}' retained until exit`);
+
+// 11.4: Rejection of change_pose targeting non-character
+const badTargetPlan = JSON.parse(JSON.stringify(charTestPlan));
+badTargetPlan.events.push({
+  action: "change_pose",
+  targetId: "wealth_card", // Card is NOT a character!
+  startFrame: 40,
+  durationFrames: 20,
+  pose: "celebrate",
+});
+const badTargetRes = validateStoryPlan(badTargetPlan);
+if (badTargetRes.valid || !badTargetRes.errors.some((e) => e.code === "INVALID_TARGET_TYPE")) {
+  throw new Error("FAIL: Validator should reject change_pose on non-character object (INVALID_TARGET_TYPE)");
+}
+console.log("✓ Caught and rejected change_pose targeting card object (INVALID_TARGET_TYPE).");
+
+// 11.5: Rejection of invalid pose value
+const badPosePlan = JSON.parse(JSON.stringify(charTestPlan));
+badPosePlan.events.push({
+  action: "change_pose",
+  targetId: "worker",
+  startFrame: 40,
+  durationFrames: 20,
+  pose: "flying_ninja", // Unsupported pose
+});
+const badPoseRes = validateStoryPlan(badPosePlan);
+if (badPoseRes.valid || !badPoseRes.errors.some((e) => e.code === "INVALID_POSE")) {
+  throw new Error("FAIL: Validator should reject unsupported pose string (INVALID_POSE)");
+}
+console.log("✓ Caught and rejected unsupported character pose (INVALID_POSE).");
+
+// 11.6: Rejection of change_pose after character exits
+const poseAfterExitPlan = JSON.parse(JSON.stringify(charTestPlan));
+poseAfterExitPlan.events.push({
+  action: "change_pose",
+  targetId: "worker",
+  startFrame: 148, // worker exits at 130 + 15 = 145!
+  durationFrames: 20,
+  pose: "celebrate",
+});
+const poseAfterExitRes = validateStoryPlan(poseAfterExitPlan);
+if (poseAfterExitRes.valid || !poseAfterExitRes.errors.some((e) => e.code === "ACTION_AFTER_EXIT")) {
+  throw new Error("FAIL: Validator should reject change_pose after character exits (ACTION_AFTER_EXIT)");
+}
+console.log("✓ Caught and rejected change_pose after character exit (ACTION_AFTER_EXIT).");
+
+// 11.7: Spatial AABB collision between character and card sharing zone
+const overlapCharPlan = {
+  id: "overlap_char_plan",
+  fps: 30,
+  durationInFrames: 100,
+  width: 1920,
+  height: 1080,
+  objects: [
+    {
+      id: "worker",
+      type: "character",
+      layout: "center_left",
+      characterProps: { style: "futuristic_stick", role: "worker", pose: "idle", facing: "right" },
+    },
+    {
+      id: "colliding_card",
+      type: "card",
+      layout: "center_left", // Same zone simultaneously!
+      cardProps: { title: "Colliding Card" },
+    },
+  ],
+  events: [
+    { action: "enter", targetId: "worker", startFrame: 10, durationFrames: 10 },
+    { action: "enter", targetId: "colliding_card", startFrame: 10, durationFrames: 10 },
+  ],
+};
+const overlapCharRes = validateStoryPlan(overlapCharPlan);
+if (overlapCharRes.valid || !overlapCharRes.errors.some((e) => e.code === "ZONE_OCCUPANCY_COLLISION")) {
+  throw new Error("FAIL: Validator should reject character and card sharing same zone simultaneously!");
+}
+console.log("✓ Caught and rejected character and card spatial zone collision.");
+
+// ----------------------------------------------------
+// 12. EXPLICIT ENTER, INVISIBLE START & EXACT ANCHOR MATCHING
+// ----------------------------------------------------
+console.log("\n--- TEST 12: Explicit Enter, Invisible Start & Exact Anchor Matching ---");
+
+// 12.1: Missing enter event triggers MISSING_ENTER_EVENT
+const missingEnterPlan = {
+  id: "missing_enter_test",
+  fps: 30,
+  durationInFrames: 100,
+  width: 1920,
+  height: 1080,
+  objects: [
+    {
+      id: "unentered_card",
+      type: "card",
+      layout: "center",
+      cardProps: { title: "Phantom Card" },
+    },
+  ],
+  events: [],
+};
+const missingEnterRes = validateStoryPlan(missingEnterPlan);
+if (missingEnterRes.valid || !missingEnterRes.errors.some((e) => e.code === "MISSING_ENTER_EVENT")) {
+  throw new Error("FAIL: Validator must reject object missing explicit enter event with MISSING_ENTER_EVENT!");
+}
+console.log("✓ Caught and rejected object without explicit enter event (MISSING_ENTER_EVENT).");
+
+// 12.2: Object without enter starts invisible (opacity = 0, isEntered = false)
+const invisibleTestLayouts = resolveLayouts(missingEnterPlan.objects, 1920, 1080, 80);
+const evalFrame0 = evaluateFrame(missingEnterPlan, invisibleTestLayouts, 0);
+const unenteredObj = evalFrame0.objects.get("unentered_card");
+if (!unenteredObj || unenteredObj.opacity !== 0 || unenteredObj.isEntered !== false) {
+  throw new Error(`FAIL: Unentered object must start invisible! Got opacity=${unenteredObj?.opacity}, isEntered=${unenteredObj?.isEntered}`);
+}
+console.log("✓ Object without enter starts invisible (opacity: 0, isEntered: false).");
+
+// 12.3: Before enter frame, object is invisible
+const delayedEnterPlan = {
+  id: "delayed_enter_test",
+  fps: 30,
+  durationInFrames: 100,
+  width: 1920,
+  height: 1080,
+  objects: [
+    {
+      id: "delayed_card",
+      type: "card",
+      layout: "center",
+      cardProps: { title: "Delayed Card" },
+    },
+  ],
+  events: [
+    { action: "enter", targetId: "delayed_card", startFrame: 30, durationFrames: 10 },
+  ],
+};
+const delayedLayouts = resolveLayouts(delayedEnterPlan.objects, 1920, 1080, 80);
+const evalBeforeEnter = evaluateFrame(delayedEnterPlan, delayedLayouts, 15);
+const delayedBefore = evalBeforeEnter.objects.get("delayed_card");
+if (!delayedBefore || delayedBefore.opacity !== 0 || delayedBefore.isEntered !== false) {
+  throw new Error(`FAIL: Object before enter frame must be invisible! Got opacity=${delayedBefore?.opacity}`);
+}
+console.log("✓ Object before enter frame (frame 15 < 30) is completely invisible.");
+
+// 12.4: Exact contiguous speech anchor matching fails loudly when absent or non-contiguous
+const sampleTimestamps = [
+  { word: "fifty", start_ms: 0, end_ms: 300 },
+  { word: "lakh", start_ms: 300, end_ms: 600 },
+  { word: "rupees", start_ms: 600, end_ms: 900 },
+];
+let exactMatchFailedAsExpected = false;
+try {
+  resolveAnchorFrame(sampleTimestamps, "fifty rupees", 30); // non-contiguous!
+} catch (e) {
+  exactMatchFailedAsExpected = true;
+}
+if (!exactMatchFailedAsExpected) {
+  throw new Error("FAIL: Non-contiguous anchor 'fifty rupees' should fail loudly!");
+}
+console.log("✓ Non-contiguous anchor search failed loudly as required.");
+
 console.log("\n==================================================");
 console.log("ALL ADVANCED PROTOCOL TESTS PASSED CLEANLY!");
 console.log("==================================================");
+
+
+
+
+
+
+
 
 

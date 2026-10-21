@@ -1,0 +1,182 @@
+{
+  "audio_file": "character_narration.mp3",
+  "total_duration_ms": 14195,
+  "full_text": "A salaried employee saves diligently every single month. At first, a conservative fixed return feels completely safe... ...until persistent inflation begins eroding real purchasing power. ...leaving them facing a thirty lakh wealth deficit over time.",
+  "word_timestamps": [
+    {
+      "word": "A",
+      "start_ms": 0,
+      "end_ms": 372
+    },
+    {
+      "word": "salaried",
+      "start_ms": 372,
+      "end_ms": 744
+    },
+    {
+      "word": "employee",
+      "start_ms": 744,
+      "end_ms": 1116
+    },
+    {
+      "word": "saves",
+      "start_ms": 1116,
+      "end_ms": 1488
+    },
+    {
+      "word": "diligently",
+      "start_ms": 1488,
+      "end_ms": 1860
+    },
+    {
+      "word": "every",
+      "start_ms": 1860,
+      "end_ms": 2232
+    },
+    {
+      "word": "single",
+      "start_ms": 2232,
+      "end_ms": 2604
+    },
+    {
+      "word": "month",
+      "start_ms": 2604,
+      "end_ms": 2976
+    },
+    {
+      "word": "At",
+      "start_ms": 3377,
+      "end_ms": 3724
+    },
+    {
+      "word": "first",
+      "start_ms": 3724,
+      "end_ms": 4071
+    },
+    {
+      "word": "a",
+      "start_ms": 4071,
+      "end_ms": 4418
+    },
+    {
+      "word": "conservative",
+      "start_ms": 4418,
+      "end_ms": 4765
+    },
+    {
+      "word": "fixed",
+      "start_ms": 4765,
+      "end_ms": 5112
+    },
+    {
+      "word": "return",
+      "start_ms": 5112,
+      "end_ms": 5459
+    },
+    {
+      "word": "feels",
+      "start_ms": 5459,
+      "end_ms": 5806
+    },
+    {
+      "word": "completely",
+      "start_ms": 5806,
+      "end_ms": 6153
+    },
+    {
+      "word": "safe",
+      "start_ms": 6153,
+      "end_ms": 6500
+    },
+    {
+      "word": "until",
+      "start_ms": 6850,
+      "end_ms": 7292
+    },
+    {
+      "word": "persistent",
+      "start_ms": 7292,
+      "end_ms": 7734
+    },
+    {
+      "word": "inflation",
+      "start_ms": 7734,
+      "end_ms": 8176
+    },
+    {
+      "word": "begins",
+      "start_ms": 8176,
+      "end_ms": 8618
+    },
+    {
+      "word": "eroding",
+      "start_ms": 8618,
+      "end_ms": 9060
+    },
+    {
+      "word": "real",
+      "start_ms": 9060,
+      "end_ms": 9502
+    },
+    {
+      "word": "purchasing",
+      "start_ms": 9502,
+      "end_ms": 9944
+    },
+    {
+      "word": "power",
+      "start_ms": 9944,
+      "end_ms": 10386
+    },
+    {
+      "word": "leaving",
+      "start_ms": 10737,
+      "end_ms": 11047
+    },
+    {
+      "word": "them",
+      "start_ms": 11047,
+      "end_ms": 11357
+    },
+    {
+      "word": "facing",
+      "start_ms": 11358,
+      "end_ms": 11668
+    },
+    {
+      "word": "a",
+      "start_ms": 11669,
+      "end_ms": 11979
+    },
+    {
+      "word": "thirty",
+      "start_ms": 11980,
+      "end_ms": 12290
+    },
+    {
+      "word": "lakh",
+      "start_ms": 12291,
+      "end_ms": 12601
+    },
+    {
+      "word": "wealth",
+      "start_ms": 12601,
+      "end_ms": 12911
+    },
+    {
+      "word": "deficit",
+      "start_ms": 12912,
+      "end_ms": 13222
+    },
+    {
+      "word": "over",
+      "start_ms": 13223,
+      "end_ms": 13533
+    },
+    {
+      "word": "time",
+      "start_ms": 13534,
+      "end_ms": 13844
+    }
+  ]
+}

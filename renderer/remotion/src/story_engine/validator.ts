@@ -10,6 +10,7 @@ import type {
   MergeAction,
   ChangeVisualStateAction,
   ExitAction,
+  ChangePoseAction,
 } from "./types.ts";
 import { resolveLayouts, resolveSemanticDestination, VALID_ZONES, checkRectangleCollisions } from "./layout.ts";
 import type { ResolvedGeometry } from "./layout.ts";
@@ -253,6 +254,41 @@ export function validateStoryPlan(
           });
         }
       }
+
+      if (event.action === "change_pose") {
+        if (target.type !== "character") {
+          errors.push({
+            code: "INVALID_TARGET_TYPE",
+            message: `Action 'change_pose' can only target a 'character' primitive, but '${target.id}' is a '${target.type}'.`,
+            targetId: target.id,
+          });
+        }
+        const cp = event as ChangePoseAction;
+        const validPoses = ["idle", "walk", "point", "think", "worried", "celebrate"];
+        if (!validPoses.includes(cp.pose)) {
+          errors.push({
+            code: "INVALID_POSE",
+            message: `Action 'change_pose' specifies invalid pose '${cp.pose}'. Must be one of: ${validPoses.join(", ")}`,
+            targetId: target.id,
+          });
+        }
+        const enterEv = plan.events.find((e) => e.action === "enter" && "targetId" in e && e.targetId === target.id);
+        if (enterEv && event.startFrame < enterEv.startFrame) {
+          errors.push({
+            code: "ACTION_BEFORE_ENTER",
+            message: `Action 'change_pose' on '${target.id}' at frame ${event.startFrame} occurs before enter at frame ${enterEv.startFrame}.`,
+            targetId: target.id,
+          });
+        }
+        const exitEv = plan.events.find((e) => e.action === "exit" && "targetId" in e && e.targetId === target.id);
+        if (exitEv && event.startFrame >= exitEv.startFrame) {
+          errors.push({
+            code: "ACTION_AFTER_EXIT",
+            message: `Action 'change_pose' on '${target.id}' at frame ${event.startFrame} occurs after exit at frame ${exitEv.startFrame}.`,
+            targetId: target.id,
+          });
+        }
+      }
     }
 
     if (event.startFrame < 0 || event.durationFrames <= 0) {
@@ -467,9 +503,17 @@ export function validateStoryPlan(
     if (!baseGeom) continue;
 
     const enterEvent = plan.events.find((e) => e.action === "enter" && "targetId" in e && e.targetId === surf.id);
-    const exitEvent = plan.events.find((e) => e.action === "exit" && "targetId" in e && e.targetId === surf.id);
+    const splitEvent = plan.events.find((e): e is SplitAction => e.action === "split" && e.targetIds?.includes(surf.id));
+    if (!enterEvent && !splitEvent) {
+      errors.push({
+        code: "MISSING_ENTER_EVENT",
+        message: `Surface element '${surf.id}' has no explicit 'enter' event. Every object must have an explicit enter event.`,
+        targetId: surf.id,
+      });
+    }
 
-    const enterFrame = enterEvent ? enterEvent.startFrame : 0;
+    const enterFrame = enterEvent ? enterEvent.startFrame : (splitEvent ? splitEvent.startFrame : 0);
+    const exitEvent = plan.events.find((e): e is ExitAction => e.action === "exit" && "targetId" in e && e.targetId === surf.id);
     const exitEndFrame = exitEvent ? exitEvent.startFrame + exitEvent.durationFrames : plan.durationInFrames;
 
     const moves = plan.events

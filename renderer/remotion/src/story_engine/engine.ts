@@ -17,10 +17,13 @@ import type {
   ExitAction,
   VisualStateKind,
   StampProps,
+  CharacterPose,
+  CharacterEmotion,
+  CharacterFacing,
+  ChangePoseAction,
 } from "./types.ts";
 import { resolveSemanticDestination } from "./layout.ts";
 import type { ResolvedGeometry } from "./layout.ts";
-import { resolveAnchorFrame } from "./speech_anchors.ts";
 
 export interface EvaluatedObjectState {
   id: string;
@@ -48,6 +51,11 @@ export interface EvaluatedObjectState {
   customAccent?: string;
   chartProgress: number;
   chartActivePointIndex?: number;
+  characterPose?: CharacterPose;
+  characterPrevPose?: CharacterPose;
+  characterPoseProgress?: number;
+  characterEmotion?: CharacterEmotion;
+  characterFacing?: CharacterFacing;
 }
 
 export interface EvaluatedCameraState {
@@ -64,25 +72,11 @@ export interface EvaluatedFrameState {
 }
 
 /**
- * Pre-processes events to resolve speech anchors if present.
+ * Speech anchors are resolved strictly during compilation.
+ * At rendering time, compiled startFrame is used directly and anchors are not resolved again.
  */
 function resolvePlanEvents(plan: StoryPlan): StoryAction[] {
-  if (!plan.narration?.wordTimestamps) {
-    return plan.events;
-  }
-  return plan.events.map((e) => {
-    if (e.anchor && plan.narration?.wordTimestamps) {
-      const anchorStart = resolveAnchorFrame(
-        plan.narration.wordTimestamps,
-        e.anchor,
-        plan.fps
-      );
-      if (anchorStart > 0) {
-        return { ...e, startFrame: anchorStart };
-      }
-    }
-    return e;
-  });
+  return plan.events;
 }
 
 function parseNumericFromDisplay(display?: string): number | undefined {
@@ -191,10 +185,10 @@ export function evaluateFrame(
     let isSplitTarget = Boolean(splitForObj);
 
     // 1. Entrance action / Split birth
-    let opacity = 1;
-    let translateY = 0;
-    let baseScale = 1;
-    let isEntered = true;
+    let opacity = 0;
+    let translateY = 24;
+    let baseScale = 0.95;
+    let isEntered = false;
     let curX = baseGeom.x;
     let curY = baseGeom.y;
 
@@ -268,6 +262,24 @@ export function evaluateFrame(
           baseScale = 1;
           isEntered = true;
         }
+      } else if (obj.type === "connector") {
+        const connectEvent = targetEvents.find((e): e is ConnectAction => e.action === "connect");
+        if (connectEvent && frame >= connectEvent.startFrame) {
+          opacity = 1;
+          translateY = 0;
+          baseScale = 1;
+          isEntered = true;
+        } else {
+          opacity = 0;
+          translateY = 0;
+          baseScale = 1;
+          isEntered = false;
+        }
+      } else {
+        opacity = 0;
+        translateY = 24;
+        baseScale = 0.95;
+        isEntered = false;
       }
     }
 
@@ -532,6 +544,58 @@ export function evaluateFrame(
       }
     }
 
+    // 11. Character evaluation (pose, emotion, facing, transitions)
+    let characterPose: CharacterPose | undefined = obj.characterProps?.pose;
+    let characterPrevPose: CharacterPose | undefined = obj.characterProps?.pose;
+    let characterPoseProgress: number = 1;
+    let characterEmotion: CharacterEmotion | undefined = obj.characterProps?.emotion ?? "neutral";
+    let characterFacing: CharacterFacing | undefined = obj.characterProps?.facing ?? "right";
+
+    if (obj.type === "character") {
+      const poseEvents = targetEvents
+        .filter((e): e is ChangePoseAction => e.action === "change_pose")
+        .sort((a, b) => a.startFrame - b.startFrame);
+
+      let lastPose = obj.characterProps?.pose ?? "idle";
+      let lastEmotion = obj.characterProps?.emotion ?? "neutral";
+      let lastFacing = obj.characterProps?.facing ?? "right";
+
+      for (const cp of poseEvents) {
+        if (frame < cp.startFrame) {
+          // Hasn't started yet
+          break;
+        } else if (frame < cp.startFrame + cp.durationFrames) {
+          // Transition in progress
+          const p = interpolate(
+            frame,
+            [cp.startFrame, cp.startFrame + cp.durationFrames],
+            [0, 1],
+            {
+              extrapolateLeft: "clamp",
+              extrapolateRight: "clamp",
+              easing: Easing.inOut(Easing.cubic),
+            }
+          );
+          characterPrevPose = lastPose;
+          characterPose = cp.pose;
+          characterPoseProgress = p;
+          if (cp.emotion) characterEmotion = cp.emotion;
+          if (cp.facing) characterFacing = cp.facing;
+          break;
+        } else {
+          // Transition completed
+          lastPose = cp.pose;
+          if (cp.emotion) lastEmotion = cp.emotion;
+          if (cp.facing) lastFacing = cp.facing;
+          characterPose = lastPose;
+          characterPrevPose = lastPose;
+          characterPoseProgress = 1;
+          characterEmotion = lastEmotion;
+          characterFacing = lastFacing;
+        }
+      }
+    }
+
     const finalScale = (baseScale + extraScale) * (1 + 0.03 * highlightIntensity);
 
     const state: EvaluatedObjectState = {
@@ -560,6 +624,11 @@ export function evaluateFrame(
       customAccent,
       chartProgress,
       chartActivePointIndex,
+      characterPose,
+      characterPrevPose,
+      characterPoseProgress,
+      characterEmotion,
+      characterFacing,
     };
 
     result.set(obj.id, state);

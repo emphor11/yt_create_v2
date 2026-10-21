@@ -32,51 +32,114 @@ def resolve_anchor_ms(
 ) -> int:
     """
     Resolves a spoken anchor phrase to its exact start time in milliseconds using audio word timestamps.
-    If min_start_ms > 0, searches only for occurrences occurring at or after min_start_ms.
-    Matches contiguous token subsequences with fallback to the initial keyword token.
+    Enforces exact contiguous phrase matching.
+    Removed: first-token fallback, substring matching, fallback search from frame zero.
+    Fails loudly with ValueError if the exact phrase is not found.
     """
+    if not anchor_phrase or not anchor_phrase.strip():
+        raise ValueError("Anchor phrase cannot be empty.")
+
+    anchor_clean = anchor_phrase.replace("-", " ")
     clean_tokens = [
         re.sub(r"[^\w\.]", "", t.lower())
-        for t in anchor_phrase.split()
+        for t in anchor_clean.split()
         if re.sub(r"[^\w\.]", "", t.lower())
     ]
     if not clean_tokens:
         raise ValueError(f"Anchor phrase '{anchor_phrase}' contains no searchable speech tokens.")
 
-    clean_words = [
-        re.sub(r"[^\w\.]", "", w.get("word", "").lower())
-        for w in word_timestamps
-    ]
+    token_entries: list[tuple[str, int, int]] = []
+    for w in word_timestamps:
+        start_ms = w.get("start_ms", 0)
+        end_ms = w.get("end_ms", 0)
+        w_clean = str(w.get("word", "")).replace("-", " ")
+        for tok in w_clean.split():
+            c_tok = re.sub(r"[^\w\.]", "", tok.lower())
+            if c_tok:
+                token_entries.append((c_tok, start_ms, end_ms))
 
-    # 1. Contiguous subsequence search
-    for i in range(len(clean_words) - len(clean_tokens) + 1):
-        if word_timestamps[i].get("start_ms", 0) < min_start_ms:
+    num_tokens = len(clean_tokens)
+    for i in range(len(token_entries) - num_tokens + 1):
+        if token_entries[i][1] < min_start_ms:
             continue
         match = True
-        for j in range(len(clean_tokens)):
-            w = clean_words[i + j]
-            t = clean_tokens[j]
-            if w != t and t not in w:
+        for j in range(num_tokens):
+            if token_entries[i + j][0] != clean_tokens[j]:
                 match = False
                 break
         if match:
-            return word_timestamps[i].get("start_ms", 0)
-
-    # 2. Fallback: match first token
-    first_token = clean_tokens[0]
-    for i, w in enumerate(clean_words):
-        if word_timestamps[i].get("start_ms", 0) < min_start_ms:
-            continue
-        if first_token == w or first_token in w:
-            return word_timestamps[i].get("start_ms", 0)
-
-    # 3. If min_start_ms > 0 and not found after min_start_ms, fall back to search from start
-    if min_start_ms > 0:
-        return resolve_anchor_ms(word_timestamps, anchor_phrase, min_start_ms=0)
+            return token_entries[i][1]
 
     raise ValueError(
-        f"Anchor phrase '{anchor_phrase}' could not be resolved to any spoken word timestamp."
+        f"Exact anchor phrase '{anchor_phrase}' could not be resolved to any spoken word timestamp at or after {min_start_ms}ms."
     )
+
+
+def generate_timing_report(plan: dict[str, Any]) -> str:
+    """
+    Generates a timing report before rendering for all objects in the story plan.
+    Format:
+    Object: interest_card
+    Anchor: "eighty-eight point four lakhs rupees"
+    Matched timestamp: 33.73s
+    Start frame: 1012
+    Enter event: present
+    Visible interval: 33.73s – 41.83s
+    """
+    fps = plan.get("fps", 30) or 30
+    duration_frames = plan.get("durationInFrames", 380) or 380
+    objects = plan.get("objects", [])
+    events = plan.get("events", [])
+
+    lines: list[str] = []
+    for obj in objects:
+        obj_id = obj.get("id") if isinstance(obj, dict) else getattr(obj, "id", "")
+        enter_ev = next(
+            (e for e in events if (e.get("action") if isinstance(e, dict) else getattr(e, "action", None)) == "enter"
+             and (e.get("targetId") if isinstance(e, dict) else getattr(e, "targetId", None)) == obj_id),
+            None
+        )
+        if enter_ev is None:
+            enter_ev = next(
+                (e for e in events if (e.get("action") if isinstance(e, dict) else getattr(e, "action", None)) == "connect"
+                 and (e.get("targetId") if isinstance(e, dict) else getattr(e, "targetId", None)) == obj_id),
+                None
+            )
+
+        exit_ev = next(
+            (e for e in events if (e.get("action") if isinstance(e, dict) else getattr(e, "action", None)) == "exit"
+             and (e.get("targetId") if isinstance(e, dict) else getattr(e, "targetId", None)) == obj_id),
+            None
+        )
+
+        if enter_ev is not None:
+            anchor = enter_ev.get("anchor") if isinstance(enter_ev, dict) else getattr(enter_ev, "anchor", "")
+            start_frame = enter_ev.get("startFrame") if isinstance(enter_ev, dict) else getattr(enter_ev, "startFrame", 0)
+            matched_ts = f"{start_frame / fps:.2f}s"
+            enter_status = "present"
+            if exit_ev is not None:
+                ef = exit_ev.get("startFrame") if isinstance(exit_ev, dict) else getattr(exit_ev, "startFrame", duration_frames)
+                end_ts = f"{ef / fps:.2f}s"
+            else:
+                end_ts = f"{duration_frames / fps:.2f}s"
+            visible_interval = f"{matched_ts} – {end_ts}"
+        else:
+            anchor = ""
+            matched_ts = "N/A"
+            start_frame = "N/A"
+            enter_status = "missing"
+            visible_interval = "N/A (invisible)"
+
+        lines.append(f"Object: {obj_id}")
+        lines.append(f'Anchor: "{anchor}"')
+        lines.append(f"Matched timestamp: {matched_ts}")
+        lines.append(f"Start frame: {start_frame}")
+        lines.append(f"Enter event: {enter_status}")
+        lines.append(f"Visible interval: {visible_interval}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
 
 
 def resolve_anchor_frame(
@@ -156,6 +219,10 @@ class ContinuousStoryCompiler:
             elif obj.type == "connector":
                 connector_dict = self._compile_connector(obj)
                 compiled_objects.append(connector_dict)
+
+            elif obj.type == "character":
+                char_dict = self._compile_character(obj)
+                compiled_objects.append(char_dict)
 
             else:
                 raise ValueError(f"Unsupported object '{obj.id}' of type '{obj.type}'.")
@@ -378,6 +445,25 @@ class ContinuousStoryCompiler:
             },
         }
 
+    def _compile_character(self, obj: StoryObjectDraft) -> dict[str, Any]:
+        """Compiles a futuristic stick figure character primitive."""
+        return {
+            "id": obj.id,
+            "type": "character",
+            "layout": obj.layout,
+            "width": 240,
+            "height": 360,
+            "characterProps": {
+                "style": obj.character_style or "futuristic_stick",
+                "role": obj.role,
+                "label": obj.label or obj.role,
+                "pose": obj.pose or "idle",
+                "emotion": obj.emotion or "neutral",
+                "facing": obj.facing or "right",
+                "accentColor": obj.accent or "#38BDF8",
+            },
+        }
+
     def _compile_event(
         self,
         event: StoryEventDraft,
@@ -432,6 +518,14 @@ class ContinuousStoryCompiler:
             event_dict["state"] = event.state
             if event.badge:
                 event_dict["badge"] = event.badge
+
+        elif event.action == "change_pose":
+            event_dict["durationFrames"] = 20
+            event_dict["pose"] = event.pose
+            if event.emotion:
+                event_dict["emotion"] = event.emotion
+            if event.facing:
+                event_dict["facing"] = event.facing
 
         elif event.action == "exit":
             event_dict["direction"] = event.direction or "fade"

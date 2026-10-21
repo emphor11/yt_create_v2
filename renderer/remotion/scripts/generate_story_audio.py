@@ -37,6 +37,15 @@ STORIES = {
             ("...leaving you with exactly 25 lakh in real net savings.", 350),
         ],
     },
+    "character_story": {
+        "audio_file": "character_narration.mp3",
+        "chunks": [
+            ("A salaried employee saves diligently every single month.", 400),
+            ("At first, a conservative fixed return feels completely safe...", 350),
+            ("...until persistent inflation begins eroding real purchasing power.", 350),
+            ("...leaving them facing a thirty lakh wealth deficit over time.", 350),
+        ],
+    },
 }
 
 def generate_story(name, data):
