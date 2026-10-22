@@ -511,6 +511,17 @@ Macro zones:
 - full_top
 - full_bottom
 
+Split-screen zones:
+
+- split_left
+- split_right
+
+Use split_left and split_right when the narration compares two subjects, shows cause versus consequence, shows person versus institution, or presents two simultaneous visual ideas.
+
+Example:
+- bank image → split_left
+- interest card → split_right
+
 Do not use raw coordinates.
 
 Do not place two active objects in the same zone.
@@ -520,8 +531,6 @@ Use full_screen only when the entire screen should belong to one visual.
 Use full_top only when the top region should be occupied.
 
 Use full_bottom only when the bottom region should be occupied.
-
-Respect subtitle space at the bottom.
 
 ======================================================================
 6. EVENT CONTRACT

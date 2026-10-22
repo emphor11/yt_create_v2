@@ -20,6 +20,8 @@ export const VALID_ZONES: readonly ZoneName[] = [
   "full_screen",
   "full_top",
   "full_bottom",
+  "split_left",
+  "split_right",
 ] as const;
 
 /**
@@ -168,12 +170,25 @@ export function resolveLayouts(
       height = obj.height ?? 360;
       x = safeMargin;
       y = canvasHeight - safeMargin - height - 40; // Preserves subtitle line
+    } else if (layout === "split_left") {
+      // 3. Split-screen: Left half (divider at x = 960, center approximately x = 480, y = 540)
+      x = Math.round(480 - width / 2);
+      y = Math.round(540 - height / 2);
+    } else if (layout === "split_right") {
+      // 3. Split-screen: Right half (divider at x = 960, center approximately x = 1440, y = 540)
+      x = Math.round(1440 - width / 2);
+      y = Math.round(540 - height / 2);
     }
 
     // Safety boundary clamping so elements do not bleed past safe margins
     if (layout !== "full_screen" && layout !== "full_top" && layout !== "full_bottom") {
-      const minX = safeMargin + 40;
-      const maxX = canvasWidth - width - safeMargin - 40;
+      let minX = safeMargin + 40;
+      let maxX = canvasWidth - width - safeMargin - 40;
+      if (layout === "split_left") {
+        maxX = Math.min(maxX, 960 - width);
+      } else if (layout === "split_right") {
+        minX = Math.max(minX, 960);
+      }
       if (maxX >= minX) {
         x = Math.max(minX, Math.min(x, maxX));
       }
@@ -223,11 +238,22 @@ export function resolveSemanticDestination(
   } else if (to === "full_bottom") {
     destX = safeMargin;
     destY = canvasHeight - safeMargin - currentGeom.height - 40;
+  } else if (to === "split_left") {
+    destX = Math.round(480 - currentGeom.width / 2);
+    destY = Math.round(540 - currentGeom.height / 2);
+  } else if (to === "split_right") {
+    destX = Math.round(1440 - currentGeom.width / 2);
+    destY = Math.round(540 - currentGeom.height / 2);
   }
 
   // Safety boundary clamping
-  const minX = safeMargin + 40;
-  const maxX = canvasWidth - currentGeom.width - safeMargin - 40;
+  let minX = safeMargin + 40;
+  let maxX = canvasWidth - currentGeom.width - safeMargin - 40;
+  if (to === "split_left") {
+    maxX = Math.min(maxX, 960 - currentGeom.width);
+  } else if (to === "split_right") {
+    minX = Math.max(minX, 960);
+  }
   if (maxX >= minX) {
     destX = Math.max(minX, Math.min(destX, maxX));
   }

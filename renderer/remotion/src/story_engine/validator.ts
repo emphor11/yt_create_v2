@@ -482,9 +482,10 @@ export function validateStoryPlan(
       "center_left", "center", "center_right",
       "bottom_left", "bottom_center", "bottom_right",
       "full_top", "full_bottom", "full_screen",
+      "split_left", "split_right",
     ]),
-    full_top: new Set(["top_left", "top_center", "top_right", "full_top", "full_screen"]),
-    full_bottom: new Set(["bottom_left", "bottom_center", "bottom_right", "full_bottom", "full_screen"]),
+    full_top: new Set(["top_left", "top_center", "top_right", "full_top", "full_screen", "split_left", "split_right"]),
+    full_bottom: new Set(["bottom_left", "bottom_center", "bottom_right", "full_bottom", "full_screen", "split_left", "split_right"]),
   };
 
   // Build temporal spatial intervals per surface element
@@ -569,6 +570,24 @@ export function validateStoryPlan(
           message: `Surface element '${surf.id}' bottom edge at y=${int.geom.y + int.geom.height} encroaches on the subtitle display area (must remain at or above ${plan.height - safeMargin - 40}px).`,
           targetId: surf.id,
           details: { bottomY: int.geom.y + int.geom.height, maxAllowedY: plan.height - safeMargin - 40 },
+        });
+      }
+
+      // Split divider boundary check (Requirement 8: Reject any layout where actual bounding boxes overlap across center divider)
+      if (int.zone === "split_left" && (int.geom.x + int.geom.width > 960 || int.geom.x < 0)) {
+        errors.push({
+          code: "DIVIDER_CROSSING_COLLISION",
+          message: `Surface element '${surf.id}' in 'split_left' has bounding box crossing the center divider at x=960 (x=${int.geom.x}, width=${int.geom.width}, right=${int.geom.x + int.geom.width}).`,
+          targetId: surf.id,
+          details: { zone: "split_left", x: int.geom.x, width: int.geom.width, right: int.geom.x + int.geom.width, divider: 960 },
+        });
+      }
+      if (int.zone === "split_right" && (int.geom.x < 960 || int.geom.x + int.geom.width > plan.width)) {
+        errors.push({
+          code: "DIVIDER_CROSSING_COLLISION",
+          message: `Surface element '${surf.id}' in 'split_right' has bounding box crossing the center divider at x=960 (x=${int.geom.x}, left=${int.geom.x}).`,
+          targetId: surf.id,
+          details: { zone: "split_right", x: int.geom.x, divider: 960 },
         });
       }
     }

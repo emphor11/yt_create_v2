@@ -71,14 +71,18 @@ def _format_inr(val: float | int) -> str:
 
 def _normalize_zone(val: Any, default: str = "center") -> str:
     """Safely normalizes arbitrary layout inputs into one of the 12 strict ZoneNames."""
-    if isinstance(val, str) and val in VALID_ZONES:
-        return val
     if isinstance(val, str):
+        if val in VALID_ZONES:
+            return val
         aliases = {
             "left": "center_left",
             "right": "center_right",
             "top": "top_center",
             "bottom": "bottom_center",
+            "split-left": "split_left",
+            "split-right": "split_right",
+            "split_left_half": "split_left",
+            "split_right_half": "split_right",
         }
         if val in aliases:
             return aliases[val]
@@ -499,6 +503,7 @@ def build_continuous_story_prompt(
         "SPATIAL LAYOUT ZONES:\n"
         "- Grid zones: top_left, top_center, top_right, center_left, center, center_right, bottom_left, bottom_center, bottom_right\n"
         "- Macro zones: full_screen, full_top, full_bottom\n"
+        "- Split-screen zones: split_left, split_right (use when comparing two subjects, cause vs consequence, person vs institution, or two simultaneous visual ideas e.g. bank image -> split_left, interest card -> split_right)\n"
         "- Prevent stacking: Do not enter a surface into an occupied zone without an exit.\n\n"
         "Output strictly valid ContinuousStoryDraft JSON following all rules."
     )

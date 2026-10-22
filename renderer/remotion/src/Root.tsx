@@ -38,6 +38,7 @@ import { loanStoryPlan } from "./story_engine/loanStoryPlan";
 import { inflationStoryPlan } from "./story_engine/inflationStoryPlan";
 import { salarySplitStoryPlan } from "./story_engine/salarySplitStoryPlan";
 import { characterDemoStoryPlan } from "./story_engine/characterDemoStoryPlan";
+import { splitScreenStoryPlan } from "./story_engine/splitScreenStoryPlan";
 
 
 const defaultProps: SplitComparisonRenderSpec = {
@@ -430,6 +431,15 @@ export function RemotionRoot() {
         width={characterDemoStoryPlan.width}
         height={characterDemoStoryPlan.height}
         defaultProps={{ plan: characterDemoStoryPlan } as any}
+      />
+      <Composition
+        id="SplitScreenStoryScene"
+        component={StoryScene as any}
+        durationInFrames={splitScreenStoryPlan.durationInFrames}
+        fps={splitScreenStoryPlan.fps}
+        width={splitScreenStoryPlan.width}
+        height={splitScreenStoryPlan.height}
+        defaultProps={{ plan: splitScreenStoryPlan } as any}
       />
     </>
   );

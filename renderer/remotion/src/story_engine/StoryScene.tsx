@@ -445,43 +445,6 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
           }}
         />
       )}
-
-      {/* Spoken Narration Subtitle Overlay */}
-      {plan.narration && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: 40,
-            left: "10%",
-            right: "10%",
-            textAlign: "center",
-            fontFamily: tokens.font.family,
-            fontSize: 22,
-            fontWeight: 500,
-            color: tokens.text.secondary,
-            textShadow: "0 2px 10px rgba(0,0,0,0.8)",
-            zIndex: 30,
-            pointerEvents: "none",
-          }}
-        >
-          {(() => {
-            if (plan.narration.wordTimestamps) {
-              const currentMs = (frame / plan.fps) * 1000;
-              const activeWords = plan.narration.wordTimestamps
-                .filter((w) => w.start_ms <= currentMs)
-                .slice(-8)
-                .map((w) => w.word.replace(/<[^>]*>/g, "").trim())
-                .filter(Boolean)
-                .join(" ");
-              return activeWords;
-            }
-            const currentCue = [...(plan.narration.cues || [])]
-              .reverse()
-              .find((c) => frame >= c.frame);
-            return currentCue ? currentCue.text.replace(/<[^>]*>/g, "").trim() : "";
-          })()}
-        </div>
-      )}
     </div>
   );
 };

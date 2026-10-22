@@ -36,6 +36,8 @@ ZoneName = Literal[
     "full_screen",
     "full_top",
     "full_bottom",
+    "split_left",
+    "split_right",
 ]
 
 VALID_ZONES: set[str] = {
@@ -51,6 +53,8 @@ VALID_ZONES: set[str] = {
     "full_screen",
     "full_top",
     "full_bottom",
+    "split_left",
+    "split_right",
 }
 
 # Backward compatibility alias
@@ -672,6 +676,7 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
         "center_left", "center", "center_right",
         "bottom_left", "bottom_center", "bottom_right",
         "full_screen", "full_top", "full_bottom",
+        "split_left", "split_right",
     ]
     state_enum = ["normal", "dimmed", "warning", "danger", "success", "stamped", "eroded"]
     chart_enum = ["trajectory_area", "split_bar", "multi_bar", "stack"]

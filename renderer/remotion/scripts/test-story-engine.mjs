@@ -746,6 +746,204 @@ if (!exactMatchFailedAsExpected) {
 }
 console.log("✓ Non-contiguous anchor search failed loudly as required.");
 
+// ----------------------------------------------------
+// 13. LEFT-RIGHT SPLIT-SCREEN LAYOUT MODE & PROTOCOLS
+// ----------------------------------------------------
+console.log("\n--- TEST 13: Left-Right Split-Screen Layout Mode & Collision Protocols ---");
+
+// 13.1: Card in split_left (centers in left half, divider at x=960)
+const cardSplitLeftPlan = {
+  id: "card_split_left_test",
+  fps: 30,
+  durationInFrames: 90,
+  width: 1920,
+  height: 1080,
+  objects: [
+    { id: "left_card", type: "card", layout: "split_left", cardProps: { title: "Left Card" } },
+  ],
+  events: [
+    { action: "enter", targetId: "left_card", startFrame: 10, durationFrames: 10 },
+  ],
+};
+const leftRes = validateStoryPlan(cardSplitLeftPlan);
+if (!leftRes.valid) {
+  throw new Error(`FAIL: card in split_left should be valid! Errors: ${JSON.stringify(leftRes.errors)}`);
+}
+const leftGeoms = resolveLayouts(cardSplitLeftPlan.objects, 1920, 1080, 80);
+const leftBox = leftGeoms.get("left_card");
+// Standard card width 420: x = 480 - 210 = 270, y = 540 - 120 = 420, right = 690 < 960
+if (!leftBox || Math.abs(leftBox.x + leftBox.width / 2 - 480) > 5 || leftBox.x + leftBox.width > 960) {
+  throw new Error(`FAIL: split_left card geometry incorrect! x=${leftBox?.x}, w=${leftBox?.width}`);
+}
+console.log("✓ Card in split_left centered in left half at x ≈ 480, within divider bounds.");
+
+// 13.2: Card in split_right (centers in right half, divider at x=960)
+const cardSplitRightPlan = {
+  id: "card_split_right_test",
+  fps: 30,
+  durationInFrames: 90,
+  width: 1920,
+  height: 1080,
+  objects: [
+    { id: "right_card", type: "card", layout: "split_right", cardProps: { title: "Right Card" } },
+  ],
+  events: [
+    { action: "enter", targetId: "right_card", startFrame: 10, durationFrames: 10 },
+  ],
+};
+const rightRes = validateStoryPlan(cardSplitRightPlan);
+if (!rightRes.valid) {
+  throw new Error(`FAIL: card in split_right should be valid! Errors: ${JSON.stringify(rightRes.errors)}`);
+}
+const rightGeoms = resolveLayouts(cardSplitRightPlan.objects, 1920, 1080, 80);
+const rightBox = rightGeoms.get("right_card");
+// Standard card width 420: x = 1440 - 210 = 1230, left = 1230 > 960
+if (!rightBox || Math.abs(rightBox.x + rightBox.width / 2 - 1440) > 5 || rightBox.x < 960) {
+  throw new Error(`FAIL: split_right card geometry incorrect! x=${rightBox?.x}, w=${rightBox?.width}`);
+}
+console.log("✓ Card in split_right centered in right half at x ≈ 1440, strictly right of divider.");
+
+// 13.3: Image on split_left and chart on split_right coexisting
+const imageAndChartPlan = {
+  id: "image_left_chart_right",
+  fps: 30,
+  durationInFrames: 100,
+  width: 1920,
+  height: 1080,
+  objects: [
+    { id: "bank_img", type: "image", layout: "split_left", imageProps: { assetId: "bank.jpg" } },
+    { id: "growth_chart", type: "chart", layout: "split_right", chartProps: { chartType: "trajectory_area", series: [] } },
+  ],
+  events: [
+    { action: "enter", targetId: "bank_img", startFrame: 10, durationFrames: 10 },
+    { action: "enter", targetId: "growth_chart", startFrame: 20, durationFrames: 10 },
+  ],
+};
+const imgChartRes = validateStoryPlan(imageAndChartPlan);
+if (!imgChartRes.valid) {
+  throw new Error(`FAIL: image on split_left and chart on split_right should be valid! Errors: ${JSON.stringify(imgChartRes.errors)}`);
+}
+console.log("✓ Image on split_left and chart on split_right coexisting without collision.");
+
+// 13.4: Move from center to split_left
+const moveCenterToSplitLeftPlan = {
+  id: "move_center_to_split_left",
+  fps: 30,
+  durationInFrames: 100,
+  width: 1920,
+  height: 1080,
+  objects: [
+    { id: "hero_card", type: "card", layout: "center", cardProps: { title: "Hero Card" } },
+  ],
+  events: [
+    { action: "enter", targetId: "hero_card", startFrame: 10, durationFrames: 10 },
+    { action: "move", targetId: "hero_card", startFrame: 40, durationFrames: 20, to: "split_left" },
+  ],
+};
+const moveRes1 = validateStoryPlan(moveCenterToSplitLeftPlan);
+if (!moveRes1.valid) {
+  throw new Error(`FAIL: move from center to split_left should be valid! Errors: ${JSON.stringify(moveRes1.errors)}`);
+}
+const dest1 = resolveSemanticDestination("split_left", { x: 750, y: 420, width: 420, height: 240 }, 1920, 1080, 80);
+if (dest1.targetX + 420 > 960 || Math.abs(dest1.targetX + 210 - 480) > 5) {
+  throw new Error(`FAIL: destination for split_left move should be centered at 480! Got ${dest1.targetX}`);
+}
+console.log("✓ Move from center to split_left cleanly validated and positioned.");
+
+// 13.5: Move from split_left to split_right
+const moveLeftToRightPlan = {
+  id: "move_left_to_right",
+  fps: 30,
+  durationInFrames: 100,
+  width: 1920,
+  height: 1080,
+  objects: [
+    { id: "traveling_card", type: "card", layout: "split_left", cardProps: { title: "Traveling Card" } },
+  ],
+  events: [
+    { action: "enter", targetId: "traveling_card", startFrame: 10, durationFrames: 10 },
+    { action: "move", targetId: "traveling_card", startFrame: 40, durationFrames: 20, to: "split_right" },
+  ],
+};
+const moveRes2 = validateStoryPlan(moveLeftToRightPlan);
+if (!moveRes2.valid) {
+  throw new Error(`FAIL: move from split_left to split_right should be valid! Errors: ${JSON.stringify(moveRes2.errors)}`);
+}
+const dest2 = resolveSemanticDestination("split_right", { x: 270, y: 420, width: 420, height: 240 }, 1920, 1080, 80);
+if (dest2.targetX < 960 || Math.abs(dest2.targetX + 210 - 1440) > 5) {
+  throw new Error(`FAIL: destination for split_right move should be centered at 1440! Got ${dest2.targetX}`);
+}
+console.log("✓ Move from split_left to split_right cleanly validated and positioned.");
+
+// 13.6: Collision across the divider
+const dividerCrossPlan = {
+  id: "divider_crossing_plan",
+  fps: 30,
+  durationInFrames: 100,
+  width: 1920,
+  height: 1080,
+  objects: [
+    // Oversized card width=1100 in split_left: right edge = 480 - 550 + 1100 = 1030 > 960
+    { id: "huge_card", type: "card", layout: "split_left", width: 1100, height: 240, cardProps: { title: "Huge Card" } },
+  ],
+  events: [
+    { action: "enter", targetId: "huge_card", startFrame: 10, durationFrames: 10 },
+  ],
+};
+const crossRes = validateStoryPlan(dividerCrossPlan);
+if (crossRes.valid || !crossRes.errors.some((e) => e.code === "DIVIDER_CROSSING_COLLISION")) {
+  throw new Error("FAIL: Validator must reject layout crossing the center divider (DIVIDER_CROSSING_COLLISION)");
+}
+console.log("✓ Caught and rejected layout crossing center divider (DIVIDER_CROSSING_COLLISION).");
+
+// 13.7: full_screen, full_top, and full_bottom conflicting with split_left/split_right
+const macroSplitConflictPlan = {
+  id: "macro_split_conflict_plan",
+  fps: 30,
+  durationInFrames: 100,
+  width: 1920,
+  height: 1080,
+  objects: [
+    { id: "bg_fs", type: "card", layout: "full_screen", cardProps: { title: "Full Screen Macro" } },
+    { id: "split_elem", type: "card", layout: "split_left", cardProps: { title: "Split Element" } },
+  ],
+  events: [
+    { action: "enter", targetId: "bg_fs", startFrame: 10, durationFrames: 10 },
+    { action: "enter", targetId: "split_elem", startFrame: 10, durationFrames: 10 },
+  ],
+};
+const macroConflictRes = validateStoryPlan(macroSplitConflictPlan);
+if (macroConflictRes.valid || !macroConflictRes.errors.some((e) => e.code === "MACRO_LAYOUT_COLLISION")) {
+  throw new Error("FAIL: Validator must reject full_screen conflicting with split-screen (MACRO_LAYOUT_COLLISION)");
+}
+console.log("✓ Caught and rejected macro zone conflicting with split-screen (MACRO_LAYOUT_COLLISION).");
+
+// 13.8: Invalid split layout names failing loudly
+let invalidZoneFailed = false;
+try {
+  resolveLayouts([{ id: "bad", type: "card", layout: "split" }], 1920, 1080, 80);
+} catch (e) {
+  if (e.message.includes("INVALID_LAYOUT_ZONE")) {
+    invalidZoneFailed = true;
+  }
+}
+if (!invalidZoneFailed) {
+  throw new Error("FAIL: Generic 'split' layout zone should throw INVALID_LAYOUT_ZONE!");
+}
+
+let invalidDestFailed = false;
+try {
+  resolveSemanticDestination("split", { x: 0, y: 0, width: 400, height: 200 }, 1920, 1080, 80);
+} catch (e) {
+  if (e.message.includes("INVALID_LAYOUT_ZONE")) {
+    invalidDestFailed = true;
+  }
+}
+if (!invalidDestFailed) {
+  throw new Error("FAIL: Generic 'split' move destination should throw INVALID_LAYOUT_ZONE!");
+}
+console.log("✓ Generic or invalid split layout names strictly fail loudly (INVALID_LAYOUT_ZONE).");
+
 console.log("\n==================================================");
 console.log("ALL ADVANCED PROTOCOL TESTS PASSED CLEANLY!");
 console.log("==================================================");

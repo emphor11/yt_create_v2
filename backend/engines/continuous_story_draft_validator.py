@@ -53,6 +53,8 @@ VALID_ZONES = {
     "full_screen",
     "full_top",
     "full_bottom",
+    "split_left",
+    "split_right",
 }
 
 SURFACE_TYPES = {"card", "number", "text", "chart", "image", "character"}
@@ -64,10 +66,74 @@ MACRO_ZONE_CONFLICTS: dict[str, set[str]] = {
         "center_left", "center", "center_right",
         "bottom_left", "bottom_center", "bottom_right",
         "full_top", "full_bottom", "full_screen",
+        "split_left", "split_right",
     },
-    "full_top": {"top_left", "top_center", "top_right", "full_top", "full_screen"},
-    "full_bottom": {"bottom_left", "bottom_center", "bottom_right", "full_bottom", "full_screen"},
+    "full_top": {
+        "top_left", "top_center", "top_right",
+        "full_top", "full_screen",
+        "split_left", "split_right",
+    },
+    "full_bottom": {
+        "bottom_left", "bottom_center", "bottom_right",
+        "full_bottom", "full_screen",
+        "split_left", "split_right",
+    },
 }
+
+DEFAULT_PRIMITIVE_DIMENSIONS: dict[str, tuple[int, int]] = {
+    "chart": (560, 320),
+    "document": (480, 320),
+    "image": (640, 360),
+    "number": (340, 160),
+    "text": (400, 90),
+    "character": (240, 360),
+    "card": (420, 240),
+}
+
+ZONE_CENTERS: dict[str, tuple[int, int]] = {
+    "top_left": (380, 260),
+    "top_center": (960, 260),
+    "top_right": (1540, 260),
+    "center_left": (380, 540),
+    "center": (960, 540),
+    "center_right": (1540, 540),
+    "bottom_left": (380, 800),
+    "bottom_center": (960, 780),
+    "bottom_right": (1540, 800),
+    "split_left": (480, 540),
+    "split_right": (1440, 540),
+}
+
+
+def _resolve_obj_geometry(
+    obj_type: str,
+    zone: str,
+    width: int | None = None,
+    height: int | None = None,
+) -> tuple[int, int, int, int]:
+    default_w, default_h = DEFAULT_PRIMITIVE_DIMENSIONS.get(obj_type, (420, 240))
+    w = width if width is not None else default_w
+    h = height if height is not None else default_h
+
+    if zone in ZONE_CENTERS:
+        cx, cy = ZONE_CENTERS[zone]
+        x = round(cx - w / 2)
+        y = round(cy - h / 2)
+    elif zone == "full_screen":
+        if obj_type == "image":
+            x, y, w, h = 0, 0, 1920, 1080
+        else:
+            x, y, w, h = 80, 80, 1920 - 160, 1080 - 160
+    elif zone == "full_top":
+        x, y, w, h = 80, 80, 1920 - 160, h
+    elif zone == "full_bottom":
+        x, w, h = 80, 1920 - 160, h
+        y = 1080 - 80 - h - 40
+    else:
+        x = round((1920 - w) / 2)
+        y = round((1080 - h) / 2)
+
+    return x, y, w, h
 
 
 @dataclass(frozen=True)
@@ -734,16 +800,50 @@ def validate_story_draft(
                     moves_for_obj.append((m_t, event.to))
         moves_for_obj.sort(key=lambda m: m[0])
 
+        # Interval: (start_ms, end_ms, zone, geom)
+        obj_width = getattr(obj, "width", None) if not isinstance(obj, dict) else obj.get("width")
+        obj_height = getattr(obj, "height", None) if not isinstance(obj, dict) else obj.get("height")
+
         current_zone = obj.layout
         current_start = enter_t
 
         for move_t, next_zone in moves_for_obj:
             if move_t > current_start and move_t < full_end_t:
-                element_intervals.setdefault(obj.id, []).append((current_start, move_t, current_zone))
+                geom = _resolve_obj_geometry(obj.type, current_zone, obj_width, obj_height)
+                element_intervals.setdefault(obj.id, []).append((current_start, move_t, current_zone, geom))
                 current_zone = next_zone
                 current_start = move_t
 
-        element_intervals.setdefault(obj.id, []).append((current_start, full_end_t, current_zone))
+        geom = _resolve_obj_geometry(obj.type, current_zone, obj_width, obj_height)
+        element_intervals.setdefault(obj.id, []).append((current_start, full_end_t, current_zone, geom))
+
+    # Check center divider crossing for split zones (Requirement 8)
+    for obj_id, intervals in element_intervals.items():
+        for s, e, z, (x, y, w, h) in intervals:
+            if z == "split_left" and (x + w > 960 or x < 0):
+                errors.append(
+                    DraftValidationError(
+                        code="DIVIDER_CROSSING_COLLISION",
+                        message=(
+                            f"Surface element '{obj_id}' in 'split_left' has bounding box crossing the center divider at x=960 "
+                            f"(x={x}, width={w}, right={x + w})."
+                        ),
+                        target_id=obj_id,
+                        details={"zone": "split_left", "x": x, "width": w, "right": x + w, "divider": 960},
+                    )
+                )
+            elif z == "split_right" and (x < 960 or x + w > 1920):
+                errors.append(
+                    DraftValidationError(
+                        code="DIVIDER_CROSSING_COLLISION",
+                        message=(
+                            f"Surface element '{obj_id}' in 'split_right' has bounding box crossing the center divider at x=960 "
+                            f"(x={x}, left={x})."
+                        ),
+                        target_id=obj_id,
+                        details={"zone": "split_right", "x": x, "divider": 960},
+                    )
+                )
 
     # Compare pairwise intervals for spatial collisions
     object_ids = list(element_intervals.keys())
@@ -752,13 +852,13 @@ def validate_story_draft(
             id1 = object_ids[idx1]
             id2 = object_ids[idx2]
 
-            for s1, e1, z1 in element_intervals[id1]:
-                for s2, e2, z2 in element_intervals[id2]:
+            for s1, e1, z1, g1 in element_intervals[id1]:
+                for s2, e2, z2, g2 in element_intervals[id2]:
                     # Check temporal overlap
                     overlap_start = max(s1, s2)
                     overlap_end = min(e1, e2)
                     if overlap_start < overlap_end:
-                        # Direct zone match
+                        # 1. Direct zone match
                         if z1 == z2:
                             errors.append(
                                 DraftValidationError(
@@ -778,7 +878,7 @@ def validate_story_draft(
                                     },
                                 )
                             )
-                        # Macro layout conflicts
+                        # 2. Macro layout conflicts
                         elif z1 in MACRO_ZONE_CONFLICTS and z2 in MACRO_ZONE_CONFLICTS[z1]:
                             errors.append(
                                 DraftValidationError(
@@ -819,5 +919,31 @@ def validate_story_draft(
                                     },
                                 )
                             )
+
+                        # 3. Geometric AABB Collision (Requirement 7 & 10: Do not allow multiple overlapping elements in same split half)
+                        if (z1 in ("split_left", "split_right") or z2 in ("split_left", "split_right")) and z1 != z2:
+                            x1, y1, w1, h1 = g1
+                            x2, y2, w2, h2 = g2
+                            x_overlap = max(0, min(x1 + w1, x2 + w2) - max(x1, x2))
+                            y_overlap = max(0, min(y1 + h1, y2 + h2) - max(y1, y2))
+                            if x_overlap > 0 and y_overlap > 0:
+                                errors.append(
+                                    DraftValidationError(
+                                        code="CARD_OVERLAP",
+                                        message=(
+                                            f"Spatial bounding box overlap between '{id1}' and '{id2}' ({round(x_overlap)}x{round(y_overlap)}px) "
+                                            f"in zones '{z1}' and '{z2}' between {overlap_start}ms and {overlap_end}ms."
+                                        ),
+                                        target_id=id2,
+                                        details={
+                                            "id1": id1,
+                                            "id2": id2,
+                                            "x_overlap": x_overlap,
+                                            "y_overlap": y_overlap,
+                                            "start_ms": overlap_start,
+                                            "end_ms": overlap_end,
+                                        },
+                                    )
+                                )
 
     return DraftValidationResult(valid=len(errors) == 0, errors=errors)

@@ -62,7 +62,11 @@ export type MacroZone =
   | "full_top"
   | "full_bottom";
 
-export type ZoneName = GridZone | MacroZone;
+export type SplitZone =
+  | "split_left"
+  | "split_right";
+
+export type ZoneName = GridZone | MacroZone | SplitZone;
 
 export interface FactualProvenance {
   evidence_ref?: string;
@@ -428,4 +432,5 @@ export interface StoryPlan {
   narration?: NarrationTrack;
   objects: StoryObject[];
   events: StoryAction[];
+  debug?: boolean;
 }
