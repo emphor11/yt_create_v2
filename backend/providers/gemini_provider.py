@@ -36,7 +36,7 @@ class GeminiProvider:
         
         target_model = (model or os.getenv("GEMINI_MODEL", "")).strip()
         if not target_model:
-            target_model = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip()
+            target_model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
             
         self.api_key = normalized_api_key
         self.model = target_model
@@ -296,6 +296,12 @@ class GeminiProvider:
                 response_body = http_error.read().decode("utf-8", errors="replace")
                 if http_error.code in (429, 500, 502, 503, 504) and attempt < self.max_retries:
                     retry_seconds = self._extract_retry_delay(response_body, attempt)
+                    if retry_seconds > 60.0:
+                        raise LLMProviderError(
+                            f"Gemini API quota/rate limit exceeded (HTTP {http_error.code}). "
+                            f"Google requested a retry delay of {retry_seconds:.0f}s (daily quota limit reached). "
+                            f"Details: {response_body}"
+                        ) from http_error
                     if http_error.code in (502, 503, 504):
                         # Exponential backoff for capacity/availability errors.
                         # 503 "high demand" spikes typically last 30–120 seconds;
