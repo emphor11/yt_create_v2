@@ -21,7 +21,7 @@ import salaryTimestamps from "../../public/salary_split_story_timestamps.json" w
  *    - Non-focused deduction cards smoothly 'dimmed' during climax
  * 3. Real audible narration track: 'salary_split_narration.mp3' mounted via <Audio>
  * 4. Factual mathematical provenance: salary_tax_split verifies gross == tax + living + savings
- * 5. Pure atomic cards in 12-zone spatial layout (zero children, zero relative layouts)
+ * 5. Pure atomic cards in 5-layout spatial model (zero children, zero relative layouts)
  */
 export const salarySplitStoryPlan: StoryPlan = {
   id: "salary_tax_split_story",
@@ -41,9 +41,9 @@ export const salarySplitStoryPlan: StoryPlan = {
     {
       id: "doc_salary",
       type: "document",
-      layout: "center_left",
-      width: 460,
-      height: 480,
+      layout: "split_left",
+      width: 420,
+      height: 300,
       documentProps: {
         title: "Executive Compensation Memo",
         serialNo: "REF: FY26-CORP-EXEC-0941",
@@ -67,11 +67,11 @@ export const salarySplitStoryPlan: StoryPlan = {
       },
     },
 
-    // 2. Split Daughter 1: Income Tax & Surcharge (Top Right)
+    // 2. Split Daughter 1: Income Tax & Surcharge (Split Right)
     {
       id: "card_tax",
       type: "card",
-      layout: "top_right",
+      layout: "split_right",
       width: 400,
       height: 180,
       cardProps: {
@@ -83,12 +83,12 @@ export const salarySplitStoryPlan: StoryPlan = {
       },
     },
 
-    // 3. Split Daughter 2: Fixed Living Costs (Center Right)
+    // 3. Split Daughter 2: Fixed Living Costs (Center)
     {
       id: "card_living",
       type: "card",
-      layout: "center_right",
-      width: 400,
+      layout: "center",
+      width: 360,
       height: 180,
       cardProps: {
         title: "Living Expenses & Rent",
@@ -99,13 +99,13 @@ export const salarySplitStoryPlan: StoryPlan = {
       },
     },
 
-    // 4. Split Daughter 3: Net Liquid Savings (Bottom Right)
+    // 4. Split Daughter 3: Net Liquid Savings (Full Bottom)
     {
       id: "card_savings",
       type: "card",
-      layout: "bottom_right",
-      width: 400,
-      height: 180,
+      layout: "full_bottom",
+      width: 1760,
+      height: 200,
       cardProps: {
         title: "Net Retained Savings",
         value: 2500000,
@@ -239,7 +239,7 @@ export const salarySplitStoryPlan: StoryPlan = {
       durationFrames: 30,
       behavior: "push_in",
       zoom: 1.04,
-      requiredContextIds: ["doc_salary", "card_tax", "card_living", "card_savings"],
+      requiredContextIds: ["doc_salary", "card_tax", "card_living"],
     },
     // 7. Visual State: Dim secondary deduction cards to make savings pop heroically
     {

@@ -1,12 +1,12 @@
 """
-continuous_story_plan.py — Atomic AI Draft Domain Models + 12-Zone Canvas Architecture.
+continuous_story_plan.py — Atomic AI Draft Domain Models + 5-Layout Composition Architecture.
 
 Defines the exact, minimal schema that an AI (Gemini) produces for continuous
-storytelling choreography using atomic visual elements and a 3x3 canvas grid (+ 3 macro layouts).
+storytelling choreography using atomic visual elements and 5 professional composition layouts.
 
 Architectural Principles:
 1. Atomic Elements: No parent-child hierarchies. A card is a complete, self-contained visual unit.
-2. 12-Zone Spatial Canvas: 9 localized 3x3 zones + 3 macro layouts (full_screen, full_top, full_bottom).
+2. 5-Layout Spatial Canvas: center, split_left, split_right, full_screen, full_bottom.
    Raw pixel coordinates (x, y, width, height) and relative chains (right_of, below, gap) are strictly forbidden.
 3. Strict Pydantic Enforcement: ConfigDict(extra="forbid") ensures zero hallucinations.
 4. Fact Grounding: Every numeric value and chart is bound to an approved fact ID.
@@ -24,37 +24,19 @@ class StrictBaseModel(BaseModel):
 
 
 ZoneName = Literal[
-    "top_left",
-    "top_center",
-    "top_right",
-    "center_left",
     "center",
-    "center_right",
-    "bottom_left",
-    "bottom_center",
-    "bottom_right",
-    "full_screen",
-    "full_top",
-    "full_bottom",
     "split_left",
     "split_right",
+    "full_screen",
+    "full_bottom",
 ]
 
 VALID_ZONES: set[str] = {
-    "top_left",
-    "top_center",
-    "top_right",
-    "center_left",
     "center",
-    "center_right",
-    "bottom_left",
-    "bottom_center",
-    "bottom_right",
-    "full_screen",
-    "full_top",
-    "full_bottom",
     "split_left",
     "split_right",
+    "full_screen",
+    "full_bottom",
 }
 
 # Backward compatibility alias
@@ -112,6 +94,7 @@ ObjectType = Literal[
     "image",
     "connector",
     "character",
+    "stock_video",
 ]
 
 
@@ -144,6 +127,38 @@ class ImageAssetRequest(StrictBaseModel):
     def validate_query(cls, v: str) -> str:
         if not v or not v.strip():
             raise ValueError("ImageAssetRequest 'query' must be a non-empty string.")
+        return v.strip()
+
+
+class VideoAssetRequest(StrictBaseModel):
+    """Visual asset specification requested by Gemini for real-world documentary/B-roll video grounding."""
+    query: str = Field(description="Search query describing the real-world video.")
+    orientation: Literal["landscape", "portrait", "square"] = Field(
+        default="landscape",
+        description="Video orientation: 'landscape', 'portrait', or 'square'."
+    )
+    mood: str | None = Field(
+        default=None,
+        description="Optional visual mood (e.g. 'serious institutional finance documentary')."
+    )
+    composition: str | None = Field(
+        default=None,
+        description="Short visual composition instruction (e.g. 'cinematic wide tracking shot of bank exterior')."
+    )
+    avoid: list[str] = Field(
+        default_factory=list,
+        description="Optional list of unwanted visual properties (e.g. ['logos', 'watermarks', 'text-heavy signs', 'identifiable faces'])."
+    )
+    minimum_duration_seconds: float | int | None = Field(
+        default=None,
+        description="Optional minimum required duration in seconds."
+    )
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("VideoAssetRequest 'query' must be a non-empty string.")
         return v.strip()
 
 
@@ -226,26 +241,30 @@ class StoryObjectDraft(StrictBaseModel):
         description="Direct chart points for simple single-series charts: [{xLabel, yValue}]."
     )
 
-    # Image-specific fields
-    asset_request: ImageAssetRequest | None = Field(
+    # Image and Stock Video fields
+    asset_request: ImageAssetRequest | VideoAssetRequest | dict[str, Any] | None = Field(
         default=None,
-        description="Visual specification requested by AI to search and resolve a real-world image."
+        description="Visual specification requested by AI to search and resolve a real-world image or stock video."
     )
     asset_id: str | None = Field(
         default=None,
-        description="Asset reference identifier for 'image' element."
+        description="Asset reference identifier for 'image' or 'stock_video' element."
     )
     alt: str | None = Field(
         default=None,
-        description="Alternative descriptive text for image accessibility."
+        description="Alternative descriptive text for media accessibility."
     )
     caption: str | None = Field(
         default=None,
-        description="Optional caption text displayed beneath image."
+        description="Optional caption text displayed with media."
     )
     fit: Literal["cover", "contain"] | None = Field(
         default="cover",
         description="Object fit scaling mode ('cover' or 'contain')."
+    )
+    overlay_tint: str | None = Field(
+        default=None,
+        description="Optional dark overlay tint for subtitle and visual readability."
     )
     border_color: str | None = Field(
         default=None,
@@ -373,6 +392,68 @@ class StoryObjectDraft(StrictBaseModel):
             if self.visual_state is not None:
                 raise ValueError(f"Image '{self.id}' cannot specify card field 'visual_state'.")
 
+        elif self.type == "stock_video":
+            # 1. Layout must be strictly 'full_screen'
+            if self.layout != "full_screen":
+                raise ValueError(
+                    f"STOCK_VIDEO_INVALID_LAYOUT: stock_video '{self.id}' layout must be 'full_screen', got '{self.layout}'."
+                )
+
+            # 2. Must contain asset_request or resolved asset_id
+            if not self.asset_request and (not self.asset_id or not self.asset_id.strip()):
+                raise ValueError(
+                    f"VIDEO_ASSET_REQUEST_MISSING: stock_video '{self.id}' requires 'asset_request' or 'asset_id'."
+                )
+            if isinstance(self.asset_request, ImageAssetRequest):
+                object.__setattr__(
+                    self,
+                    "asset_request",
+                    VideoAssetRequest(
+                        query=self.asset_request.query,
+                        orientation=self.asset_request.orientation,
+                        mood=self.asset_request.mood,
+                        composition=self.asset_request.composition,
+                        avoid=self.asset_request.avoid,
+                    ),
+                )
+
+            # 3. Forbid raw external URLs or invalid asset IDs
+            if self.asset_id:
+                if self.asset_id.startswith("http://") or self.asset_id.startswith("https://"):
+                    raise ValueError(f"stock_video '{self.id}' cannot specify external URL as asset_id.")
+
+            # 4. Forbid card, number, chart, connector, character, relative fields
+            if self.from_id is not None or self.to_id is not None or self.label is not None:
+                raise ValueError(f"stock_video '{self.id}' cannot specify connector fields.")
+            if self.chart_type is not None or self.series is not None or self.points is not None:
+                raise ValueError(f"stock_video '{self.id}' cannot specify chart fields.")
+            if self.fact_id is not None or self.value_fact_id is not None:
+                raise ValueError(f"stock_video '{self.id}' cannot specify fact fields.")
+            if self.display_value is not None or self.numeric_value is not None:
+                raise ValueError(f"stock_video '{self.id}' cannot specify number fields.")
+            if (
+                self.character_style is not None
+                or self.role is not None
+                or self.pose is not None
+                or self.facing is not None
+                or self.emotion is not None
+            ):
+                raise ValueError(f"stock_video '{self.id}' cannot specify character fields.")
+            if self.text is not None:
+                raise ValueError(f"stock_video '{self.id}' cannot specify text field.")
+            if self.title is not None:
+                raise ValueError(f"stock_video '{self.id}' cannot specify card field 'title'.")
+            if self.subtitle is not None:
+                raise ValueError(f"stock_video '{self.id}' cannot specify card field 'subtitle'.")
+            if self.visual_state is not None:
+                raise ValueError(f"stock_video '{self.id}' cannot specify card field 'visual_state'.")
+            if self.badge is not None:
+                raise ValueError(f"stock_video '{self.id}' cannot specify card field 'badge'.")
+            if self.border_color is not None:
+                raise ValueError(f"stock_video '{self.id}' cannot specify image field 'border_color'.")
+            if self.border_radius is not None:
+                raise ValueError(f"stock_video '{self.id}' cannot specify image field 'border_radius'.")
+
         elif self.type == "connector":
             # Connector requires from_id and to_id
             if not self.from_id or not self.from_id.strip() or not self.to_id or not self.to_id.strip():
@@ -488,7 +569,7 @@ class StoryEventDraft(StrictBaseModel):
     to: ZoneName | None = Field(
         default=None,
         validation_alias=AliasChoices("to", "position", "destination", "layout"),
-        description="Target destination zone for 'move' action (e.g. 'center_left'). Required for move."
+        description="Target destination zone for 'move' action (e.g. 'split_left', 'split_right', 'center'). Required for move."
     )
     to_display_value: str | None = Field(
         default=None,
@@ -527,9 +608,13 @@ class StoryEventDraft(StrictBaseModel):
         default=None,
         description="Optional visual badge label displayed on the card (e.g. '+2.0% HIKE', 'BURDEN SURGE')."
     )
-    direction: Literal["left", "right", "up", "down", "fade"] | None = Field(
+    style: Literal["fade", "fade_slide_up", "pop", "cut"] | None = Field(
         default=None,
-        description="Exit animation direction for 'exit' action ('left', 'right', 'up', 'down', 'fade')."
+        description="Entrance animation style for 'enter' action ('fade', 'fade_slide_up', 'pop', 'cut')."
+    )
+    direction: Literal["left", "right", "up", "down", "fade", "cut"] | None = Field(
+        default=None,
+        description="Exit animation direction for 'exit' action ('left', 'right', 'up', 'down', 'fade', 'cut')."
     )
     pose: CharacterPose | None = Field(
         default=None,
@@ -672,15 +757,15 @@ class ContinuousStoryDraft(StrictBaseModel):
 def build_continuous_story_contract_schema() -> dict[str, Any]:
     """Generates the strict, action-and-object contract JSON schema for Gemini constrained decoding."""
     zone_enum = [
-        "top_left", "top_center", "top_right",
-        "center_left", "center", "center_right",
-        "bottom_left", "bottom_center", "bottom_right",
-        "full_screen", "full_top", "full_bottom",
-        "split_left", "split_right",
+        "center",
+        "split_left",
+        "split_right",
+        "full_screen",
+        "full_bottom",
     ]
     state_enum = ["normal", "dimmed", "warning", "danger", "success", "stamped", "eroded"]
     chart_enum = ["trajectory_area", "split_bar", "multi_bar", "stack"]
-    direction_enum = ["left", "right", "up", "down", "fade"]
+    direction_enum = ["left", "right", "up", "down", "fade", "cut"]
     character_style_enum = ["futuristic_stick"]
     pose_enum = ["idle", "walk", "point", "think", "worried", "celebrate"]
     emotion_enum = ["neutral", "focused", "concerned", "surprised", "happy"]
@@ -828,6 +913,38 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                         {
                             "type": "object",
                             "properties": {
+                                "id": {"type": "string", "description": "Unique identifier for the stock video element."},
+                                "type": {"type": "string", "enum": ["stock_video"]},
+                                "layout": {"type": "string", "enum": ["full_screen"], "description": "Layout must be strictly 'full_screen'."},
+                                "purpose": {"type": "string", "description": "Editorial documentary/B-roll purpose."},
+                                "asset_request": {
+                                    "type": "object",
+                                    "description": "Visual specification describing the real-world documentary/B-roll video to resolve.",
+                                    "properties": {
+                                        "query": {"type": "string", "description": "MANDATORY search query describing the real-world footage (e.g. 'commercial bank exterior with people entering')."},
+                                        "orientation": {"type": "string", "enum": ["landscape", "portrait", "square"], "description": "Video orientation."},
+                                        "mood": {"type": "string", "description": "Optional visual mood."},
+                                        "composition": {"type": "string", "description": "Optional visual composition instruction."},
+                                        "avoid": {
+                                            "type": "array",
+                                            "items": {"type": "string"},
+                                            "description": "Optional list of unwanted visual properties."
+                                        },
+                                        "minimum_duration_seconds": {"type": "number", "description": "Optional minimum duration in seconds."}
+                                    },
+                                    "required": ["query"]
+                                },
+                                "alt": {"type": "string", "description": "Alternative text description for accessibility."},
+                                "caption": {"type": "string", "description": "Optional caption text shown with video."},
+                                "fit": {"type": "string", "enum": ["cover", "contain"], "description": "Video fit style (default: 'cover')."},
+                                "overlay_tint": {"type": "string", "description": "Optional dark overlay tint hex/rgba string."},
+                                "asset_id": {"type": "string", "description": "Asset reference identifier (set after resolution)."}
+                            },
+                            "required": ["id", "type", "layout", "asset_request"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
                                 "id": {"type": "string", "description": "Unique identifier for the connector element."},
                                 "type": {"type": "string", "enum": ["connector"]},
                                 "layout": {"type": "string", "enum": zone_enum, "description": "One of the 12 spatial zone names."},
@@ -868,6 +985,7 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                             "properties": {
                                 "action": {"type": "string", "enum": ["enter"]},
                                 "target_id": {"type": "string", "description": "ID of visual element to enter."},
+                                "style": {"type": "string", "enum": ["fade", "fade_slide_up", "pop", "cut"], "description": "Entrance animation style. Must be 'cut' for stock_video."},
                                 "anchor": {"type": "string", "description": "Exact spoken phrase in narration where action occurs."}
                             },
                             "required": ["action", "target_id", "anchor"]

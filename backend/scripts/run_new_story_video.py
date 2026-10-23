@@ -35,7 +35,7 @@ from app.main import create_app
 from app.dependencies import get_artifact_store, get_media_storage, get_llm_provider
 
 
-def run_pipeline_for_topic(topic: str, angle: str, audience: str, channel: str):
+def run_pipeline_for_topic(topic: str, angle: str, audience: str, channel: str, delay_seconds: float = 14.0):
     print("=" * 75)
     print(f"EXECUTING CONTINUOUS STORY PIPELINE: {topic}")
     print(f"Angle: {angle}")
@@ -140,6 +140,10 @@ def run_pipeline_for_topic(topic: str, angle: str, audience: str, channel: str):
             duration_s = (plan.get("durationInFrames", 0) / plan.get("fps", 30))
             print(f"     * Total Duration: {plan.get('durationInFrames')} frames @ {plan.get('fps')}fps ({duration_s:.1f}s)")
 
+        if delay_seconds > 0 and stage_name != stages[-1][0]:
+            print(f"     [PACING] Waiting {delay_seconds:.1f}s to strictly respect Gemini rate limits...")
+            time.sleep(delay_seconds)
+
     print("\n[STEP 3] Checking complete pipeline run status via FastAPI GET /status...")
     status_resp = client.get(f"/projects/{project_id}/runs/{run_id}/status")
     if status_resp.status_code != 200:
@@ -196,6 +200,9 @@ def run_pipeline_for_topic(topic: str, angle: str, audience: str, channel: str):
         dest = artifact_dir / "e2e_story.mp4"
         shutil.copy2(video_path, dest)
         print(f"  * Copied video to artifact directory: {dest}")
+        dest_cc = artifact_dir / "e2e_credit_card_trap_story.mp4"
+        shutil.copy2(video_path, dest_cc)
+        print(f"  * Copied video to artifact directory: {dest_cc}")
 
 
 
@@ -205,6 +212,7 @@ if __name__ == "__main__":
     parser.add_argument("--angle", default="How paying only the 5% minimum balance turns a ₹1,00,000 purchase into an 18-year debt spiral costing over ₹3,00,000", help="Video angle")
     parser.add_argument("--audience", default="Young urban cardholders and professionals", help="Target audience")
     parser.add_argument("--channel", default="FinWise India", help="Channel brand name")
+    parser.add_argument("--delay", type=float, default=14.0, help="Pacing delay in seconds between stages to respect rate limits")
     args = parser.parse_args()
 
     run_pipeline_for_topic(
@@ -212,4 +220,5 @@ if __name__ == "__main__":
         angle=args.angle,
         audience=args.audience,
         channel=args.channel,
+        delay_seconds=args.delay,
     )

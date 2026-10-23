@@ -15,13 +15,13 @@ Guarantees:
 2. Atomic Architecture: no parent-child nesting. Cards, metrics, text, charts are independent.
 3. Open Direct Authoring: renders directly authored titles, values, subtitles, badges, series, and points without fact lookup, fact resolution, regex extraction, or fallback guessing.
 4. Audio Synchronization: maps phrase anchors to exact spoken frames via word timestamps.
-5. 12-Zone Spatial Preservation: preserves clean zone layout names for Remotion layout engine.
+5. 5-Layout Spatial Preservation: preserves clean zone layout names for Remotion layout engine.
 """
 import html
 import re
 from typing import Any
 
-from domain.continuous_story_plan import ContinuousStoryDraft, StoryObjectDraft, StoryEventDraft
+from domain.continuous_story_plan import ContinuousStoryDraft, StoryObjectDraft, StoryEventDraft, VALID_ZONES
 
 
 def resolve_anchor_ms(
@@ -201,6 +201,11 @@ class ContinuousStoryCompiler:
         compiled_objects: list[dict[str, Any]] = []
 
         for obj in draft.objects:
+            if obj.type != "connector" and obj.layout not in VALID_ZONES:
+                raise ValueError(
+                    f"INVALID_LAYOUT_ZONE: Object '{obj.id}' specifies invalid layout zone '{obj.layout}'. Valid zones: {sorted(VALID_ZONES)}"
+                )
+
             if obj.type == "card":
                 card_dict = self._compile_card(obj)
                 compiled_objects.append(card_dict)
@@ -220,6 +225,10 @@ class ContinuousStoryCompiler:
             elif obj.type == "image":
                 img_dict = self._compile_image(obj, fixture=fixture)
                 compiled_objects.append(img_dict)
+
+            elif obj.type == "stock_video":
+                sv_dict = self._compile_stock_video(obj, fixture=fixture)
+                compiled_objects.append(sv_dict)
 
             elif obj.type == "connector":
                 connector_dict = self._compile_connector(obj)
@@ -249,10 +258,10 @@ class ContinuousStoryCompiler:
         compiled_events: list[dict[str, Any]] = []
         for event in draft.events:
             min_start = 0
+            target_obj = next((o for o in draft.objects if o.id == event.target_id), None)
             if event.action != "enter":
                 min_start = enter_times_ms.get(event.target_id, 0)
                 if event.action == "connect":
-                    target_obj = next((o for o in draft.objects if o.id == event.target_id), None)
                     if target_obj and target_obj.type == "connector":
                         min_start = max(
                             enter_times_ms.get(target_obj.from_id, 0),
@@ -264,6 +273,7 @@ class ContinuousStoryCompiler:
                 word_timestamps=word_timestamps,
                 fps=fps,
                 min_start_ms=min_start,
+                target_obj=target_obj,
             )
             compiled_events.append(event_dict)
 
@@ -409,7 +419,7 @@ class ContinuousStoryCompiler:
             )
 
         # If layout is full_bottom or full_screen, width/height adjust accordingly
-        is_macro = obj.layout in ("full_bottom", "full_screen", "full_top")
+        is_macro = obj.layout in ("full_bottom", "full_screen")
         width = 1760 if is_macro else 640
         height = 360 if is_macro else 280
 
@@ -488,6 +498,53 @@ class ContinuousStoryCompiler:
             },
         }
 
+    def _compile_stock_video(
+        self,
+        obj: StoryObjectDraft,
+        fixture: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Compiles a full-screen stock video visual element with asset verification."""
+        if obj.layout != "full_screen":
+            raise ValueError(
+                f"STOCK_VIDEO_INVALID_LAYOUT: stock_video '{obj.id}' layout must be 'full_screen', got '{obj.layout}'."
+            )
+
+        if not obj.asset_id:
+            raise ValueError(
+                f"VIDEO_ASSET_REQUEST_MISSING: stock_video '{obj.id}' has unresolved asset_request before compilation."
+            )
+
+        if fixture and "available_assets" in fixture:
+            avail = fixture.get("available_assets")
+            if not avail:
+                raise ValueError(
+                    f"UNKNOWN_ASSET_ID: stock_video '{obj.id}' is used, but available_assets list is empty or not provided."
+                )
+            if obj.asset_id not in avail:
+                raise ValueError(
+                    f"UNKNOWN_ASSET_ID: stock_video '{obj.id}' references unknown asset_id '{obj.asset_id}'. Available assets: {sorted(avail)}"
+                )
+
+        stock_video_props: dict[str, Any] = {
+            "assetId": obj.asset_id,
+            "fit": obj.fit or "cover",
+        }
+        if obj.alt:
+            stock_video_props["alt"] = obj.alt
+        if obj.caption:
+            stock_video_props["caption"] = obj.caption
+        if obj.overlay_tint:
+            stock_video_props["overlayTint"] = obj.overlay_tint
+
+        return {
+            "id": obj.id,
+            "type": "stock_video",
+            "layout": "full_screen",
+            "width": 1920,
+            "height": 1080,
+            "stockVideoProps": stock_video_props,
+        }
+
     def _compile_event(
         self,
         event: StoryEventDraft,
@@ -495,6 +552,7 @@ class ContinuousStoryCompiler:
         fps: int,
         min_start_ms: int = 0,
         approved_facts: dict[str, Any] | None = None,
+        target_obj: StoryObjectDraft | None = None,
     ) -> dict[str, Any]:
         """Compiles a choreography action, resolving speech anchors to exact frames."""
         start_frame = resolve_anchor_frame(
@@ -504,18 +562,30 @@ class ContinuousStoryCompiler:
             min_start_ms=min_start_ms,
         )
 
+        is_stock_video = target_obj is not None and target_obj.type == "stock_video"
+        is_cut_enter = event.action == "enter" and (event.style == "cut" or is_stock_video)
+        is_cut_exit = event.action == "exit" and (event.direction == "cut" or is_stock_video)
+
+        duration_frames = 25
+        if is_cut_enter or is_cut_exit:
+            duration_frames = 0
+
         event_dict: dict[str, Any] = {
             "action": event.action,
             "targetId": event.target_id,
             "startFrame": start_frame,
-            "durationFrames": 25,
+            "durationFrames": duration_frames,
             "anchor": event.anchor,
         }
 
         if event.action == "enter":
-            event_dict["style"] = "fade_slide_up"
+            event_dict["style"] = "cut" if is_cut_enter else (event.style or "fade_slide_up")
 
         elif event.action == "move":
+            if not event.to or event.to not in VALID_ZONES:
+                raise ValueError(
+                    f"INVALID_MOVE_ZONE: Action 'move' on '{event.target_id}' specifies invalid destination zone '{event.to}'. Valid zones: {sorted(VALID_ZONES)}"
+                )
             event_dict["to"] = event.to
             event_dict["style"] = "spring_smooth"
 
@@ -552,8 +622,12 @@ class ContinuousStoryCompiler:
                 event_dict["facing"] = event.facing
 
         elif event.action == "exit":
-            event_dict["direction"] = event.direction or "fade"
-            event_dict["durationFrames"] = 24  # Match EXIT_DURATION
+            if is_cut_exit:
+                event_dict["direction"] = "cut"
+                event_dict["durationFrames"] = 0
+            else:
+                event_dict["direction"] = event.direction or "fade"
+                event_dict["durationFrames"] = 24  # Match EXIT_DURATION
 
         return event_dict
 

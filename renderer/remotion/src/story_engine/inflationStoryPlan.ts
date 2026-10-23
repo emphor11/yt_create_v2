@@ -17,7 +17,7 @@ import inflationTimestamps from "../../public/inflation_story_timestamps.json" w
  *    - Purchasing power card transforms to 'eroded' state with dashed border and 'CRITICAL DRAG' badge
  * 4. Factual mathematical provenance: compound inflation decay formula
  * 5. Camera context safety: all elements verified in viewport
- * 6. Pure atomic cards in 12-zone spatial layout (zero children, zero relative layouts)
+ * 6. Pure atomic cards in 5-layout spatial model (zero children, zero relative layouts)
  */
 export const inflationStoryPlan: StoryPlan = {
   id: "inflation_purchasing_power_story",
@@ -36,9 +36,9 @@ export const inflationStoryPlan: StoryPlan = {
     {
       id: "card_nominal",
       type: "card",
-      layout: "top_left",
-      width: 420,
-      height: 230,
+      layout: "split_left",
+      width: 400,
+      height: 220,
       cardProps: {
         title: "Nominal Bank Balance",
         value: 1000000,
@@ -50,9 +50,9 @@ export const inflationStoryPlan: StoryPlan = {
     {
       id: "card_inflation",
       type: "card",
-      layout: "top_right",
-      width: 420,
-      height: 230,
+      layout: "split_right",
+      width: 400,
+      height: 220,
       cardProps: {
         title: "Annual Inflation",
         value: 7.0,
@@ -65,9 +65,9 @@ export const inflationStoryPlan: StoryPlan = {
     {
       id: "card_purchasing_power",
       type: "card",
-      layout: "bottom_left",
-      width: 420,
-      height: 240,
+      layout: "center",
+      width: 380,
+      height: 220,
       cardProps: {
         title: "Real Purchasing Power",
         value: 1000000,
@@ -80,8 +80,8 @@ export const inflationStoryPlan: StoryPlan = {
     {
       id: "chart_decay_curve",
       type: "chart",
-      layout: "bottom_right",
-      width: 500,
+      layout: "full_bottom",
+      width: 1760,
       height: 240,
       chartProps: {
         chartType: "trajectory_area",
@@ -226,7 +226,7 @@ export const inflationStoryPlan: StoryPlan = {
       durationFrames: 40,
       behavior: "push_in",
       zoom: 1.04,
-      requiredContextIds: ["card_nominal", "card_inflation", "card_purchasing_power", "chart_decay_curve"],
+      requiredContextIds: ["card_nominal", "card_inflation", "card_purchasing_power"],
     },
   ],
 };

@@ -12,6 +12,8 @@ const planPath = path.join(repoRoot, "output/gemini_compiled_loan_plan.json");
 const outDir = path.join(repoRoot, "output");
 const stillsDir = path.join(outDir, "gemini_story_stills");
 
+import { VALID_ZONES } from "../src/story_engine/layout.ts";
+
 console.log("=================================================================");
 console.log("RENDERING GEMINI-GENERATED CONTINUOUS STORY");
 console.log("=================================================================");
@@ -21,6 +23,16 @@ console.log(`[1/4] Loading compiled plan: ${path.relative(repoRoot, planPath)}`)
 const planRaw = await readFile(planPath, "utf-8");
 const plan = JSON.parse(planRaw);
 console.log(`      Story ID: ${plan.id}, Duration: ${plan.durationInFrames} frames (${(plan.durationInFrames / plan.fps).toFixed(1)}s), Objects: ${plan.objects.length}, Events: ${plan.events.length}`);
+
+// Guard against rendering stale plans with removed legacy layouts
+const staleObjects = (plan.objects || []).filter((o) => !VALID_ZONES.includes(o.layout));
+if (staleObjects.length > 0) {
+  throw new Error(
+    `STALE_ARTIFACT_ERROR: "${path.relative(repoRoot, planPath)}" is obsolete and contains removed legacy layouts: ` +
+    staleObjects.map((o) => `"${o.id}" (${o.layout})`).join(", ") +
+    `. Continuous story only allows 5 layouts (${VALID_ZONES.join(", ")}). Do not render old compiled plans with removed layouts.`
+  );
+}
 
 // 2. Bundle Remotion
 console.log(`[2/4] Bundling Remotion project...`);
@@ -40,14 +52,14 @@ await mkdir(stillsDir, { recursive: true });
 // 3. Render Keyframe Stills
 console.log(`[3/4] Rendering 10 keyframe stills across all 3 visual beats...`);
 const keyframes = [
-  { frame: 30, name: "gemini_kf_01_loan_entered.png", label: "Beat 1: Loan card entered at center_left (₹50 Lakh)" },
-  { frame: 90, name: "gemini_kf_02_emi_and_link.png", label: "Beat 1: EMI card entered at center_right (₹43,391) + rate link connected" },
+  { frame: 30, name: "gemini_kf_01_loan_entered.png", label: "Beat 1: Loan card entered (₹50 Lakh)" },
+  { frame: 90, name: "gemini_kf_02_emi_and_link.png", label: "Beat 1: EMI card entered (₹43,391) + rate link connected" },
   { frame: 185, name: "gemini_kf_03_loan_rate_warning.png", label: "Beat 2: Loan card warning state (10.5% Rate badge)" },
   { frame: 250, name: "gemini_kf_04_emi_transforming.png", label: "Beat 2: EMI value transforming towards ₹49,919" },
   { frame: 285, name: "gemini_kf_05_emi_danger_climax.png", label: "Beat 2 climax: EMI card in danger state (Surged badge, ₹49,919)" },
-  { frame: 340, name: "gemini_kf_06_extra_burden_entered.png", label: "Beat 3: Extra burden card entered at bottom_center (₹15.66 Lakh)" },
+  { frame: 340, name: "gemini_kf_06_extra_burden_entered.png", label: "Beat 3: Extra burden card entered (₹15.66 Lakh)" },
   { frame: 400, name: "gemini_kf_07_extra_burden_eroded.png", label: "Beat 3: Extra burden card eroded state (Severe Burden badge)" },
-  { frame: 490, name: "gemini_kf_08_final_composition.png", label: "Final story climax: 3 atomic cards across 12-zone spatial canvas with zero overlap" },
+  { frame: 490, name: "gemini_kf_08_final_composition.png", label: "Final story climax: atomic cards across spatial canvas with zero overlap" },
 ];
 
 for (const kf of keyframes) {

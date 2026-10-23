@@ -2,7 +2,7 @@ import type { StoryPlan } from "./types.ts";
 import loanTimestamps from "../../public/loan_story_timestamps.json" with { type: "json" };
 
 /**
- * Visual Plan for the ₹50 Lakh Loan Story (Atomic 12-Zone Spatial Model).
+ * Visual Plan for the ₹50 Lakh Loan Story (Atomic 5-Layout Spatial Model).
  *
  * Story:
  * "A ₹50 lakh loan starts at 8.5% interest. When the rate rises to 10.5%, the EMI increases."
@@ -14,7 +14,7 @@ import loanTimestamps from "../../public/loan_story_timestamps.json" with { type
  *    transforms to '+ ₹6,528 / month burden' when the rate hike takes effect!
  * 4. Factual mathematical provenance: EMI has verifiable derivation from principal, rate, tenure
  * 5. Camera viewport context: retains visibility of loan and rate context cards
- * 6. Pure atomic cards in 12-zone spatial layout (zero children, zero relative layouts)
+ * 6. Pure atomic cards in 5-layout spatial model (zero children, zero relative layouts)
  */
 export const loanStoryPlan: StoryPlan = {
   id: "loan_rate_hike_story",
@@ -47,7 +47,7 @@ export const loanStoryPlan: StoryPlan = {
     {
       id: "card_rate",
       type: "card",
-      layout: "center_right",
+      layout: "split_right",
       width: 380,
       height: 230,
       cardProps: {
@@ -62,7 +62,7 @@ export const loanStoryPlan: StoryPlan = {
     {
       id: "card_emi",
       type: "card",
-      layout: "bottom_center",
+      layout: "center",
       width: 380,
       height: 230,
       cardProps: {
@@ -100,15 +100,15 @@ export const loanStoryPlan: StoryPlan = {
       durationFrames: 25,
       style: "fade_slide_up",
     },
-    // 2. Spatial Movement: Loan card moves to center_left
+    // 2. Spatial Movement: Loan card moves to split_left
     {
       action: "move",
       targetId: "card_loan",
       startFrame: 65,
       durationFrames: 30,
-      to: "center_left",
+      to: "split_left",
     },
-    // 3. Spoken Anchor: 'starts at 8.5' -> Rate card appears at center_right
+    // 3. Spoken Anchor: 'starts at 8.5' -> Rate card appears at split_right
     {
       action: "enter",
       targetId: "card_rate",
@@ -117,7 +117,7 @@ export const loanStoryPlan: StoryPlan = {
       durationFrames: 25,
       style: "fade_slide_up",
     },
-    // 4. Baseline EMI card appears at bottom_center
+    // 4. Baseline EMI card appears at center
     {
       action: "enter",
       targetId: "card_emi",

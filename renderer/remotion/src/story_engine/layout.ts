@@ -8,38 +8,18 @@ export interface ResolvedGeometry {
 }
 
 export const VALID_ZONES: readonly ZoneName[] = [
-  "top_left",
-  "top_center",
-  "top_right",
-  "center_left",
   "center",
-  "center_right",
-  "bottom_left",
-  "bottom_center",
-  "bottom_right",
-  "full_screen",
-  "full_top",
-  "full_bottom",
   "split_left",
   "split_right",
+  "full_screen",
+  "full_bottom",
 ] as const;
 
 /**
- * Exact center coordinates for each of the 9 localized canvas zones on a 1920x1080 canvas.
- * Spaced with an 80px safe boundary margin.
+ * Exact center coordinates for localized canvas zones on a 1920x1080 canvas.
  */
 export const ZONE_COORDINATES: Record<GridZone, { x: number; y: number }> = {
-  top_left: { x: 380, y: 260 },
-  top_center: { x: 960, y: 260 },
-  top_right: { x: 1540, y: 260 },
-
-  center_left: { x: 380, y: 540 },
   center: { x: 960, y: 540 },
-  center_right: { x: 1540, y: 540 },
-
-  bottom_left: { x: 380, y: 800 },
-  bottom_center: { x: 960, y: 780 },
-  bottom_right: { x: 1540, y: 800 },
 };
 
 export interface BoundingBoxCollision {
@@ -100,6 +80,8 @@ export function getDefaultDimensionsForType(type: PrimitiveType): { width: numbe
       return { width: 400, height: 90 };
     case "character":
       return { width: 240, height: 360 };
+    case "stock_video":
+      return { width: 1920, height: 1080 };
     case "card":
     default:
       return { width: 420, height: 240 };
@@ -107,9 +89,9 @@ export function getDefaultDimensionsForType(type: PrimitiveType): { width: numbe
 }
 
 /**
- * Deterministic 12-Zone Spatial Layout Engine.
+ * Deterministic 5-Layout Spatial Engine.
  *
- * Converts the 12 strict spatial zone names into pixel-perfect screen coordinates (x, y)
+ * Converts the 5 strict spatial layout zones into pixel-perfect screen coordinates (x, y)
  * without relative graph dependencies, circular references, or AI guesswork.
  */
 export function resolveLayouts(
@@ -127,10 +109,16 @@ export function resolveLayouts(
 
     const layout = obj.layout ?? "center";
 
-    // Strictly enforce valid 12 layout zones — never silently default
+    // Strictly enforce valid 5 layout zones — never silently default
     if (!VALID_ZONES.includes(layout)) {
       throw new Error(
         `INVALID_LAYOUT_ZONE: Object "${obj.id}" specifies invalid layout zone "${layout}". Must be one of: ${VALID_ZONES.join(", ")}`
+      );
+    }
+
+    if (obj.type === "stock_video" && layout !== "full_screen") {
+      throw new Error(
+        `STOCK_VIDEO_INVALID_LAYOUT: stock_video "${obj.id}" layout must be "full_screen", got "${layout}".`
       );
     }
 
@@ -141,7 +129,7 @@ export function resolveLayouts(
     let x = (canvasWidth - width) / 2;
     let y = (canvasHeight - height) / 2;
 
-    // 1. 9-Zone Grid direct center lookup
+    // 1. Center direct center lookup
     if (layout in ZONE_COORDINATES) {
       const center = ZONE_COORDINATES[layout as GridZone];
       x = Math.round(center.x - width / 2);
@@ -149,7 +137,7 @@ export function resolveLayouts(
     }
     // 2. Macro Layouts
     else if (layout === "full_screen") {
-      if (obj.type === "image") {
+      if (obj.type === "image" || obj.type === "stock_video") {
         x = 0;
         y = 0;
         width = canvasWidth;
@@ -160,11 +148,6 @@ export function resolveLayouts(
         width = canvasWidth - safeMargin * 2;
         height = canvasHeight - safeMargin * 2;
       }
-    } else if (layout === "full_top") {
-      x = safeMargin;
-      y = safeMargin;
-      width = canvasWidth - safeMargin * 2;
-      height = obj.height ?? 360;
     } else if (layout === "full_bottom") {
       width = canvasWidth - safeMargin * 2;
       height = obj.height ?? 360;
@@ -181,7 +164,7 @@ export function resolveLayouts(
     }
 
     // Safety boundary clamping so elements do not bleed past safe margins
-    if (layout !== "full_screen" && layout !== "full_top" && layout !== "full_bottom") {
+    if (layout !== "full_screen" && layout !== "full_bottom") {
       let minX = safeMargin + 40;
       let maxX = canvasWidth - width - safeMargin - 40;
       if (layout === "split_left") {
@@ -230,9 +213,6 @@ export function resolveSemanticDestination(
     destX = Math.round(center.x - currentGeom.width / 2);
     destY = Math.round(center.y - currentGeom.height / 2);
   } else if (to === "full_screen") {
-    destX = safeMargin;
-    destY = safeMargin;
-  } else if (to === "full_top") {
     destX = safeMargin;
     destY = safeMargin;
   } else if (to === "full_bottom") {

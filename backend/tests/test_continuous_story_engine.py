@@ -99,25 +99,34 @@ def test_structured_facts_are_loaded_from_the_research_packet(sample_research_pa
     assert sample_research_packet.approved_facts["research_bps_3"]["format"] == "basis_points"
 
 
-def test_semantic_fact_registry_in_prompt(sample_research_packet):
+def test_direct_authoring_prompt_does_not_inject_fact_registry(sample_research_packet):
     from engines.continuous_story_engine import build_continuous_story_prompt
     facts = sample_research_packet.approved_facts
     _, user_prompt = build_continuous_story_prompt("story_test", "Test narration", facts)
-    assert "SEMANTIC FACT REGISTRY" in user_prompt
-    assert "home loan principal amount" in user_prompt
-    assert "₹50,00,000" in user_prompt
-    assert "annual interest rate" in user_prompt
-    assert "8.5%" in user_prompt
+    assert "SEMANTIC FACT REGISTRY" not in user_prompt
+    assert "APPROVED FACT IDS" not in user_prompt
+    assert "Test narration" in user_prompt
 
 
 def test_zone_normalization():
-    assert _normalize_zone("top_left") == "top_left"
-    assert _normalize_zone("left") == "center_left"
-    assert _normalize_zone("right") == "center_right"
-    assert _normalize_zone("top") == "top_center"
-    assert _normalize_zone("bottom") == "bottom_center"
-    assert _normalize_zone({"right_of": "card_a"}) == "center_right"
-    assert _normalize_zone("invalid_zone", default="center") == "center"
+    # 5 allowed layouts return themselves
+    for z in ("center", "split_left", "split_right", "full_screen", "full_bottom"):
+        assert _normalize_zone(z) == z
+
+    # Removed layouts fail loudly with INVALID_LAYOUT_ZONE
+    removed = [
+        "top_left", "top_center", "top_right",
+        "center_left", "center_right",
+        "bottom_left", "bottom_center", "bottom_right",
+        "full_top", "left", "right", "top", "bottom", "invalid_zone"
+    ]
+    for r in removed:
+        with pytest.raises(ValueError, match="INVALID_LAYOUT_ZONE"):
+            _normalize_zone(r)
+
+    # Relative layout dictionary fails loudly
+    with pytest.raises(ValueError, match="INVALID_LAYOUT_ZONE"):
+        _normalize_zone({"right_of": "card_a"})
 
 
 def test_continuous_story_engine_isolated_run(
@@ -244,7 +253,7 @@ def test_connector_missing_from_id_fails(
             {
                 "id": "card_a",
                 "type": "card",
-                "layout": "center_left",
+                "layout": "split_left",
                 "purpose": "Source card",
                 "value_fact_id": "research_money_1",
                 "title": "Principal",
@@ -252,7 +261,7 @@ def test_connector_missing_from_id_fails(
             {
                 "id": "card_b",
                 "type": "card",
-                "layout": "center_right",
+                "layout": "split_right",
                 "purpose": "Target card",
                 "value_fact_id": "research_money_1",
                 "title": "Repayment",
@@ -301,7 +310,7 @@ def test_connector_missing_to_id_fails(
             {
                 "id": "card_a",
                 "type": "card",
-                "layout": "center_left",
+                "layout": "split_left",
                 "purpose": "Source card",
                 "value_fact_id": "research_money_1",
                 "title": "Principal",
@@ -309,7 +318,7 @@ def test_connector_missing_to_id_fails(
             {
                 "id": "card_b",
                 "type": "card",
-                "layout": "center_right",
+                "layout": "split_right",
                 "purpose": "Target card",
                 "value_fact_id": "research_money_1",
                 "title": "Repayment",
@@ -358,7 +367,7 @@ def test_connector_unknown_endpoint_fails(
             {
                 "id": "card_a",
                 "type": "card",
-                "layout": "center_left",
+                "layout": "split_left",
                 "purpose": "Source card",
                 "value_fact_id": "research_money_1",
                 "title": "Principal",
@@ -405,7 +414,7 @@ def test_connector_self_referencing_fails(
             {
                 "id": "card_a",
                 "type": "card",
-                "layout": "center_left",
+                "layout": "split_left",
                 "purpose": "Source card",
                 "value_fact_id": "research_money_1",
                 "title": "Principal",
@@ -452,7 +461,7 @@ def test_invalid_repaired_response_fails(
             {
                 "id": "card_a",
                 "type": "card",
-                "layout": "center_left",
+                "layout": "split_left",
                 "purpose": "Principal card",
                 "value_fact_id": "research_money_1",
                 "title": "Home Loan Principal",
@@ -477,7 +486,7 @@ def test_invalid_repaired_response_fails(
             {
                 "id": "card_a",
                 "type": "card",
-                "layout": "center_left",
+                "layout": "split_left",
                 "purpose": "Principal card",
                 "value_fact_id": "research_money_1",
                 "title": "Home Loan Principal",
@@ -662,7 +671,7 @@ def test_malformed_connector_with_card_fields_fails_loudly(
             {
                 "id": "card_a",
                 "type": "card",
-                "layout": "center_left",
+                "layout": "split_left",
                 "purpose": "Source",
                 "value_fact_id": "research_money_1",
                 "title": "Principal",
@@ -670,7 +679,7 @@ def test_malformed_connector_with_card_fields_fails_loudly(
             {
                 "id": "card_b",
                 "type": "card",
-                "layout": "center_right",
+                "layout": "split_right",
                 "purpose": "Target",
                 "value_fact_id": "research_money_1",
                 "title": "Repayment",
@@ -718,7 +727,7 @@ def test_valid_connectors_pass(
             {
                 "id": "interest_card",
                 "type": "card",
-                "layout": "center_left",
+                "layout": "split_left",
                 "purpose": "Source",
                 "value_fact_id": "research_money_1",
                 "title": "Interest",
@@ -726,7 +735,7 @@ def test_valid_connectors_pass(
             {
                 "id": "repayment_card",
                 "type": "card",
-                "layout": "center_right",
+                "layout": "split_right",
                 "purpose": "Target",
                 "value_fact_id": "research_money_1",
                 "title": "Repayment",
@@ -776,7 +785,7 @@ def test_field_aliases_accepted_seamlessly(
             {
                 "id": "card_a",
                 "type": "card",
-                "layout": "center_left",
+                "layout": "split_left",
                 "purpose": "Source",
                 "value_fact_id": "research_money_1",
                 "title": "Principal",
@@ -784,7 +793,7 @@ def test_field_aliases_accepted_seamlessly(
             {
                 "id": "card_b",
                 "type": "card",
-                "layout": "center_right",
+                "layout": "split_right",
                 "purpose": "Target",
                 "value_fact_id": "research_money_1",
                 "title": "Repayment",
@@ -917,7 +926,7 @@ def test_format_programmatic_repair_prompt_structure():
     # 3. Error on move missing 'to'
     assert 'events[0]' in prompt
     assert 'Missing required field: "to"' in prompt
-    assert '"top_left"' in prompt
+    assert '"split_left"' in prompt
 
     # 4. Error on transform_number missing direct values
     assert 'events[1]' in prompt
@@ -1022,7 +1031,7 @@ def test_open_direct_authoring_mode_without_approved_facts(
                 {
                     "id": "card_hero",
                     "type": "card",
-                    "layout": "center_left",
+                    "layout": "split_left",
                     "title": "Home Loan",
                     "display_value": "₹50 Lakhs",
                     "numeric_value": 5000000,
@@ -1031,7 +1040,7 @@ def test_open_direct_authoring_mode_without_approved_facts(
                 {
                     "id": "num_rate",
                     "type": "number",
-                    "layout": "center_right",
+                    "layout": "split_right",
                     "display_value": "8.5%",
                     "numeric_value": 8.5,
                     "purpose": "Interest rate",
@@ -1039,13 +1048,13 @@ def test_open_direct_authoring_mode_without_approved_facts(
                 {
                     "id": "txt_note",
                     "type": "text",
-                    "layout": "top_center",
+                    "layout": "center",
                     "text": "Fixed rate benchmark",
                 },
                 {
                     "id": "chart_repay",
                     "type": "chart",
-                    "layout": "bottom_center",
+                    "layout": "full_bottom",
                     "chart_type": "split_bar",
                     "title": "Repayment Breakdown",
                     "subtitle": "Principal vs Interest",
@@ -1057,7 +1066,7 @@ def test_open_direct_authoring_mode_without_approved_facts(
                 {
                     "id": "img_bank",
                     "type": "image",
-                    "layout": "top_left",
+                    "layout": "center",
                     "asset_id": "bank_logo",
                 },
                 {
@@ -1070,12 +1079,15 @@ def test_open_direct_authoring_mode_without_approved_facts(
                 },
             ],
             "events": [
-                {"action": "enter", "target_id": "card_hero", "anchor": "50 lakh"},
-                {"action": "enter", "target_id": "num_rate", "anchor": "8.5 percent"},
-                {"action": "enter", "target_id": "txt_note", "anchor": "starts at"},
+                {"action": "enter", "target_id": "img_bank", "anchor": "A"},
+                {"action": "exit", "target_id": "img_bank", "anchor": "50"},
+                {"action": "enter", "target_id": "card_hero", "anchor": "home"},
+                {"action": "enter", "target_id": "num_rate", "anchor": "home"},
+                {"action": "connect", "target_id": "conn_hero_rate", "anchor": "loan"},
+                {"action": "exit", "target_id": "card_hero", "anchor": "starts"},
+                {"action": "exit", "target_id": "num_rate", "anchor": "starts"},
+                {"action": "enter", "target_id": "txt_note", "anchor": "8.5 percent"},
                 {"action": "enter", "target_id": "chart_repay", "anchor": "interest"},
-                {"action": "enter", "target_id": "img_bank", "anchor": "rupee"},
-                {"action": "enter", "target_id": "conn_hero_rate", "anchor": "home loan"},
             ],
         },
     )

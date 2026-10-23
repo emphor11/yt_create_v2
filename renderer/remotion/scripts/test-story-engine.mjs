@@ -403,7 +403,7 @@ const wideChartPlan = {
   width: 1920,
   height: 1080,
   objects: [
-    { id: "left_card", type: "card", layout: "center_left", cardProps: { title: "Left Card" } },
+    { id: "left_card", type: "card", layout: "split_left", width: 600, cardProps: { title: "Left Card" } },
     { id: "wide_chart", type: "chart", layout: "center", width: 850, chartProps: { chartType: "trajectory_area" } },
   ],
   events: [
@@ -447,16 +447,16 @@ const moveDuringExitPlan = {
   width: 1920,
   height: 1080,
   objects: [
-    { id: "card_exiting", type: "card", layout: "center_left", cardProps: { title: "Exiting Card" } },
-    { id: "card_incoming", type: "card", layout: "center_right", cardProps: { title: "Incoming Card" } },
+    { id: "card_exiting", type: "card", layout: "split_left", cardProps: { title: "Exiting Card" } },
+    { id: "card_incoming", type: "card", layout: "split_right", cardProps: { title: "Incoming Card" } },
   ],
   events: [
     { action: "enter", targetId: "card_exiting", startFrame: 0, durationFrames: 10 },
     { action: "enter", targetId: "card_incoming", startFrame: 0, durationFrames: 10 },
     // card_exiting exits from frame 50 to 75
     { action: "exit", targetId: "card_exiting", startFrame: 50, durationFrames: 25, direction: "left" },
-    // card_incoming moves into center_left at frame 60 (before exit finishes at 75!)
-    { action: "move", targetId: "card_incoming", startFrame: 60, durationFrames: 20, to: "center_left" },
+    // card_incoming moves into split_left at frame 60 (before exit finishes at 75!)
+    { action: "move", targetId: "card_incoming", startFrame: 60, durationFrames: 20, to: "split_left" },
   ],
 };
 const resMoveExit = validateStoryPlan(moveDuringExitPlan);
@@ -473,8 +473,8 @@ const sequentialReusePlan = {
   width: 1920,
   height: 1080,
   objects: [
-    { id: "first_card", type: "card", layout: "center_left", cardProps: { title: "First Card" } },
-    { id: "second_card", type: "card", layout: "center_left", cardProps: { title: "Second Card" } },
+    { id: "first_card", type: "card", layout: "split_left", cardProps: { title: "First Card" } },
+    { id: "second_card", type: "card", layout: "split_left", cardProps: { title: "Second Card" } },
   ],
   events: [
     { action: "enter", targetId: "first_card", startFrame: 0, durationFrames: 10 },
@@ -507,7 +507,7 @@ const charTestPlan = {
     {
       id: "worker",
       type: "character",
-      layout: "center_left",
+      layout: "split_left",
       characterProps: {
         style: "futuristic_stick",
         role: "salaried employee",
@@ -521,7 +521,7 @@ const charTestPlan = {
     {
       id: "wealth_card",
       type: "card",
-      layout: "center_right",
+      layout: "split_right",
       cardProps: {
         title: "Retirement Fund",
         subtitle: "Target 2050",
@@ -644,13 +644,13 @@ const overlapCharPlan = {
     {
       id: "worker",
       type: "character",
-      layout: "center_left",
+      layout: "split_left",
       characterProps: { style: "futuristic_stick", role: "worker", pose: "idle", facing: "right" },
     },
     {
       id: "colliding_card",
       type: "card",
-      layout: "center_left", // Same zone simultaneously!
+      layout: "split_left", // Same zone simultaneously!
       cardProps: { title: "Colliding Card" },
     },
   ],
@@ -896,7 +896,7 @@ if (crossRes.valid || !crossRes.errors.some((e) => e.code === "DIVIDER_CROSSING_
 }
 console.log("✓ Caught and rejected layout crossing center divider (DIVIDER_CROSSING_COLLISION).");
 
-// 13.7: full_screen, full_top, and full_bottom conflicting with split_left/split_right
+// 13.7: full_screen and macro layout conflicting with split_left/split_right
 const macroSplitConflictPlan = {
   id: "macro_split_conflict_plan",
   fps: 30,
@@ -944,9 +944,300 @@ if (!invalidDestFailed) {
 }
 console.log("✓ Generic or invalid split layout names strictly fail loudly (INVALID_LAYOUT_ZONE).");
 
+// 13.9: Layout reduction to 5 professional compositions
+console.log("\n--- TEST 13.9: 5-Layout Reduction Suite (center, split_left, split_right, full_screen, full_bottom) ---");
+const REMOVED_LAYOUTS = [
+  "top_left", "top_center", "top_right",
+  "center_left", "center_right",
+  "bottom_left", "bottom_center", "bottom_right",
+  "full_top",
+];
+
+// H.1: All 9 removed layouts fail loudly with INVALID_LAYOUT_ZONE
+for (const removed of REMOVED_LAYOUTS) {
+  let failed = false;
+  try {
+    resolveLayouts([{ id: "test", type: "card", layout: removed }], 1920, 1080, 80);
+  } catch (e) {
+    if (e.message.includes("INVALID_LAYOUT_ZONE")) failed = true;
+  }
+  if (!failed) {
+    throw new Error(`FAIL: Removed layout '${removed}' must fail loudly with INVALID_LAYOUT_ZONE in resolveLayouts!`);
+  }
+  const testPlan = {
+    id: `removed_${removed}`,
+    fps: 30,
+    durationInFrames: 60,
+    width: 1920,
+    height: 1080,
+    objects: [{ id: "c", type: "card", layout: removed, cardProps: { title: "C" } }],
+    events: [{ action: "enter", targetId: "c", startFrame: 0, durationFrames: 10 }],
+  };
+  const res = validateStoryPlan(testPlan);
+  if (res.valid || !res.errors.some((e) => e.code === "INVALID_LAYOUT_ZONE")) {
+    throw new Error(`FAIL: Removed layout '${removed}' must fail validation with INVALID_LAYOUT_ZONE!`);
+  }
+}
+console.log("✓ All 9 removed layouts fail loudly with INVALID_LAYOUT_ZONE.");
+
+// H.2: All 5 allowed layouts succeed in resolveLayouts
+const ALLOWED_LAYOUTS = ["center", "split_left", "split_right", "full_screen", "full_bottom"];
+for (const allowed of ALLOWED_LAYOUTS) {
+  const geomMap = resolveLayouts([{ id: "ok", type: "card", layout: allowed }], 1920, 1080, 80);
+  if (!geomMap.has("ok")) {
+    throw new Error(`FAIL: Allowed layout '${allowed}' failed to resolve!`);
+  }
+}
+console.log("✓ All 5 allowed layouts resolve successfully.");
+
+// H.3: Valid composition: loan_card (split_left), emi_card (split_right), burden_number (center) coexists cleanly
+const validTriCompositionPlan = {
+  id: "valid_tri_composition",
+  fps: 30,
+  durationInFrames: 100,
+  width: 1920,
+  height: 1080,
+  objects: [
+    { id: "loan_card", type: "card", layout: "split_left", width: 420, height: 240, cardProps: { title: "Loan" } },
+    { id: "emi_card", type: "card", layout: "split_right", width: 420, height: 240, cardProps: { title: "EMI" } },
+    { id: "burden_number", type: "number", layout: "center", width: 340, height: 160, numberProps: { value: 1560000, format: "currency_inr" } },
+  ],
+  events: [
+    { action: "enter", targetId: "loan_card", startFrame: 10, durationFrames: 10 },
+    { action: "enter", targetId: "emi_card", startFrame: 10, durationFrames: 10 },
+    { action: "enter", targetId: "burden_number", startFrame: 10, durationFrames: 10 },
+  ],
+};
+const resTri = validateStoryPlan(validTriCompositionPlan);
+if (!resTri.valid) {
+  console.error("Tri-composition validation errors:", resTri.errors);
+  throw new Error("FAIL: loan_card (split_left) + emi_card (split_right) + burden_number (center) should coexist with zero collisions!");
+}
+console.log("✓ Valid tri-composition (split_left + center + split_right) coexists cleanly with zero collisions.");
+
+// H.9: Move targeting removed layout fails with INVALID_MOVE_ZONE
+const badMovePlan = {
+  id: "bad_move_plan",
+  fps: 30,
+  durationInFrames: 100,
+  width: 1920,
+  height: 1080,
+  objects: [
+    { id: "c", type: "card", layout: "center", cardProps: { title: "C" } },
+  ],
+  events: [
+    { action: "enter", targetId: "c", startFrame: 0, durationFrames: 10 },
+    { action: "move", targetId: "c", startFrame: 20, durationFrames: 10, to: "top_left" },
+  ],
+};
+const resBadMove = validateStoryPlan(badMovePlan);
+if (resBadMove.valid || !resBadMove.errors.some((e) => e.code === "INVALID_MOVE_ZONE")) {
+  throw new Error("FAIL: Move to removed layout must fail with INVALID_MOVE_ZONE!");
+}
+console.log("✓ Move action targeting removed layout rejected with INVALID_MOVE_ZONE.");
+
+// ----------------------------------------------------
+// TEST 14: Stock Video Primitive & Hard-Cut B-Roll Choreography
+// ----------------------------------------------------
+console.log("\n--- TEST 14: Stock Video Primitive & Hard-Cut B-Roll Choreography ---");
+
+// 14.1: Valid vertical-slice stock video story
+const validStockVideoPlan = {
+  id: "stock_video_story_plan",
+  fps: 30,
+  durationInFrames: 120,
+  width: 1920,
+  height: 1080,
+  safeMargin: 80,
+  objects: [
+    {
+      id: "card_before",
+      type: "card",
+      layout: "center",
+      cardProps: { title: "Bank Problem", displayValue: "₹50 Lakh" },
+    },
+    {
+      id: "broll_footage",
+      type: "stock_video",
+      layout: "full_screen",
+      stockVideoProps: {
+        assetId: "assets/broll_bank.mp4",
+        fit: "cover",
+        caption: "Central Financial District",
+      },
+    },
+    {
+      id: "card_after",
+      type: "card",
+      layout: "center",
+      cardProps: { title: "Payment Result", displayValue: "₹88.4 Lakh" },
+    },
+  ],
+  events: [
+    { action: "enter", targetId: "card_before", startFrame: 0, durationFrames: 25 },
+    { action: "exit", targetId: "card_before", startFrame: 30, durationFrames: 0, direction: "cut" },
+    { action: "enter", targetId: "broll_footage", startFrame: 30, durationFrames: 0, style: "cut" },
+    { action: "exit", targetId: "broll_footage", startFrame: 70, durationFrames: 0, direction: "cut" },
+    { action: "enter", targetId: "card_after", startFrame: 70, durationFrames: 25 },
+  ],
+};
+
+const svPlanValidation = validateStoryPlan(validStockVideoPlan);
+if (!svPlanValidation.valid) {
+  throw new Error(`FAIL: Valid stock video plan should pass validation! Errors: ${JSON.stringify(svPlanValidation.errors)}`);
+}
+console.log("✓ Valid vertical-slice stock video story plan passed validation.");
+
+// 14.2: Layout Resolution: stock_video must occupy full 1920x1080 canvas
+const svLayouts = resolveLayouts(validStockVideoPlan.objects, 1920, 1080, 80);
+const svGeom = svLayouts.get("broll_footage");
+if (!svGeom || svGeom.x !== 0 || svGeom.y !== 0 || svGeom.width !== 1920 || svGeom.height !== 1080) {
+  throw new Error(`FAIL: stock_video must resolve to full canvas (0, 0, 1920, 1080), got ${JSON.stringify(svGeom)}`);
+}
+console.log("✓ stock_video resolved to exact full canvas (0, 0, 1920, 1080).");
+
+// 14.3: Temporal Frame State Evaluation: Hard cut in and out with zero transition lag
+// Frame 29 (enterFrame - 1): card_before visible, broll_footage invisible
+const f29 = evaluateFrame(validStockVideoPlan, svLayouts, 29);
+const cb29 = f29.objects.get("card_before");
+const sv29 = f29.objects.get("broll_footage");
+if (!cb29?.isEntered || cb29.opacity !== 1) {
+  throw new Error(`FAIL: card_before must be visible at frame 29 (got opacity ${cb29?.opacity})`);
+}
+if (sv29?.isEntered || sv29?.opacity !== 0) {
+  throw new Error(`FAIL: broll_footage must be invisible at frame 29 (got opacity ${sv29?.opacity})`);
+}
+console.log("✓ Frame 29 (enterFrame - 1): Card before visible, stock video completely invisible.");
+
+// Frame 30 (enterFrame): broll_footage visible IMMEDIATELY (hard cut, duration 0), card_before invisible
+const f30 = evaluateFrame(validStockVideoPlan, svLayouts, 30);
+const cb30 = f30.objects.get("card_before");
+const sv30 = f30.objects.get("broll_footage");
+if (cb30?.isEntered || cb30?.opacity !== 0) {
+  throw new Error(`FAIL: card_before must be invisible at frame 30 upon cut exit (got opacity ${cb30?.opacity})`);
+}
+if (!sv30?.isEntered || sv30.opacity !== 1 || sv30.translateY !== 0 || sv30.scale !== 1) {
+  throw new Error(`FAIL: broll_footage must have immediate 100% opacity, translateY 0, scale 1 at frame 30 (hard cut)!`);
+}
+console.log("✓ Frame 30 (enterFrame): Hard-cut entrance verified (opacity: 1, translateY: 0, scale: 1).");
+
+// Frame 50 (middle of video): broll_footage visible, cards invisible
+const f50 = evaluateFrame(validStockVideoPlan, svLayouts, 50);
+const sv50 = f50.objects.get("broll_footage");
+if (!sv50?.isEntered || sv50.opacity !== 1) {
+  throw new Error(`FAIL: broll_footage must remain visible at frame 50`);
+}
+console.log("✓ Frame 50 (mid video): Stock video playing with full visibility.");
+
+// Frame 69 (exitFrame - 1): broll_footage still visible
+const f69 = evaluateFrame(validStockVideoPlan, svLayouts, 69);
+const sv69 = f69.objects.get("broll_footage");
+if (!sv69?.isEntered || sv69.opacity !== 1) {
+  throw new Error(`FAIL: broll_footage must remain visible at frame 69`);
+}
+console.log("✓ Frame 69 (exitFrame - 1): Stock video persists until final frame before cut.");
+
+// Frame 70 (exitFrame): broll_footage invisible IMMEDIATELY (hard cut out), card_after enters
+const f70 = evaluateFrame(validStockVideoPlan, svLayouts, 70);
+const sv70 = f70.objects.get("broll_footage");
+const ca70 = f70.objects.get("card_after");
+if (sv70?.isEntered || sv70?.opacity !== 0) {
+  throw new Error(`FAIL: broll_footage must be invisible immediately at frame 70 upon hard cut exit (got opacity ${sv70?.opacity})`);
+}
+if (!ca70?.isEntered) {
+  throw new Error(`FAIL: card_after must enter at frame 70`);
+}
+console.log("✓ Frame 70 (exitFrame): Hard-cut exit verified (opacity: 0, isEntered: false).");
+
+// 14.4: Negative: Non-fullscreen layout rejection
+let badLayoutCaught = false;
+try {
+  resolveLayouts([{ id: "bad_sv", type: "stock_video", layout: "center" }], 1920, 1080, 80);
+} catch (e) {
+  if (e.message.includes("STOCK_VIDEO_INVALID_LAYOUT")) badLayoutCaught = true;
+}
+if (!badLayoutCaught) {
+  throw new Error("FAIL: stock_video with layout != full_screen must throw STOCK_VIDEO_INVALID_LAYOUT!");
+}
+console.log("✓ Caught and rejected non-fullscreen stock video layout (STOCK_VIDEO_INVALID_LAYOUT).");
+
+// 14.5: Negative: Missing exit event rejection
+const missingExitSvPlan = {
+  ...validStockVideoPlan,
+  id: "missing_exit_sv",
+  events: [
+    { action: "enter", targetId: "broll_footage", startFrame: 10, durationFrames: 0, style: "cut" },
+  ],
+};
+const missingExitRes = validateStoryPlan(missingExitSvPlan);
+if (missingExitRes.valid || !missingExitRes.errors.some((e) => e.code === "STOCK_VIDEO_EVENT_COUNT")) {
+  throw new Error("FAIL: stock_video without exit event must be rejected (STOCK_VIDEO_EVENT_COUNT)");
+}
+console.log("✓ Caught and rejected stock video missing exit event (STOCK_VIDEO_EVENT_COUNT).");
+
+// 14.6: Negative: Non-cut transitions rejection
+const nonCutSvPlan = {
+  ...validStockVideoPlan,
+  id: "non_cut_sv",
+  events: [
+    { action: "enter", targetId: "broll_footage", startFrame: 10, durationFrames: 25, style: "fade" },
+    { action: "exit", targetId: "broll_footage", startFrame: 60, durationFrames: 24, direction: "fade" },
+  ],
+};
+const nonCutRes = validateStoryPlan(nonCutSvPlan);
+if (nonCutRes.valid || !nonCutRes.errors.some((e) => e.code === "STOCK_VIDEO_INVALID_TRANSITION")) {
+  throw new Error("FAIL: stock_video with fade transitions must be rejected (STOCK_VIDEO_INVALID_TRANSITION)");
+}
+console.log("✓ Caught and rejected stock video with non-cut transitions (STOCK_VIDEO_INVALID_TRANSITION).");
+
+// 14.7: Negative: Overlapping surface elements during stock video
+const overlappingSvPlan = {
+  ...validStockVideoPlan,
+  id: "overlapping_sv",
+  events: [
+    { action: "enter", targetId: "card_before", startFrame: 10, durationFrames: 25 },
+    { action: "exit", targetId: "card_before", startFrame: 50, durationFrames: 24, direction: "fade" },
+    { action: "enter", targetId: "broll_footage", startFrame: 20, durationFrames: 0, style: "cut" },
+    { action: "exit", targetId: "broll_footage", startFrame: 60, durationFrames: 0, direction: "cut" },
+  ],
+};
+const overlappingRes = validateStoryPlan(overlappingSvPlan);
+if (overlappingRes.valid || !overlappingRes.errors.some((e) => e.code === "MACRO_LAYOUT_COLLISION")) {
+  throw new Error("FAIL: surface element overlapping stock video must be rejected (MACRO_LAYOUT_COLLISION)");
+}
+console.log("✓ Caught and rejected surface element overlapping stock video (MACRO_LAYOUT_COLLISION).");
+
+// 14.8: Negative: Active connector during stock video
+const connOverlappingSvPlan = {
+  id: "conn_overlapping_sv",
+  fps: 30,
+  durationInFrames: 100,
+  width: 1920,
+  height: 1080,
+  objects: [
+    { id: "ca", type: "card", layout: "split_left", cardProps: { title: "A" } },
+    { id: "cb", type: "card", layout: "split_right", cardProps: { title: "B" } },
+    { id: "conn_ab", type: "connector", layout: "center", connectorProps: { fromId: "ca", toId: "cb", label: "Relates" } },
+    { id: "sv_broll", type: "stock_video", layout: "full_screen", stockVideoProps: { assetId: "assets/broll.mp4" } },
+  ],
+  events: [
+    { action: "enter", targetId: "ca", startFrame: 0, durationFrames: 10 },
+    { action: "enter", targetId: "cb", startFrame: 0, durationFrames: 10 },
+    { action: "connect", targetId: "conn_ab", startFrame: 5, durationFrames: 10 },
+    { action: "enter", targetId: "sv_broll", startFrame: 10, durationFrames: 0, style: "cut" },
+    { action: "exit", targetId: "sv_broll", startFrame: 50, durationFrames: 0, direction: "cut" },
+  ],
+};
+const connOverlapRes = validateStoryPlan(connOverlappingSvPlan);
+if (connOverlapRes.valid || !connOverlapRes.errors.some((e) => e.code === "STOCK_VIDEO_CONNECTOR_COLLISION")) {
+  throw new Error("FAIL: connector active during stock video must be rejected (STOCK_VIDEO_CONNECTOR_COLLISION)");
+}
+console.log("✓ Caught and rejected connector active during stock video (STOCK_VIDEO_CONNECTOR_COLLISION).");
+
 console.log("\n==================================================");
 console.log("ALL ADVANCED PROTOCOL TESTS PASSED CLEANLY!");
 console.log("==================================================");
+
 
 
 

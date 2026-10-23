@@ -69,33 +69,14 @@ def _format_inr(val: float | int) -> str:
     return "₹" + ",".join(parts) + "," + last3
 
 
-def _normalize_zone(val: Any, default: str = "center") -> str:
-    """Safely normalizes arbitrary layout inputs into one of the 12 strict ZoneNames."""
-    if isinstance(val, str):
-        if val in VALID_ZONES:
-            return val
-        aliases = {
-            "left": "center_left",
-            "right": "center_right",
-            "top": "top_center",
-            "bottom": "bottom_center",
-            "split-left": "split_left",
-            "split-right": "split_right",
-            "split_left_half": "split_left",
-            "split_right_half": "split_right",
-        }
-        if val in aliases:
-            return aliases[val]
-    if isinstance(val, dict):
-        if "right_of" in val:
-            return "center_right"
-        if "left_of" in val:
-            return "center_left"
-        if "below" in val:
-            return "bottom_center"
-        if "above" in val:
-            return "top_center"
-    return default
+def _normalize_zone(val: Any) -> str:
+    """Validates zone name against the 5 allowed layouts.
+    Never silently converts removed or unknown layouts to center.
+    Fails loudly with ValueError('INVALID_LAYOUT_ZONE: ...') if invalid or unknown.
+    """
+    if isinstance(val, str) and val in VALID_ZONES:
+        return val
+    raise ValueError(f"INVALID_LAYOUT_ZONE: Layout zone '{val}' is invalid. Allowed layouts: {sorted(VALID_ZONES)}")
 
 
 def _safe_contract_repair(payload: dict[str, Any]) -> dict[str, Any]:
@@ -351,7 +332,7 @@ def format_programmatic_repair_prompt(
                     f"     - Zone '{zone}' is occupied by '{other_id}' during {s_sec} to {e_sec} ({s_ms}ms–{e_ms}ms).\n"
                     f"   Required fix:\n"
                     f"     Two elements cannot occupy the same zone at the same time.\n"
-                    f"     Option A: Place '{target_id}' into a different, free zone (e.g. left, right, top_left, top_right, bottom_left, bottom_right, center).\n"
+                    f"     Option A: Place '{target_id}' into a different, free zone (e.g. split_left, split_right, center, full_bottom).\n"
                     f"     Option B: Add an explicit 'exit' event to remove '{other_id}' before '{target_id}' enters zone '{zone}'.\n"
                 )
             elif code == "MACRO_LAYOUT_COLLISION":
@@ -428,84 +409,13 @@ def build_continuous_story_prompt(
             strat_json = str(visual_strategy)
         strategy_str = f"VISUAL STRATEGY:\n{strat_json}\n\n"
 
-    facts_str = ""
-    if approved_facts:
-        semantic_registry: dict[str, dict[str, Any]] = {}
-        for fid, fval in approved_facts.items():
-            if isinstance(fval, dict):
-                val = fval.get("value")
-                fmt = fval.get("format", "plain")
-                meaning = fval.get("meaning") or fval.get("label") or fid
-                display = fval.get("display")
-                if not display:
-                    if fmt == "currency_inr" and isinstance(val, (int, float)):
-                        display = _format_inr(val)
-                    elif fmt == "percentage" and isinstance(val, (int, float)):
-                        display = f"{val}%"
-                    elif fmt == "basis_points" and isinstance(val, (int, float)):
-                        display = f"{val} bps"
-                    else:
-                        display = str(val) if val is not None else "chart_data"
-                allowed_use = fval.get("allowed_use", ["card_value", "transform_target"])
-                semantic_registry[fid] = {
-                    "meaning": meaning,
-                    "display": display,
-                    "format": fmt,
-                    "allowed_use": allowed_use,
-                }
-            else:
-                semantic_registry[fid] = {
-                    "meaning": str(fval),
-                    "display": str(fval),
-                    "format": "plain",
-                    "allowed_use": ["card_value"],
-                }
-        registry_json_str = json.dumps(semantic_registry, indent=2, ensure_ascii=False)
-        fact_ids_str = ", ".join(repr(fid) for fid in approved_facts) or "(none)"
-        facts_str = f"SEMANTIC FACT REGISTRY (Reference):\n```json\n{registry_json_str}\n```\n\nAPPROVED FACT IDS: {fact_ids_str}\n\n"
-
     user_prompt = (
         f"STORY ID: {story_id}\n\n"
         f"NARRATION TEXT (Spoken Audio Track):\n"
         f"\"{narration_text}\"\n\n"
         f"{strategy_str}"
-        f"{facts_str}"
         f"AVAILABLE IMAGE ASSETS:\n{assets_str}\n\n"
-        "OPEN DIRECT-AUTHORING MODE INSTRUCTIONS:\n"
-        "Decide which visual primitive best communicates each narration beat across the continuous scene:\n"
-        "1. 'card': For key entities, metric cards, or concept blocks. Directly author 'title', 'display_value' (e.g. '₹50 Lakhs', '8.5%', '+₹15.6 Lakhs'), 'subtitle' (concise 2–6 words), and optionally 'numeric_value' (e.g. 5000000, 8.5 for quantitative cards), 'badge', 'visual_state', 'accent', 'layout'. Every card MUST have title, display_value, and subtitle.\n"
-        "2. 'number': For standalone dramatic numeric callouts. Directly author 'display_value', 'numeric_value', 'purpose', 'layout'.\n"
-        "3. 'text': For standalone quotes, definitions, question banners, or chapter labels. Directly author 'text', 'purpose', 'layout'.\n"
-        "4. 'chart': For trajectories, comparisons, distributions. You MUST directly author non-empty 'points' (e.g. [{\"xLabel\": \"Year 1\", \"yValue\": 100}, ...]) or 'series'. Directly author 'chart_type' ('trajectory_area', 'split_bar', 'multi_bar', 'stack'), 'title', 'subtitle', 'layout'.\n"
-        "5. 'image': For visual proof, real-world context, institutions, or physical assets (e.g. bank building, stock exchange floor, investment firm office). Layout must be a grid zone (e.g. 'center_left', 'center_right', 'center'). Do NOT use 'full_screen' when cards, numbers, or characters are visible. Request an image by providing 'asset_request': {'query': '<specific descriptive search phrase, e.g. modern bank exterior, no visible logo>', 'orientation': 'landscape', 'style': 'photo'}. Gemini must not invent asset IDs or URLs — the asset resolver searches Pexels/Pixabay and downloads the image automatically.\n"
-        "6. 'connector': For causal flow between surface objects. Provide 'from_id', 'to_id', 'label', 'layout'. Never include card, number, or visual-state fields on connectors.\n"
-        "7. 'character': For representing the human experiencing the financial decision (salaried employee, home buyer, investor). Directly author 'character_style' ('futuristic_stick'), 'role', 'pose' ('idle', 'walk', 'point', 'think', 'worried', 'celebrate'), 'facing' ('left', 'right'), and optionally 'emotion' ('neutral', 'focused', 'concerned', 'surprised', 'happy'), 'accent', 'layout'. Never include card, number, chart, or image fields on characters.\n\n"
-        "PROFESSIONAL COMPOSITION REQUIREMENTS:\n"
-        "- Do not make the story card-only. If two or more cards are present, include at least one supporting primitive that adds a different visual language.\n"
-        "- Use an 'image' when the narration describes real-world institutions, banks, stock exchanges, corporate offices, or physical assets to visually ground the scene.\n"
-        "- Use a standalone 'number' for the most important numeric reveal; do not bury every major number inside a card.\n"
-        "- Use a 'connector' when the narration expresses cause, consequence, flow, conversion, erosion, or a relationship between two visible objects. Declare the connector object and a separate 'connect' event.\n"
-        "- Use a 'chart' when the narration describes change over time, compounding, growth, decline, comparison, a gap, a trajectory, or multiple years. Directly author the points or series from the narration.\n"
-        "- Use a 'character' when the narration describes a person, household, worker, borrower, investor, customer, family, or emotional reaction. Add at least one later 'change_pose' event when the person experiences a meaningful consequence.\n"
-        "- Use standalone 'text' for a hook, question, definition, quote, or chapter transition when that communicates better than a card.\n"
-        "- A card is supporting context; it is not the default for every sentence. Prefer a varied sequence such as character -> card -> number -> connector -> chart -> reaction.\n"
-        "- Every declared object must earn its place in the narration. Do not add decorative elements merely to satisfy variety.\n"
-        "- Before returning JSON, count the primitive types and confirm the composition is not card-only and that every major visual claim has the appropriate primitive.\n\n"
-        "AVAILABLE MOTION ACTIONS:\n"
-        "- 'enter': target_id, anchor (exact spoken phrase)\n"
-        "- 'exit': target_id, direction ('left', 'right', 'up', 'down', 'fade'), anchor\n"
-        "- 'move': target_id, to (zone), anchor\n"
-        "- 'transform_number': target_id, to_display_value (e.g. '₹1.38 Cr'), to_numeric_value (13800000), anchor\n"
-        "- 'change_visual_state': target_id, state ('normal', 'dimmed', 'warning', 'danger', 'success', 'eroded'), badge, anchor\n"
-        "- 'change_pose': target_id (character id), pose ('idle', 'walk', 'point', 'think', 'worried', 'celebrate'), emotion, facing, anchor\n"
-        "- 'connect': target_id (connector id), anchor\n"
-        "- 'highlight': target_id, anchor\n\n"
-        "SPATIAL LAYOUT ZONES:\n"
-        "- Grid zones: top_left, top_center, top_right, center_left, center, center_right, bottom_left, bottom_center, bottom_right\n"
-        "- Macro zones: full_screen, full_top, full_bottom\n"
-        "- Split-screen zones: split_left, split_right (use when comparing two subjects, cause vs consequence, person vs institution, or two simultaneous visual ideas e.g. bank image -> split_left, interest card -> split_right)\n"
-        "- Prevent stacking: Do not enter a surface into an occupied zone without an exit.\n\n"
-        "Output strictly valid ContinuousStoryDraft JSON following all rules."
+        "The system prompt above is the single authoritative contract. Use direct-authoring mode, exact spoken anchors, and the editorial beat requirements. Return the complete ContinuousStoryDraft JSON only."
     )
     return system_prompt, user_prompt
 
@@ -677,10 +587,11 @@ class ContinuousStoryEngine:
         draft: ContinuousStoryDraft,
         project_id: str,
         available_assets: list[str],
+        word_timestamps: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
         """
-        Resolves ImageAssetRequests on image objects in the draft.
-        Attaches resolved asset_id to each image and populates available_assets.
+        Resolves ImageAssetRequests on image objects and VideoAssetRequests on stock_video objects in the draft.
+        Attaches resolved asset_id to each image/video and populates available_assets.
         """
         resolved_records: list[dict[str, Any]] = []
         for obj in draft.objects:
@@ -717,6 +628,57 @@ class ContinuousStoryEngine:
                 else:
                     raise ContinuousStoryEngineError(
                         f"Stage 7 failed: IMAGE_ASSET_REQUEST_MISSING: Image '{obj.id}' has neither asset_request nor asset_id."
+                    )
+
+            elif obj.type == "stock_video":
+                # Compute required duration if word_timestamps available
+                required_duration = None
+                if word_timestamps:
+                    enter_ev = next((e for e in draft.events if e.action == "enter" and e.target_id == obj.id), None)
+                    exit_ev = next((e for e in draft.events if e.action == "exit" and e.target_id == obj.id), None)
+                    if enter_ev and exit_ev:
+                        try:
+                            from engines.continuous_story_compiler import resolve_anchor_ms
+                            s_ms = resolve_anchor_ms(word_timestamps, enter_ev.anchor)
+                            e_ms = resolve_anchor_ms(word_timestamps, exit_ev.anchor)
+                            if e_ms > s_ms:
+                                required_duration = (e_ms - s_ms) / 1000.0
+                        except Exception:
+                            pass
+
+                if obj.asset_request is not None:
+                    try:
+                        resolved = self.asset_resolver.resolve_video_asset(
+                            obj.asset_request,
+                            object_id=obj.id,
+                            project_id=project_id,
+                            required_duration_seconds=required_duration,
+                        )
+                    except ContinuousStoryAssetResolverError as res_err:
+                        raise ContinuousStoryEngineError(
+                            f"Stage 7 failed: {res_err}",
+                        ) from res_err
+                    except Exception as err:
+                        raise ContinuousStoryEngineError(
+                            f"Stage 7 failed: VIDEO_DOWNLOAD_FAILED: {err}",
+                        ) from err
+
+                    obj.asset_id = resolved.asset_id
+                    resolved_records.append(resolved.to_dict())
+                    if resolved.asset_id not in available_assets:
+                        available_assets.append(resolved.asset_id)
+                elif obj.asset_id and obj.asset_id.strip():
+                    if available_assets and obj.asset_id not in available_assets:
+                        raise ContinuousStoryEngineError(
+                            f"Stage 7 failed: UNKNOWN_ASSET_ID: stock_video '{obj.id}' references unknown asset_id '{obj.asset_id}'. Available: {sorted(available_assets)}"
+                        )
+                    elif not available_assets:
+                        raise ContinuousStoryEngineError(
+                            f"Stage 7 failed: UNKNOWN_ASSET_ID: stock_video '{obj.id}' references asset_id '{obj.asset_id}', but available_assets is empty."
+                        )
+                else:
+                    raise ContinuousStoryEngineError(
+                        f"Stage 7 failed: VIDEO_ASSET_REQUEST_MISSING: stock_video '{obj.id}' has neither asset_request nor asset_id."
                     )
         return resolved_records
 
@@ -775,6 +737,7 @@ class ContinuousStoryEngine:
                 draft=draft,
                 project_id=project_id,
                 available_assets=available_assets_list,
+                word_timestamps=word_timestamps_raw,
             )
 
             draft_validation = validate_story_draft(
@@ -814,7 +777,7 @@ class ContinuousStoryEngine:
                 schema_name="ContinuousStoryDraft",
                 response_schema=draft_schema,
                 temperature=0.0,
-                max_tokens=8192,
+                max_tokens=32768,
             )
             response = self.llm_provider.generate_json(req)
             raw_gemini_payload = response.payload
@@ -843,7 +806,7 @@ class ContinuousStoryEngine:
                     schema_name="ContinuousStoryDraftRepair",
                     response_schema=draft_schema,
                     temperature=0.0,
-                    max_tokens=8192,
+                    max_tokens=32768,
                 )
                 repaired = self.llm_provider.generate_json(repair_req)
                 raw_gemini_payload = repaired.payload
@@ -863,6 +826,7 @@ class ContinuousStoryEngine:
                 draft=draft,
                 project_id=project_id,
                 available_assets=available_assets_list,
+                word_timestamps=word_timestamps_raw,
             )
 
             # 4. Run pre-compilation draft validation (occupancy & temporal simulation) with iterative repair
@@ -907,7 +871,7 @@ class ContinuousStoryEngine:
                     schema_name=f"ContinuousStoryDraftTemporalRepair_{attempt + 1}",
                     response_schema=draft_schema,
                     temperature=0.0,
-                    max_tokens=8192,
+                    max_tokens=32768,
                 )
                 repaired = self.llm_provider.generate_json(repair_req)
                 raw_gemini_payload = repaired.payload
@@ -926,6 +890,7 @@ class ContinuousStoryEngine:
                     draft=draft,
                     project_id=project_id,
                     available_assets=available_assets_list,
+                    word_timestamps=word_timestamps_raw,
                 )
 
             # Preflight report on successful candidate

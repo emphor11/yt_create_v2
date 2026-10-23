@@ -241,6 +241,11 @@ export function evaluateFrame(
           translateY = 24;
           baseScale = 0.95;
           isEntered = false;
+        } else if (enterEvent.style === "cut" || enterEvent.durationFrames === 0) {
+          opacity = 1;
+          translateY = 0;
+          baseScale = 1;
+          isEntered = true;
         } else if (frame < enterEvent.startFrame + enterEvent.durationFrames) {
           const p = interpolate(
             frame,
@@ -482,7 +487,12 @@ export function evaluateFrame(
     // 9. Exit actions (Directional slide out & fade)
     const exitEvents = targetEvents.filter((e): e is ExitAction => e.action === "exit");
     for (const exit of exitEvents) {
-      if (frame >= exit.startFrame + exit.durationFrames) {
+      if (exit.direction === "cut" || exit.durationFrames === 0) {
+        if (frame >= exit.startFrame) {
+          opacity = 0;
+          isEntered = false;
+        }
+      } else if (frame >= exit.startFrame + exit.durationFrames) {
         opacity = 0;
         isEntered = false;
         if (exit.direction === "left") curX -= 400;

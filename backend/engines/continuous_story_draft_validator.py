@@ -13,7 +13,7 @@ CRITICAL ARCHITECTURAL PIPELINE FLOW:
 NEVER call validate_story_draft() on an unparsed dictionary.
 
 Enforces 16 strict pre-compilation rules:
-1. Every layout is a valid ZoneName (9 grid zones + 3 macro layouts).
+1. Every layout is one of the 5 allowed layouts: center, split_left, split_right, full_screen, full_bottom.
 2. Every object has a unique ID.
 3. Every fact ID (fact_id, value_fact_id) exists in approved_facts.
 4. 'number' and card metrics reference numeric facts.
@@ -28,7 +28,7 @@ Enforces 16 strict pre-compilation rules:
 13. 'change_visual_state' strictly targets 'card' elements.
 14. 'exit' actions require a valid direction ('left', 'right', 'up', 'down', 'fade').
 15. TEMPORAL SPATIAL OCCUPANCY: Two surface elements cannot occupy the same zone simultaneously.
-16. MACRO LAYOUT EXCLUSIVITY: full_screen requires exclusive canvas; full_top and full_bottom cannot conflict with their respective regional zones.
+16. MACRO & BOUNDARY EXCLUSIVITY: full_screen requires exclusive canvas; full_bottom cannot conflict with subtitle clearance or active surfaces.
 """
 from __future__ import annotations
 
@@ -41,42 +41,23 @@ from domain.continuous_story_plan import ContinuousStoryDraft
 
 
 VALID_ZONES = {
-    "top_left",
-    "top_center",
-    "top_right",
-    "center_left",
     "center",
-    "center_right",
-    "bottom_left",
-    "bottom_center",
-    "bottom_right",
-    "full_screen",
-    "full_top",
-    "full_bottom",
     "split_left",
     "split_right",
+    "full_screen",
+    "full_bottom",
 }
 
-SURFACE_TYPES = {"card", "number", "text", "chart", "image", "character"}
+SURFACE_TYPES = {"card", "number", "text", "chart", "image", "character", "stock_video"}
 EXIT_DURATION_MS = 800  # Conservative clearance window (approx 24-25 frames at 30fps)
 
 MACRO_ZONE_CONFLICTS: dict[str, set[str]] = {
     "full_screen": {
-        "top_left", "top_center", "top_right",
-        "center_left", "center", "center_right",
-        "bottom_left", "bottom_center", "bottom_right",
-        "full_top", "full_bottom", "full_screen",
-        "split_left", "split_right",
-    },
-    "full_top": {
-        "top_left", "top_center", "top_right",
-        "full_top", "full_screen",
-        "split_left", "split_right",
-    },
-    "full_bottom": {
-        "bottom_left", "bottom_center", "bottom_right",
-        "full_bottom", "full_screen",
-        "split_left", "split_right",
+        "center",
+        "split_left",
+        "split_right",
+        "full_bottom",
+        "full_screen",
     },
 }
 
@@ -88,18 +69,11 @@ DEFAULT_PRIMITIVE_DIMENSIONS: dict[str, tuple[int, int]] = {
     "text": (400, 90),
     "character": (240, 360),
     "card": (420, 240),
+    "stock_video": (1920, 1080),
 }
 
 ZONE_CENTERS: dict[str, tuple[int, int]] = {
-    "top_left": (380, 260),
-    "top_center": (960, 260),
-    "top_right": (1540, 260),
-    "center_left": (380, 540),
     "center": (960, 540),
-    "center_right": (1540, 540),
-    "bottom_left": (380, 800),
-    "bottom_center": (960, 780),
-    "bottom_right": (1540, 800),
     "split_left": (480, 540),
     "split_right": (1440, 540),
 }
@@ -111,6 +85,10 @@ def _resolve_obj_geometry(
     width: int | None = None,
     height: int | None = None,
 ) -> tuple[int, int, int, int]:
+    if zone not in VALID_ZONES:
+        raise ValueError(
+            f"INVALID_LAYOUT_ZONE: Invalid zone '{zone}'. Valid zones: {sorted(VALID_ZONES)}"
+        )
     default_w, default_h = DEFAULT_PRIMITIVE_DIMENSIONS.get(obj_type, (420, 240))
     w = width if width is not None else default_w
     h = height if height is not None else default_h
@@ -120,12 +98,10 @@ def _resolve_obj_geometry(
         x = round(cx - w / 2)
         y = round(cy - h / 2)
     elif zone == "full_screen":
-        if obj_type == "image":
+        if obj_type in ("image", "stock_video"):
             x, y, w, h = 0, 0, 1920, 1080
         else:
             x, y, w, h = 80, 80, 1920 - 160, 1080 - 160
-    elif zone == "full_top":
-        x, y, w, h = 80, 80, 1920 - 160, h
     elif zone == "full_bottom":
         x, w, h = 80, 1920 - 160, h
         y = 1080 - 80 - h - 40
@@ -426,6 +402,91 @@ def validate_story_draft(
                     )
                 )
 
+        # Check stock_video asset_id, layout, and event requirements
+        if obj.type == "stock_video":
+            if obj.layout != "full_screen":
+                errors.append(
+                    DraftValidationError(
+                        code="STOCK_VIDEO_INVALID_LAYOUT",
+                        message=f"stock_video '{obj.id}' layout must be 'full_screen', got '{obj.layout}'.",
+                        target_id=obj.id,
+                        details={"layout": obj.layout},
+                    )
+                )
+
+            if not obj.asset_id or not obj.asset_id.strip():
+                if not getattr(obj, "asset_request", None):
+                    errors.append(
+                        DraftValidationError(
+                            code="VIDEO_ASSET_REQUEST_MISSING",
+                            message=f"stock_video '{obj.id}' requires 'asset_request' or 'asset_id'.",
+                            target_id=obj.id,
+                        )
+                    )
+                else:
+                    errors.append(
+                        DraftValidationError(
+                            code="VIDEO_ASSET_UNRESOLVED",
+                            message=f"stock_video '{obj.id}' has unresolved asset_request before compilation.",
+                            target_id=obj.id,
+                        )
+                    )
+            elif not available_assets:
+                errors.append(
+                    DraftValidationError(
+                        code="EMPTY_AVAILABLE_ASSETS",
+                        message=f"stock_video '{obj.id}' is used, but available_assets list is empty or not provided.",
+                        target_id=obj.id,
+                    )
+                )
+            elif obj.asset_id not in available_assets:
+                errors.append(
+                    DraftValidationError(
+                        code="UNKNOWN_ASSET_ID",
+                        message=f"stock_video '{obj.id}' references unknown asset_id '{obj.asset_id}'. Available assets: {sorted(available_assets)}",
+                        target_id=obj.id,
+                        details={"asset_id": obj.asset_id},
+                    )
+                )
+
+            # Check enter and exit events count and transitions
+            sv_enters = [e for e in draft.events if e.target_id == obj.id and e.action == "enter"]
+            sv_exits = [e for e in draft.events if e.target_id == obj.id and e.action == "exit"]
+
+            if len(sv_enters) != 1:
+                errors.append(
+                    DraftValidationError(
+                        code="STOCK_VIDEO_EVENT_COUNT",
+                        message=f"stock_video '{obj.id}' must have exactly one enter event, found {len(sv_enters)}.",
+                        target_id=obj.id,
+                    )
+                )
+            elif sv_enters[0].style and sv_enters[0].style != "cut":
+                errors.append(
+                    DraftValidationError(
+                        code="STOCK_VIDEO_INVALID_TRANSITION",
+                        message=f"stock_video '{obj.id}' enter event style must be 'cut', got '{sv_enters[0].style}'.",
+                        target_id=obj.id,
+                    )
+                )
+
+            if len(sv_exits) != 1:
+                errors.append(
+                    DraftValidationError(
+                        code="STOCK_VIDEO_EVENT_COUNT",
+                        message=f"stock_video '{obj.id}' must have exactly one exit event, found {len(sv_exits)}.",
+                        target_id=obj.id,
+                    )
+                )
+            elif sv_exits[0].direction and sv_exits[0].direction != "cut":
+                errors.append(
+                    DraftValidationError(
+                        code="STOCK_VIDEO_INVALID_TRANSITION",
+                        message=f"stock_video '{obj.id}' exit event direction must be 'cut', got '{sv_exits[0].direction}'.",
+                        target_id=obj.id,
+                    )
+                )
+
         # Connector endpoint validation (must target surface elements)
         if obj.type == "connector":
             if obj.from_id not in object_map:
@@ -599,11 +660,11 @@ def validate_story_draft(
                 )
 
         # Check: exit action validates direction if present
-        if event.action == "exit" and event.direction and event.direction not in {"left", "right", "up", "down", "fade"}:
+        if event.action == "exit" and event.direction and event.direction not in {"left", "right", "up", "down", "fade", "cut"}:
             errors.append(
                 DraftValidationError(
                     code="INVALID_EXIT_DIRECTION",
-                    message=f"Action 'exit' on '{event.target_id}' has invalid 'direction' ('{event.direction}'). Allowed: ('left', 'right', 'up', 'down', 'fade').",
+                    message=f"Action 'exit' on '{event.target_id}' has invalid 'direction' ('{event.direction}'). Allowed: ('left', 'right', 'up', 'down', 'fade', 'cut').",
                     target_id=event.target_id,
                 )
             )
@@ -789,7 +850,10 @@ def validate_story_draft(
             continue
 
         exit_t = exit_times_ms.get(obj.id)
-        full_end_t = (exit_t + EXIT_DURATION_MS) if exit_t is not None else (total_duration_ms or 999999)
+        exit_ev = next((e for e in draft.events if e.target_id == obj.id and e.action == "exit"), None)
+        is_cut_exit = obj.type == "stock_video" or (exit_ev and exit_ev.direction == "cut")
+        exit_clearance_ms = 0 if is_cut_exit else EXIT_DURATION_MS
+        full_end_t = (exit_t + exit_clearance_ms) if exit_t is not None else (total_duration_ms or 999999)
 
         # Check for moves to track zone transitions over time
         moves_for_obj: list[tuple[int, str]] = []
@@ -809,15 +873,17 @@ def validate_story_draft(
 
         for move_t, next_zone in moves_for_obj:
             if move_t > current_start and move_t < full_end_t:
-                geom = _resolve_obj_geometry(obj.type, current_zone, obj_width, obj_height)
-                element_intervals.setdefault(obj.id, []).append((current_start, move_t, current_zone, geom))
+                if current_zone in VALID_ZONES:
+                    geom = _resolve_obj_geometry(obj.type, current_zone, obj_width, obj_height)
+                    element_intervals.setdefault(obj.id, []).append((current_start, move_t, current_zone, geom))
                 current_zone = next_zone
                 current_start = move_t
 
-        geom = _resolve_obj_geometry(obj.type, current_zone, obj_width, obj_height)
-        element_intervals.setdefault(obj.id, []).append((current_start, full_end_t, current_zone, geom))
+        if current_zone in VALID_ZONES:
+            geom = _resolve_obj_geometry(obj.type, current_zone, obj_width, obj_height)
+            element_intervals.setdefault(obj.id, []).append((current_start, full_end_t, current_zone, geom))
 
-    # Check center divider crossing for split zones (Requirement 8)
+    # Check center divider crossing and subtitle clearance (Requirement 8 & D)
     for obj_id, intervals in element_intervals.items():
         for s, e, z, (x, y, w, h) in intervals:
             if z == "split_left" and (x + w > 960 or x < 0):
@@ -842,6 +908,32 @@ def validate_story_draft(
                         ),
                         target_id=obj_id,
                         details={"zone": "split_right", "x": x, "divider": 960},
+                    )
+                )
+
+            # Subtitle clearance check
+            if z == "full_bottom" and h > 380:
+                errors.append(
+                    DraftValidationError(
+                        code="SUBTITLE_OVERLAP",
+                        message=(
+                            f"Surface element '{obj_id}' in 'full_bottom' has height {h}px exceeding maximum 380px, "
+                            f"encroaching into subtitle space."
+                        ),
+                        target_id=obj_id,
+                        details={"height": h, "max_height": 380},
+                    )
+                )
+            if z != "full_screen" and y + h > 960:
+                errors.append(
+                    DraftValidationError(
+                        code="SUBTITLE_OVERLAP",
+                        message=(
+                            f"Surface element '{obj_id}' bottom edge at y={y + h} encroaches on the subtitle display area "
+                            f"(must remain at or above 960px)."
+                        ),
+                        target_id=obj_id,
+                        details={"bottom_y": y + h, "max_allowed_y": 960},
                     )
                 )
 
@@ -920,8 +1012,8 @@ def validate_story_draft(
                                 )
                             )
 
-                        # 3. Geometric AABB Collision (Requirement 7 & 10: Do not allow multiple overlapping elements in same split half)
-                        if (z1 in ("split_left", "split_right") or z2 in ("split_left", "split_right")) and z1 != z2:
+                        # 3. Geometric AABB Collision between distinct non-fullscreen surfaces
+                        if z1 != z2 and z1 != "full_screen" and z2 != "full_screen":
                             x1, y1, w1, h1 = g1
                             x2, y2, w2, h2 = g2
                             x_overlap = max(0, min(x1 + w1, x2 + w2) - max(x1, x2))
@@ -942,6 +1034,43 @@ def validate_story_draft(
                                             "y_overlap": y_overlap,
                                             "start_ms": overlap_start,
                                             "end_ms": overlap_end,
+                                        },
+                                    )
+                                )
+
+    # Check: Reject any connector active during a stock_video's active interval
+    for sv_obj in draft.objects:
+        if sv_obj.type == "stock_video":
+            sv_enter = enter_times_ms.get(sv_obj.id)
+            sv_exit = exit_times_ms.get(sv_obj.id)
+            if sv_enter is not None and sv_exit is not None:
+                for conn in draft.objects:
+                    if conn.type == "connector":
+                        c_enter = enter_times_ms.get(conn.id)
+                        c_exit = exit_times_ms.get(conn.id)
+                        if c_exit is None:
+                            src_exit = exit_times_ms.get(conn.from_id)
+                            dst_exit = exit_times_ms.get(conn.to_id)
+                            endpoints_exit = [t for t in (src_exit, dst_exit) if t is not None]
+                            c_exit = min(endpoints_exit) if endpoints_exit else (total_duration_ms or 999999)
+
+                        if c_enter is not None and c_exit is not None:
+                            overlap_start = max(sv_enter, c_enter)
+                            overlap_end = min(sv_exit, c_exit)
+                            if overlap_start < overlap_end:
+                                errors.append(
+                                    DraftValidationError(
+                                        code="STOCK_VIDEO_CONNECTOR_COLLISION",
+                                        message=(
+                                            f"Connector '{conn.id}' is active during stock_video '{sv_obj.id}' interval "
+                                            f"[{overlap_start}ms, {overlap_end}ms]. Stock video cannot coexist with connectors."
+                                        ),
+                                        target_id=sv_obj.id,
+                                        details={
+                                            "stock_video_id": sv_obj.id,
+                                            "connector_id": conn.id,
+                                            "overlap_start_ms": overlap_start,
+                                            "overlap_end_ms": overlap_end,
                                         },
                                     )
                                 )

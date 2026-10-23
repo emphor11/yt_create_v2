@@ -16,6 +16,7 @@ export type PrimitiveType =
   | "document"
   | "chart"
   | "image"
+  | "stock_video"
   | "character";
 
 export type CharacterStyle = "futuristic_stick";
@@ -46,27 +47,16 @@ export interface CharacterProps {
   height?: number;
 }
 
-export type GridZone =
-  | "top_left"
-  | "top_center"
-  | "top_right"
-  | "center_left"
+export type ZoneName =
   | "center"
-  | "center_right"
-  | "bottom_left"
-  | "bottom_center"
-  | "bottom_right";
-
-export type MacroZone =
+  | "split_left"
+  | "split_right"
   | "full_screen"
-  | "full_top"
   | "full_bottom";
 
-export type SplitZone =
-  | "split_left"
-  | "split_right";
-
-export type ZoneName = GridZone | MacroZone | SplitZone;
+export type GridZone = "center";
+export type MacroZone = "full_screen" | "full_bottom";
+export type SplitZone = "split_left" | "split_right";
 
 export interface FactualProvenance {
   evidence_ref?: string;
@@ -170,6 +160,15 @@ export interface ImageProps {
   overlayTint?: string;
 }
 
+export interface StockVideoProps {
+  src?: string;
+  assetId?: string;
+  alt?: string;
+  caption?: string;
+  fit?: "cover" | "contain";
+  overlayTint?: string;
+}
+
 export interface ConnectorProps {
   fromId: string;
   toId: string;
@@ -186,7 +185,7 @@ export interface HighlightProps {
 export interface StoryObject {
   id: string;
   type: PrimitiveType;
-  /** Spatial layout zone (e.g. "center_left", "center_right", "full_screen") */
+  /** Spatial layout zone (e.g. "split_left", "center", "split_right", "full_screen", "full_bottom") */
   layout?: ZoneName;
   /** Exact resolved coordinates (calculated by Layout Engine) */
   resolvedX?: number;
@@ -200,6 +199,7 @@ export interface StoryObject {
   documentProps?: DocumentProps;
   chartProps?: ChartProps;
   imageProps?: ImageProps;
+  stockVideoProps?: StockVideoProps;
   connectorProps?: ConnectorProps;
   highlightProps?: HighlightProps;
   characterProps?: CharacterProps;
@@ -244,7 +244,7 @@ export interface EnterAction {
   targetId: string;
   startFrame: number;
   durationFrames: number;
-  style?: "fade" | "fade_slide_up" | "pop";
+  style?: "fade" | "fade_slide_up" | "pop" | "cut";
   anchor?: string;
 }
 
@@ -357,7 +357,7 @@ export interface ChangeVisualStateAction {
   anchor?: string;
 }
 
-export type ExitDirection = "left" | "right" | "up" | "down" | "fade";
+export type ExitDirection = "left" | "right" | "up" | "down" | "fade" | "cut";
 
 export interface ExitAction {
   action: "exit";

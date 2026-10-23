@@ -270,7 +270,7 @@ def test_collision_across_divider_and_same_half(loan_fixture: dict):
     """6. Test collision across divider:
        - Oversized element crossing divider (width 1100 in split_left)
        - Two simultaneous elements in the same split half (both in split_left)
-       - Geometric overlap between split_left and center_left
+       - Geometric overlap between split_left and full_bottom
     """
     # 6a. Oversized element in split_left crossing x=960 divider
     raw_crossing = {
@@ -344,9 +344,9 @@ def test_collision_across_divider_and_same_half(loan_fixture: dict):
     assert result_same_half.valid is False
     assert any(e.code == "ZONE_OCCUPANCY_COLLISION" for e in result_same_half.errors)
 
-    # 6c. Geometric overlap between split_left and center_left in the left half
+    # 6c. Geometric overlap between split_left (y=420..660) and full_bottom (y=640..960)
     raw_geom_overlap = {
-        "story_id": "geom_overlap_left_half_test",
+        "story_id": "geom_overlap_split_bottom_test",
         "objects": [
             {
                 "id": "split_card",
@@ -354,24 +354,23 @@ def test_collision_across_divider_and_same_half(loan_fixture: dict):
                 "purpose": "Split left card",
                 "layout": "split_left",
                 "title": "Split Card",
-                "subtitle": "At split_left (x=270..690)",
+                "subtitle": "At split_left (y=420..660)",
                 "display_value": "₹10 Lakh",
                 "numeric_value": 1000000,
             },
             {
-                "id": "grid_left_card",
-                "type": "card",
-                "purpose": "Center left card",
-                "layout": "center_left",
-                "title": "Grid Card",
-                "subtitle": "At center_left (x=170..590)",
-                "display_value": "₹20 Lakh",
-                "numeric_value": 2000000,
+                "id": "bottom_chart",
+                "type": "chart",
+                "purpose": "Bottom chart",
+                "layout": "full_bottom",
+                "chart_type": "trajectory_area",
+                "title": "Bottom Chart",
+                "points": [{"xLabel": "Y1", "yValue": 10}, {"xLabel": "Y2", "yValue": 20}],
             },
         ],
         "events": [
             {"action": "enter", "target_id": "split_card", "anchor": "50 lakh"},
-            {"action": "enter", "target_id": "grid_left_card", "anchor": "50 lakh"},
+            {"action": "enter", "target_id": "bottom_chart", "anchor": "50 lakh"},
         ],
     }
     draft_geom = ContinuousStoryDraft.model_validate(raw_geom_overlap)
@@ -386,7 +385,7 @@ def test_collision_across_divider_and_same_half(loan_fixture: dict):
 
 
 def test_full_screen_conflicting_with_split_screen(loan_fixture: dict):
-    """7. Test full_screen, full_top, and full_bottom conflicting with split_left/split_right."""
+    """7. Test full_screen conflicting with split_left/split_right, and full_top failing loudly."""
     # 7a. full_screen conflicts with split_left
     raw_fs = {
         "story_id": "fs_split_conflict_test",
@@ -425,42 +424,61 @@ def test_full_screen_conflicting_with_split_screen(loan_fixture: dict):
     assert result_fs.valid is False
     assert any(e.code == "MACRO_LAYOUT_COLLISION" for e in result_fs.errors)
 
-    # 7b. full_top conflicts with split_right
-    raw_ft = {
-        "story_id": "ft_split_conflict_test",
+    # 7b. full_screen conflicts with split_right
+    raw_fs_right = {
+        "story_id": "fs_split_right_conflict_test",
         "objects": [
             {
-                "id": "top_banner",
-                "type": "text",
-                "purpose": "Full top banner",
-                "layout": "full_top",
-                "text": "CRITICAL NOTICE",
+                "id": "bg_image_right",
+                "type": "image",
+                "purpose": "Full screen background",
+                "layout": "full_screen",
+                "asset_id": "assets/bg.jpg",
             },
             {
-                "id": "split_card",
+                "id": "split_card_right",
                 "type": "card",
-                "purpose": "Split card",
+                "purpose": "Split right card",
                 "layout": "split_right",
-                "title": "Split Card",
-                "subtitle": "Conflicting with full_top",
+                "title": "Split Right Card",
+                "subtitle": "Conflicting with full_screen",
                 "display_value": "₹10 Lakh",
                 "numeric_value": 1000000,
             },
         ],
         "events": [
-            {"action": "enter", "target_id": "top_banner", "anchor": "50 lakh"},
-            {"action": "enter", "target_id": "split_card", "anchor": "50 lakh"},
+            {"action": "enter", "target_id": "bg_image_right", "anchor": "50 lakh"},
+            {"action": "enter", "target_id": "split_card_right", "anchor": "50 lakh"},
         ],
     }
-    draft_ft = ContinuousStoryDraft.model_validate(raw_ft)
-    result_ft = validate_story_draft(
-        draft=draft_ft,
+    draft_fs_right = ContinuousStoryDraft.model_validate(raw_fs_right)
+    result_fs_right = validate_story_draft(
+        draft=draft_fs_right,
         approved_facts=loan_fixture["approved_facts"],
         word_timestamps=loan_fixture["word_timestamps"],
         total_duration_ms=loan_fixture["total_duration_ms"],
+        available_assets=["assets/bg.jpg"],
     )
-    assert result_ft.valid is False
-    assert any(e.code == "MACRO_LAYOUT_COLLISION" for e in result_ft.errors)
+    assert result_fs_right.valid is False
+    assert any(e.code == "MACRO_LAYOUT_COLLISION" for e in result_fs_right.errors)
+
+    # 7c. full_top is rejected as an invalid layout zone
+    raw_ft = {
+        "story_id": "ft_invalid_layout_test",
+        "objects": [
+            {
+                "id": "top_banner",
+                "type": "text",
+                "layout": "full_top",
+                "text": "CRITICAL NOTICE",
+            },
+        ],
+        "events": [
+            {"action": "enter", "target_id": "top_banner", "anchor": "50 lakh"},
+        ],
+    }
+    with pytest.raises(pydantic.ValidationError, match="Input should be 'center', 'split_left', 'split_right', 'full_screen' or 'full_bottom'"):
+        ContinuousStoryDraft.model_validate(raw_ft)
 
 
 def test_invalid_split_layout_names_fail_loudly():

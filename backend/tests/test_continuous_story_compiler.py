@@ -43,7 +43,7 @@ def loan_draft() -> ContinuousStoryDraft:
                 "id": "card_rate",
                 "type": "card",
                 "purpose": "interest rate card",
-                "layout": "center_right",
+                "layout": "split_right",
                 "title": "Interest Rate",
                 "display_value": "8.5%",
                 "numeric_value": 8.5,
@@ -53,7 +53,7 @@ def loan_draft() -> ContinuousStoryDraft:
                 "id": "card_emi",
                 "type": "card",
                 "purpose": "monthly payment burden",
-                "layout": "bottom_center",
+                "layout": "full_bottom",
                 "title": "Monthly EMI",
                 "display_value": "₹43,391",
                 "numeric_value": 43391,
@@ -78,7 +78,7 @@ def loan_draft() -> ContinuousStoryDraft:
                 "action": "move",
                 "target_id": "card_loan",
                 "anchor": "starts at",
-                "to": "center_left",
+                "to": "split_left",
             },
             {
                 "action": "enter",
@@ -163,7 +163,7 @@ def test_compiled_objects_hierarchy_and_properties(loan_draft: ContinuousStoryDr
     # Card Rate
     card_rate = plan["objects"][1]
     assert card_rate["id"] == "card_rate"
-    assert card_rate["layout"] == "center_right"
+    assert card_rate["layout"] == "split_right"
     assert card_rate["cardProps"]["value"] == 8.5
     assert card_rate["cardProps"]["displayValue"] == "8.5%"
 
@@ -197,7 +197,7 @@ def test_compiled_events(loan_draft: ContinuousStoryDraft, loan_fixture: dict):
     move_ev = plan["events"][1]
     assert move_ev["action"] == "move"
     assert move_ev["targetId"] == "card_loan"
-    assert move_ev["to"] == "center_left"
+    assert move_ev["to"] == "split_left"
 
     # Transform Number action
     trans_ev = plan["events"][5]
@@ -277,7 +277,7 @@ def test_two_beat_scene_continuation_compilation(loan_draft: ContinuousStoryDraf
         "id": "card_consequence",
         "type": "card",
         "purpose": "Total extra interest penalty",
-        "layout": "bottom_left",
+        "layout": "split_left",
         "value_fact_id": "total_extra_interest",
         "title": "Total Extra Interest",
     })
@@ -364,7 +364,7 @@ def test_card_direct_authoring_compilation(loan_fixture: dict):
                 "id": "num_rate",
                 "type": "number",
                 "purpose": "Directly authored number",
-                "layout": "center_right",
+                "layout": "split_right",
                 "display_value": "8.5%",
                 "numeric_value": 8.5,
             },
@@ -551,7 +551,7 @@ def test_direct_all_primitives_compile_correctly(loan_fixture: dict):
             {
                 "id": "card_savings",
                 "type": "card",
-                "layout": "top_left",
+                "layout": "split_left",
                 "title": "Emergency Savings",
                 "display_value": "₹10,000",
                 "numeric_value": 10000,
@@ -563,7 +563,7 @@ def test_direct_all_primitives_compile_correctly(loan_fixture: dict):
             {
                 "id": "num_rate",
                 "type": "number",
-                "layout": "top_right",
+                "layout": "center",
                 "display_value": "7.2%",
                 "numeric_value": 7.2,
                 "purpose": "Inflation Rate",
@@ -571,14 +571,14 @@ def test_direct_all_primitives_compile_correctly(loan_fixture: dict):
             {
                 "id": "txt_callout",
                 "type": "text",
-                "layout": "center_left",
+                "layout": "split_right",
                 "text": "Inflation silently eats purchasing power.",
                 "purpose": "Core insight",
             },
             {
                 "id": "chart_inflation",
                 "type": "chart",
-                "layout": "bottom_center",
+                "layout": "full_bottom",
                 "chart_type": "split_bar",
                 "title": "Savings vs Inflation",
                 "subtitle": "5-Year Impact",
@@ -590,7 +590,7 @@ def test_direct_all_primitives_compile_correctly(loan_fixture: dict):
             {
                 "id": "img_shield",
                 "type": "image",
-                "layout": "center_right",
+                "layout": "split_right",
                 "asset_id": "shield_icon",
             },
             {

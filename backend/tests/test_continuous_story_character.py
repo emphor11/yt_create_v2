@@ -35,7 +35,7 @@ def base_character_story() -> dict:
             {
                 "id": "worker",
                 "type": "character",
-                "layout": "center_left",
+                "layout": "split_left",
                 "character_style": "futuristic_stick",
                 "role": "salaried employee",
                 "label": "A salaried employee",
@@ -48,7 +48,7 @@ def base_character_story() -> dict:
             {
                 "id": "wealth_card",
                 "type": "card",
-                "layout": "center_right",
+                "layout": "split_right",
                 "title": "Retirement Corpus",
                 "subtitle": "Fixed Return",
                 "display_value": "₹2.5 Cr",
@@ -146,7 +146,7 @@ def test_missing_character_style_rejection():
         StoryObjectDraft(
             id="worker",
             type="character",
-            layout="center_left",
+            layout="split_left",
             role="salaried employee",
             pose="idle",
             facing="right",
@@ -163,7 +163,7 @@ def test_invalid_pose_rejection():
         StoryObjectDraft(
             id="worker",
             type="character",
-            layout="center_left",
+            layout="split_left",
             character_style="futuristic_stick",
             role="salaried employee",
             pose="superman_fly",  # Invalid pose
@@ -180,7 +180,7 @@ def test_invalid_facing_rejection():
         StoryObjectDraft(
             id="worker",
             type="character",
-            layout="center_left",
+            layout="split_left",
             character_style="futuristic_stick",
             role="salaried employee",
             pose="idle",
@@ -211,7 +211,7 @@ def test_field_leakage_rejection(leaked_field, leaked_val):
     kwargs = {
         "id": "worker",
         "type": "character",
-        "layout": "center_left",
+        "layout": "split_left",
         "character_style": "futuristic_stick",
         "role": "salaried employee",
         "pose": "idle",
@@ -326,7 +326,7 @@ def test_compiler_output_for_character_props(base_character_story, base_narratio
     compiled = compile_story_draft(draft=draft, fixture=fixture)
     char_plan_obj = next(o for o in compiled["objects"] if o["id"] == "worker")
     assert char_plan_obj["type"] == "character"
-    assert char_plan_obj["layout"] == "center_left"
+    assert char_plan_obj["layout"] == "split_left"
     assert char_plan_obj["width"] == 240
     assert char_plan_obj["height"] == 360
     assert "characterProps" in char_plan_obj
@@ -377,8 +377,8 @@ def test_compiler_output_for_change_pose(base_character_story, base_narration_da
 # ====================================================================
 def test_character_collision_with_cards(base_character_story, base_narration_data):
     data = dict(base_character_story)
-    # Put card in SAME zone as character: "center_left"
-    data["objects"][1]["layout"] = "center_left"
+    # Put card in SAME zone as character: "split_left"
+    data["objects"][1]["layout"] = "split_left"
     draft = ContinuousStoryDraft(**data)
     val_res = validate_story_draft(
         draft,
@@ -398,7 +398,7 @@ def test_character_full_lifecycle_and_rejection_after_exit(base_character_story,
     data["events"] = [
         {"action": "enter", "target_id": "worker", "anchor": "salaried employee"},
         {"action": "change_pose", "target_id": "worker", "pose": "think", "anchor": "fixed return"},
-        {"action": "move", "target_id": "worker", "to": "top_left", "anchor": "the difference comes"},
+        {"action": "move", "target_id": "worker", "to": "split_right", "anchor": "the difference comes"},
         {"action": "exit", "target_id": "worker", "direction": "left", "anchor": "inflation eats"},
     ]
     draft = ContinuousStoryDraft(**data)

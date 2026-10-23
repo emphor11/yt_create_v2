@@ -12,6 +12,7 @@ import {
   DocumentPrimitive,
   ChartPrimitive,
   ImagePrimitive,
+  StockVideoPrimitive,
   Character,
 } from "./primitives/index.ts";
 import { tokens } from "../design-tokens.ts";
@@ -267,6 +268,30 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
                     style={{ width: "100%", height: "100%" }}
                   />
                 </Highlight>
+              </div>
+            );
+          }
+
+          // 3b. Render Stock Video Primitive
+          if (obj.type === "stock_video" && obj.stockVideoProps) {
+            return (
+              <div
+                key={obj.id}
+                style={{
+                  position: "absolute",
+                  left: state.x,
+                  top: state.y,
+                  width: state.width,
+                  height: state.height,
+                  opacity: state.opacity,
+                  transform: `translateY(${state.translateY}px) scale(${state.scale})`,
+                  zIndex: state.zIndex,
+                }}
+              >
+                <StockVideoPrimitive
+                  props={obj.stockVideoProps}
+                  style={{ width: "100%", height: "100%" }}
+                />
               </div>
             );
           }

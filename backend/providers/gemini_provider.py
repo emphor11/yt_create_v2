@@ -169,6 +169,12 @@ class GeminiProvider:
             "maxOutputTokens": llm_request.max_tokens,
             "responseMimeType": "application/json",
         }
+        thinking_budget_env = os.getenv("GEMINI_THINKING_BUDGET")
+        if thinking_budget_env is not None and thinking_budget_env.strip() != "":
+            try:
+                generation_config["thinkingConfig"] = {"thinkingBudget": int(thinking_budget_env.strip())}
+            except ValueError:
+                pass
         if llm_request.response_schema:
             generation_config["responseSchema"] = self._clean_schema_for_gemini(
                 llm_request.response_schema

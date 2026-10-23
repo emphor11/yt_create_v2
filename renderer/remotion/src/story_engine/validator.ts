@@ -230,7 +230,7 @@ export function validateStoryPlan(
         if (typeof moveEv.to === "string" && !VALID_ZONES.includes(moveEv.to as any)) {
           errors.push({
             code: "INVALID_MOVE_ZONE",
-            message: `Move action for '${target.id}' targets invalid layout '${moveEv.to}'. Must be one of the 12 strict zone names.`,
+            message: `Move action for '${target.id}' targets invalid layout '${moveEv.to}'. Must be one of: ${VALID_ZONES.join(", ")}`,
             targetId: target.id,
           });
         }
@@ -246,10 +246,10 @@ export function validateStoryPlan(
 
       if (event.action === "exit") {
         const exitEv = event as ExitAction;
-        if (!exitEv.direction || !["left", "right", "up", "down", "fade"].includes(exitEv.direction)) {
+        if (!exitEv.direction || !["left", "right", "up", "down", "fade", "cut"].includes(exitEv.direction)) {
           errors.push({
             code: "INVALID_EXIT_DIRECTION",
-            message: `Exit action requires valid direction ('left', 'right', 'up', 'down', 'fade'), got '${exitEv.direction}'.`,
+            message: `Exit action requires valid direction ('left', 'right', 'up', 'down', 'fade', 'cut'), got '${exitEv.direction}'.`,
             targetId: target.id,
           });
         }
@@ -291,7 +291,8 @@ export function validateStoryPlan(
       }
     }
 
-    if (event.startFrame < 0 || event.durationFrames <= 0) {
+    const isCutAction = ("style" in event && (event as any).style === "cut") || ("direction" in event && (event as any).direction === "cut");
+    if (event.startFrame < 0 || (isCutAction ? event.durationFrames < 0 : event.durationFrames <= 0)) {
       errors.push({
         code: "INVALID_EVENT_TIMING",
         message: `Event '${event.action}' has invalid startFrame (${event.startFrame}) or durationFrames (${event.durationFrames}).`,
@@ -447,6 +448,7 @@ export function validateStoryPlan(
 
   // Safe area checks
   for (const surf of surfaceElements) {
+    if (surf.layout === "full_screen" || surf.type === "stock_video") continue;
     const geom = layouts.get(surf.id);
     if (!geom) continue;
 
@@ -464,12 +466,89 @@ export function validateStoryPlan(
     }
   }
 
-  // Validate layout zone names (strict 12 zones)
+  // Stock Video specific validations
+  for (const sv of plan.objects.filter((o) => o.type === "stock_video")) {
+    if (sv.layout !== "full_screen") {
+      errors.push({
+        code: "STOCK_VIDEO_INVALID_LAYOUT",
+        message: `Stock video '${sv.id}' layout must be 'full_screen', got '${sv.layout}'.`,
+        targetId: sv.id,
+      });
+    }
+
+    const svEnters = plan.events.filter((e) => e.action === "enter" && "targetId" in e && e.targetId === sv.id);
+    const svExits = plan.events.filter((e) => e.action === "exit" && "targetId" in e && e.targetId === sv.id);
+
+    if (svEnters.length !== 1) {
+      errors.push({
+        code: "STOCK_VIDEO_EVENT_COUNT",
+        message: `Stock video '${sv.id}' must have exactly one enter event, found ${svEnters.length}.`,
+        targetId: sv.id,
+      });
+    } else {
+      const enterEv = svEnters[0] as any;
+      if (enterEv.style !== "cut") {
+        errors.push({
+          code: "STOCK_VIDEO_INVALID_TRANSITION",
+          message: `Stock video '${sv.id}' enter event style must be 'cut', got '${enterEv.style}'.`,
+          targetId: sv.id,
+        });
+      }
+    }
+
+    if (svExits.length !== 1) {
+      errors.push({
+        code: "STOCK_VIDEO_EVENT_COUNT",
+        message: `Stock video '${sv.id}' must have exactly one exit event, found ${svExits.length}.`,
+        targetId: sv.id,
+      });
+    } else {
+      const exitEv = svExits[0] as ExitAction;
+      if (exitEv.direction !== "cut") {
+        errors.push({
+          code: "STOCK_VIDEO_INVALID_TRANSITION",
+          message: `Stock video '${sv.id}' exit event direction must be 'cut', got '${exitEv.direction}'.`,
+          targetId: sv.id,
+        });
+      }
+    }
+
+    if (svEnters.length === 1 && svExits.length === 1) {
+      if (svExits[0].startFrame <= svEnters[0].startFrame) {
+        errors.push({
+          code: "EXIT_BEFORE_OBJECT_ENTER",
+          message: `Stock video '${sv.id}' exit frame (${svExits[0].startFrame}) must be strictly after enter frame (${svEnters[0].startFrame}).`,
+          targetId: sv.id,
+        });
+      }
+
+      // Check connectors during stock video active interval
+      const svStart = svEnters[0].startFrame;
+      const svEnd = svExits[0].startFrame;
+      for (const conn of connectors) {
+        const connEnter = plan.events.find(
+          (e) => (e.action === "connect" || e.action === "enter") && "targetId" in e && e.targetId === conn.id
+        );
+        if (!connEnter) continue;
+        const connExit = plan.events.find((e): e is ExitAction => e.action === "exit" && "targetId" in e && e.targetId === conn.id);
+        const connEnd = connExit ? connExit.startFrame + connExit.durationFrames : plan.durationInFrames;
+        if (Math.max(svStart, connEnter.startFrame) < Math.min(svEnd, connEnd)) {
+          errors.push({
+            code: "STOCK_VIDEO_CONNECTOR_COLLISION",
+            message: `Connector '${conn.id}' is active during stock_video '${sv.id}' interval [frame ${svStart}, ${svEnd}]. Stock video cannot coexist with connectors.`,
+            targetId: sv.id,
+          });
+        }
+      }
+    }
+  }
+
+  // Validate layout zone names (strict 5 zones)
   for (const [id, obj] of objectMap.entries()) {
     if (obj.type !== "connector" && obj.layout && !VALID_ZONES.includes(obj.layout as any)) {
       errors.push({
         code: "INVALID_LAYOUT_ZONE",
-        message: `Object '${id}' has invalid layout '${obj.layout}'. Must be one of the 12 strict zone names.`,
+        message: `Object '${id}' has invalid layout '${obj.layout}'. Must be one of: ${VALID_ZONES.join(", ")}`,
         targetId: id,
       });
     }
@@ -478,14 +557,12 @@ export function validateStoryPlan(
   // Macro zone collision conflict rules
   const MACRO_ZONE_CONFLICTS: Record<string, Set<string>> = {
     full_screen: new Set([
-      "top_left", "top_center", "top_right",
-      "center_left", "center", "center_right",
-      "bottom_left", "bottom_center", "bottom_right",
-      "full_top", "full_bottom", "full_screen",
-      "split_left", "split_right",
+      "center",
+      "split_left",
+      "split_right",
+      "full_bottom",
+      "full_screen",
     ]),
-    full_top: new Set(["top_left", "top_center", "top_right", "full_top", "full_screen", "split_left", "split_right"]),
-    full_bottom: new Set(["bottom_left", "bottom_center", "bottom_right", "full_bottom", "full_screen", "split_left", "split_right"]),
   };
 
   // Build temporal spatial intervals per surface element
@@ -515,7 +592,8 @@ export function validateStoryPlan(
 
     const enterFrame = enterEvent ? enterEvent.startFrame : (splitEvent ? splitEvent.startFrame : 0);
     const exitEvent = plan.events.find((e): e is ExitAction => e.action === "exit" && "targetId" in e && e.targetId === surf.id);
-    const exitEndFrame = exitEvent ? exitEvent.startFrame + exitEvent.durationFrames : plan.durationInFrames;
+    const isCutExit = surf.type === "stock_video" || (exitEvent && (exitEvent.direction === "cut" || exitEvent.durationFrames === 0));
+    const exitEndFrame = exitEvent ? (isCutExit ? exitEvent.startFrame : exitEvent.startFrame + exitEvent.durationFrames) : plan.durationInFrames;
 
     const moves = plan.events
       .filter((e): e is MoveAction => e.action === "move" && e.targetId === surf.id)
@@ -535,8 +613,10 @@ export function validateStoryPlan(
           zone: curZone,
           geom: curGeom,
         });
-        const dest = resolveSemanticDestination(m.to, curGeom, plan.width, plan.height, safeMargin);
-        curGeom = { ...curGeom, x: dest.targetX, y: dest.targetY };
+        if (VALID_ZONES.includes(m.to as any)) {
+          const dest = resolveSemanticDestination(m.to, curGeom, plan.width, plan.height, safeMargin);
+          curGeom = { ...curGeom, x: dest.targetX, y: dest.targetY };
+        }
         curZone = m.to;
         curStart = m.startFrame;
       }

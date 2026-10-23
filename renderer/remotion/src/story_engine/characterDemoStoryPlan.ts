@@ -42,7 +42,7 @@ export const characterDemoStoryPlan: StoryPlan = {
     {
       id: "worker",
       type: "character",
-      layout: "center_left",
+      layout: "split_left",
       width: 240,
       height: 360,
       characterProps: {
@@ -56,13 +56,13 @@ export const characterDemoStoryPlan: StoryPlan = {
       },
     },
 
-    // 2. Safe Fixed Return Deposit Card (Center Right)
+    // 2. Safe Fixed Return Deposit Card (Split Right)
     {
       id: "card_savings",
       type: "card",
-      layout: "center_right",
-      width: 420,
-      height: 200,
+      layout: "split_right",
+      width: 400,
+      height: 180,
       cardProps: {
         title: "Conservative Fixed Return",
         subtitle: "Nominal 6.5% Guaranteed APY",
@@ -73,12 +73,12 @@ export const characterDemoStoryPlan: StoryPlan = {
       },
     },
 
-    // 3. Persistent Inflation Card (Top Right)
+    // 3. Persistent Inflation Card (Center)
     {
       id: "card_inflation",
       type: "card",
-      layout: "top_right",
-      width: 420,
+      layout: "center",
+      width: 360,
       height: 180,
       cardProps: {
         title: "Annual Inflation",
@@ -90,13 +90,13 @@ export const characterDemoStoryPlan: StoryPlan = {
       },
     },
 
-    // 4. Real Wealth Deficit Card (Bottom Right)
+    // 4. Real Wealth Deficit Card (Full Bottom)
     {
       id: "card_deficit",
       type: "card",
-      layout: "bottom_right",
-      width: 420,
-      height: 190,
+      layout: "full_bottom",
+      width: 1760,
+      height: 200,
       cardProps: {
         title: "Real Wealth Deficit",
         subtitle: "30-Year Purchasing Gap",

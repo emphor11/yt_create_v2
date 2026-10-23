@@ -36,7 +36,7 @@ def valid_draft() -> ContinuousStoryDraft:
                 "id": "rate_card",
                 "type": "card",
                 "purpose": "show interest rate container",
-                "layout": "center_right",
+                "layout": "split_right",
                 "value_fact_id": "rate_baseline",
                 "title": "Interest Rate",
             },
@@ -59,7 +59,7 @@ def valid_draft() -> ContinuousStoryDraft:
                 "action": "move",
                 "target_id": "loan_card",
                 "anchor": "starts at",
-                "to": "center_left",
+                "to": "split_left",
             },
             {
                 "action": "enter",
@@ -397,6 +397,18 @@ def test_valid_chart_draft(valid_draft: ContinuousStoryDraft, loan_fixture: dict
         ],
     })
     raw["events"].append({
+        "action": "exit",
+        "target_id": "loan_card",
+        "anchor": "surges to",
+        "direction": "left",
+    })
+    raw["events"].append({
+        "action": "exit",
+        "target_id": "rate_card",
+        "anchor": "surges to",
+        "direction": "fade",
+    })
+    raw["events"].append({
         "action": "enter",
         "target_id": "chart_trajectory",
         "anchor": "heavy burden",
@@ -437,12 +449,12 @@ def test_reject_chart_missing_data_fails(valid_draft: ContinuousStoryDraft):
 def test_reject_zone_occupancy_collision(valid_draft: ContinuousStoryDraft, loan_fixture: dict):
     """Cannot place two active surfaces into the exact same zone simultaneously."""
     raw = valid_draft.model_dump()
-    # Add another card also in 'center_right' entering at '8.5' without rate_card exiting
+    # Add another card also in 'split_right' entering at '8.5' without rate_card exiting
     raw["objects"].append({
         "id": "conflicting_card",
         "type": "card",
         "purpose": "Colliding card",
-        "layout": "center_right",  # Already occupied by rate_card!
+        "layout": "split_right",  # Already occupied by rate_card!
         "value_fact_id": "rate_high",
         "title": "High Rate",
     })
@@ -542,7 +554,7 @@ def test_validator_fails_when_object_missing_explicit_enter():
             {
                 "id": "card_entered",
                 "type": "card",
-                "layout": "center_left",
+                "layout": "split_left",
                 "title": "Entered Card",
                 "display_value": "₹5 Lakh",
                 "numeric_value": 500000,
@@ -550,7 +562,7 @@ def test_validator_fails_when_object_missing_explicit_enter():
             {
                 "id": "card_without_enter",
                 "type": "card",
-                "layout": "center_right",
+                "layout": "split_right",
                 "title": "Forgotten Card",
                 "display_value": "₹10 Lakh",
                 "numeric_value": 1000000,
