@@ -1,7 +1,7 @@
 import React from "react";
 import { staticFile } from "remotion";
 import type { ImageProps } from "../types.ts";
-import { tokens } from "../../design-tokens.ts";
+import { handDrawn } from "../hand-drawn-theme.ts";
 
 interface ImagePrimitiveProps {
   props: ImageProps;
@@ -27,9 +27,9 @@ export const ImagePrimitive: React.FC<ImagePrimitiveProps> = ({ props, style }) 
         height: "100%",
         borderRadius,
         overflow: "hidden",
-        backgroundColor: tokens.bg.surface,
-        border: `1px solid ${borderColor || tokens.bg.border}`,
-        boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.5)",
+        backgroundColor: handDrawn.colors.paperAlt,
+        border: `2px solid ${borderColor || handDrawn.colors.ink}`,
+        boxShadow: handDrawn.shadow.paper,
         display: "flex",
         flexDirection: "column",
         ...style,
@@ -42,15 +42,14 @@ export const ImagePrimitive: React.FC<ImagePrimitiveProps> = ({ props, style }) 
             position: "absolute",
             top: 12,
             right: 12,
-            backgroundColor: "rgba(15, 23, 42, 0.85)",
-            backdropFilter: "blur(6px)",
-            border: "1px solid rgba(255, 255, 255, 0.2)",
-            borderRadius: 6,
+            backgroundColor: handDrawn.colors.paperAlt,
+            border: `1px solid ${handDrawn.colors.ink}`,
+            borderRadius: handDrawn.radius.pill,
             padding: "4px 8px",
-            fontFamily: tokens.font.family,
+            fontFamily: handDrawn.font.label,
             fontSize: 11,
             fontWeight: 600,
-            color: tokens.text.primary,
+            color: handDrawn.colors.ink,
             letterSpacing: "0.05em",
             textTransform: "uppercase",
             zIndex: 5,
@@ -68,7 +67,7 @@ export const ImagePrimitive: React.FC<ImagePrimitiveProps> = ({ props, style }) 
           left: 0,
           right: 0,
           bottom: caption ? "18%" : 0,
-          background: props.overlayTint || "linear-gradient(180deg, rgba(15, 23, 42, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%)",
+          background: props.overlayTint || "linear-gradient(180deg, rgba(247, 241, 229, 0.02) 0%, rgba(32, 37, 34, 0.38) 100%)",
           pointerEvents: "none",
           zIndex: 2,
         }}
@@ -94,9 +93,9 @@ export const ImagePrimitive: React.FC<ImagePrimitiveProps> = ({ props, style }) 
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: tokens.text.muted,
+            color: handDrawn.colors.inkMuted,
             fontSize: 14,
-            fontFamily: tokens.font.family,
+            fontFamily: handDrawn.font.body,
           }}
         >
           {props.assetId || "Media Asset"}
@@ -108,14 +107,14 @@ export const ImagePrimitive: React.FC<ImagePrimitiveProps> = ({ props, style }) 
         <div
           style={{
             height: "18%",
-            backgroundColor: "rgba(15, 23, 42, 0.9)",
-            borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+            backgroundColor: handDrawn.colors.paperAlt,
+            borderTop: `1px solid ${handDrawn.colors.ink}33`,
             padding: "0 14px",
             display: "flex",
             alignItems: "center",
-            fontFamily: tokens.font.family,
+            fontFamily: handDrawn.font.body,
             fontSize: 12,
-            color: tokens.text.secondary,
+            color: handDrawn.colors.inkMuted,
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",

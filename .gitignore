@@ -42,3 +42,8 @@ renderer/remotion/public/narration.mp3
 renderer/remotion/primitive_demo_rendered.png
 backend/.data/
 hand-drawn-worktree/
+/*.mp4
+
+# Large downloaded stock videos in remotion assets
+renderer/remotion/public/assets/*.mp4
+!renderer/remotion/public/assets/commercial_bank_exterior.mp4

@@ -1,6 +1,6 @@
 import React from "react";
 import { NumberProps } from "../types";
-import { tokens } from "../../design-tokens";
+import { handDrawn } from "../hand-drawn-theme.ts";
 
 interface NumberComponentProps {
   props: NumberProps;
@@ -50,10 +50,12 @@ export const NumberPrimitive: React.FC<NumberComponentProps> = ({
   return (
     <div
       style={{
-        fontFamily: tokens.font.family,
+        position: "relative",
+        display: "inline-block",
+        fontFamily: handDrawn.font.display,
         fontSize: 54,
         fontWeight: 800,
-        color: tokens.text.primary,
+        color: handDrawn.colors.ink,
         letterSpacing: "-0.03em",
         lineHeight: 1.1,
         fontVariantNumeric: "tabular-nums",
@@ -61,6 +63,18 @@ export const NumberPrimitive: React.FC<NumberComponentProps> = ({
       }}
     >
       {formatted}
+      <div
+        aria-hidden="true"
+        style={{
+          height: 6,
+          width: "68%",
+          marginTop: 5,
+          borderRadius: handDrawn.radius.pill,
+          backgroundColor: handDrawn.colors.coral,
+          transform: "rotate(-1.5deg)",
+          opacity: 0.8,
+        }}
+      />
     </div>
   );
 };

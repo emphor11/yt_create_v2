@@ -1,0 +1,152 @@
+"""
+rerun_stage7_story.py — Rerun Stage 7 (continuous_story with Gemini 3.6 Flash) & Stage 8 (render) for an existing project.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+import shutil
+import sys
+import time
+
+backend_dir = Path(__file__).resolve().parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
+from dotenv import load_dotenv
+load_dotenv(backend_dir / ".env", override=True)
+
+# Enforce Gemini 3.6 Flash for Stage 7 Continuous Story Choreography
+os.environ["GEMINI_MODEL"] = "gemini-3.6-flash"
+
+from fastapi.testclient import TestClient
+from app.main import create_app
+from app.dependencies import get_artifact_store, get_media_storage, get_llm_provider
+
+get_llm_provider.cache_clear()
+
+
+def rerun_stage7_and_render(project_id: str, run_id: str):
+    print("=" * 75)
+    print("RERUNNING STAGE 7 (CONTINUOUS STORY) & STAGE 8 (RENDER)")
+    print(f"Project ID: {project_id}")
+    print(f"Run ID:     {run_id}")
+    print("=" * 75)
+
+    llm = get_llm_provider()
+    model_name = getattr(llm, "model", "N/A")
+    print(f"[INIT] LLM Provider: {type(llm).__name__} (Model: {model_name})")
+
+    app = create_app()
+    client = TestClient(app)
+
+    # Clean up existing continuous_story_plan and video artifacts to force fresh regeneration
+    store = get_artifact_store()
+    existing_story = store.find_artifact_by_type(project_id, run_id, "continuous_story_plan")
+    existing_video = store.find_artifact_by_type(project_id, run_id, "video")
+    ids_to_delete = []
+    if existing_story:
+        ids_to_delete.append(existing_story.id)
+    if existing_video:
+        ids_to_delete.append(existing_video.id)
+    if ids_to_delete:
+        store.delete_artifacts(ids_to_delete)
+        print(f"[CLEANUP] Deleted existing artifacts to force re-run: {ids_to_delete}")
+
+    # 1. Dispatch Stage 7: continuous_story
+    print("\n---> Dispatching stage: 'continuous_story' with Gemini 3.6 Flash...")
+    t0 = time.time()
+    resp = client.post(f"/projects/{project_id}/runs/{run_id}/run/continuous_story")
+    dt = time.time() - t0
+
+    if resp.status_code != 200:
+        print(f"[FAIL] Stage 'continuous_story' failed with status {resp.status_code} in {dt:.1f}s:")
+        print(resp.text)
+        sys.exit(1)
+
+    data = resp.json()
+    art = data.get("artifact", {})
+    art_id = data.get("artifact_id")
+    print(f"     [OK] Stage 'continuous_story' succeeded in {dt:.1f}s!")
+    print(f"          Artifact ID:     {art_id}")
+    print(f"          Artifact Status: {art.get('status')}")
+
+    payload = art.get("payload_json", {})
+    plan = payload.get("plan", {})
+    objects = plan.get("objects", [])
+    events = plan.get("events", [])
+
+    print("\n     [CONTINUOUS STORY CHOREOGRAPHY]")
+    print(f"     * Objects declared: {len(objects)}")
+    for obj in objects:
+        props = obj.get("cardProps") or obj.get("numberProps") or obj.get("textProps") or obj.get("connectorProps") or {}
+        title = props.get("title") or props.get("label") or props.get("text") or obj.get("id")
+        val = props.get("value")
+        val_str = f" [Value: {val}]" if val is not None else ""
+        print(f"       - [{obj.get('type'):<10}] ID: '{obj.get('id'):<24}' Layout: {obj.get('layout'):<14} '{title}'{val_str}")
+    print(f"     * Choreographic events: {len(events)}")
+    for ev in events[:12]:
+        print(f"       - Action: {ev.get('action'):<18} Target: {ev.get('targetId'):<24} Frame: {ev.get('startFrame')} ('{ev.get('anchor')}')")
+    if len(events) > 12:
+        print(f"       ... and {len(events) - 12} more events")
+    duration_s = (plan.get("durationInFrames", 0) / plan.get("fps", 30))
+    print(f"     * Total Duration: {plan.get('durationInFrames')} frames @ {plan.get('fps')}fps ({duration_s:.1f}s)")
+
+    # 2. Dispatch Stage 8: render
+    print("\n---> Dispatching stage: 'render' (Remotion render to MP4)...")
+    t0 = time.time()
+    render_resp = client.post(f"/projects/{project_id}/runs/{run_id}/run/render")
+    dt = time.time() - t0
+
+    if render_resp.status_code != 200:
+        print(f"[FAIL] Stage 'render' failed with status {render_resp.status_code} in {dt:.1f}s:")
+        print(render_resp.text)
+        sys.exit(1)
+
+    r_data = render_resp.json()
+    r_art = r_data.get("artifact", {})
+    print(f"     [OK] Stage 'render' succeeded in {dt:.1f}s!")
+    print(f"          Artifact ID:     {r_data.get('artifact_id')}")
+    print(f"          Artifact Status: {r_art.get('status')}")
+
+    # 3. Verify MP4 video on disk
+    store = get_artifact_store()
+    media_storage = get_media_storage()
+    video_art = store.find_artifact_by_type(project_id, run_id, "video")
+    if video_art is None:
+        print("[FAIL] Video artifact not found in store!")
+        sys.exit(1)
+
+    v_payload = video_art.payload_json
+    storage_key = v_payload.get("storage_key")
+    video_path = media_storage.path_for_key(storage_key)
+
+    if not video_path.exists():
+        print(f"[FAIL] Rendered video file does not exist at: {video_path}")
+        sys.exit(1)
+
+    file_size = video_path.stat().st_size
+    print("\n" + "=" * 75)
+    print("STAGE 7 & RENDER COMPLETED SUCCESSFULLY!")
+    print("=" * 75)
+    print(f"  * Physical File: {video_path}")
+    print(f"  * File Size:     {file_size / (1024 * 1024):.2f} MB ({file_size:,} bytes)")
+    print(f"  * Duration:      {v_payload.get('duration_frames')} frames @ {v_payload.get('fps')}fps ({(v_payload.get('duration_frames', 0) / v_payload.get('fps', 30)):.1f}s)")
+    print("=" * 75)
+
+    artifact_dir = Path("/Users/dakshyadav/.gemini/antigravity/brain/0ea3762c-60ae-40de-96c0-ce19c83dda9d")
+    if artifact_dir.exists():
+        dest = artifact_dir / "term_insurance_trop_rerun_stage7.mp4"
+        shutil.copy2(video_path, dest)
+        print(f"  * Copied video to artifact directory: {dest}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Rerun Stage 7 & 8 for an existing run.")
+    parser.add_argument("--project-id", default="project_8442d44d78694e6fa34cf08c798729d1", help="Project ID")
+    parser.add_argument("--run-id", default="run_451aaa5a4a174d70bdaaa9a9fb06a243", help="Run ID")
+    args = parser.parse_args()
+
+    rerun_stage7_and_render(args.project_id, args.run_id)

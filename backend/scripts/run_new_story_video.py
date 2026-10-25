@@ -89,7 +89,15 @@ def run_pipeline_for_topic(topic: str, angle: str, audience: str, channel: str, 
     ]
 
     print("\n[STEP 2] Sequentially dispatching pipeline stages via FastAPI POST /run/{stage}...")
+    os.environ["GEMINI_MODEL"] = "gemini-3.5-flash-lite"
+    get_llm_provider.cache_clear()
+
     for stage_name, expected_artifact in stages:
+        if stage_name == "continuous_story":
+            os.environ["GEMINI_MODEL"] = "gemini-3.6-flash"
+            get_llm_provider.cache_clear()
+            print("     [MODEL ROUTING] Switched to gemini-3.6-flash for Continuous Story Choreography.")
+
         t0 = time.time()
         print(f"\n---> Dispatching stage: '{stage_name}' (expected: {expected_artifact})...")
         resp = client.post(f"/projects/{project_id}/runs/{run_id}/run/{stage_name}")
@@ -200,9 +208,13 @@ def run_pipeline_for_topic(topic: str, angle: str, audience: str, channel: str, 
         dest = artifact_dir / "e2e_story.mp4"
         shutil.copy2(video_path, dest)
         print(f"  * Copied video to artifact directory: {dest}")
-        dest_cc = artifact_dir / "e2e_credit_card_trap_story.mp4"
-        shutil.copy2(video_path, dest_cc)
-        print(f"  * Copied video to artifact directory: {dest_cc}")
+        slug = "".join(c if c.isalnum() else "_" for c in topic.lower()).strip("_")[:28]
+        dest_topic = artifact_dir / f"{slug}.mp4"
+        shutil.copy2(video_path, dest_topic)
+        print(f"  * Copied video to artifact directory: {dest_topic}")
+        dest_specific = artifact_dir / "home_loan_prepayment_story.mp4"
+        shutil.copy2(video_path, dest_specific)
+        print(f"  * Copied video to artifact directory: {dest_specific}")
 
 
 

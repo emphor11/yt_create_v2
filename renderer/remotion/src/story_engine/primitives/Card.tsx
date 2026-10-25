@@ -1,6 +1,6 @@
 import React from "react";
 import type { CardProps, VisualStateKind, StampProps } from "../types.ts";
-import { tokens } from "../../design-tokens.ts";
+import { handDrawn, handDrawnAccent } from "../hand-drawn-theme.ts";
 
 interface CardComponentProps {
   props: CardProps;
@@ -58,30 +58,30 @@ export const Card: React.FC<CardComponentProps> = ({
   const activeBadge = dynamicBadge || props.badge;
   const activeSubtitle = currentSubtitle || props.subtitle;
 
-  let accentColor = customAccent || props.accentColor || tokens.accent.primary;
-  let borderColor = tokens.bg.border;
-  let glowStyle = "0 20px 40px -15px rgba(0, 0, 0, 0.5)";
+  let accentColor: string = handDrawnAccent(activeVisualState, customAccent || props.accentColor);
+  let borderColor: string = handDrawn.colors.ink;
+  let glowStyle: string = handDrawn.shadow.paper;
   let filterStyle: string | undefined = undefined;
   let borderStyle = "solid";
 
   if (activeVisualState === "danger") {
-    accentColor = "#EF4444";
-    borderColor = "#EF4444";
-    glowStyle = "0 0 32px 4px rgba(239, 68, 68, 0.45), 0 20px 40px -15px rgba(0, 0, 0, 0.6)";
+    accentColor = handDrawn.colors.red;
+    borderColor = handDrawn.colors.red;
+    glowStyle = `4px 5px 0 ${handDrawn.colors.coralSoft}, ${handDrawn.shadow.paper}`;
   } else if (activeVisualState === "warning") {
-    accentColor = "#F59E0B";
-    borderColor = "#F59E0B";
-    glowStyle = "0 0 25px 2px rgba(245, 158, 11, 0.35), 0 20px 40px -15px rgba(0, 0, 0, 0.6)";
+    accentColor = handDrawn.colors.amber;
+    borderColor = handDrawn.colors.amber;
+    glowStyle = `4px 5px 0 ${handDrawn.colors.amberSoft}, ${handDrawn.shadow.paper}`;
   } else if (activeVisualState === "success") {
-    accentColor = "#10B981";
-    borderColor = "#10B981";
-    glowStyle = "0 0 28px 3px rgba(16, 185, 129, 0.4), 0 20px 40px -15px rgba(0, 0, 0, 0.6)";
+    accentColor = handDrawn.colors.green;
+    borderColor = handDrawn.colors.green;
+    glowStyle = `4px 5px 0 #CBE6D1, ${handDrawn.shadow.paper}`;
   } else if (activeVisualState === "dimmed") {
     filterStyle = "grayscale(75%) contrast(0.85)";
   } else if (activeVisualState === "eroded") {
-    borderColor = "rgba(239, 68, 68, 0.8)";
+    borderColor = handDrawn.colors.red;
     borderStyle = "dashed";
-    glowStyle = "0 0 20px rgba(239, 68, 68, 0.25)";
+    glowStyle = handDrawn.shadow.paper;
   }
 
   // Value resolution for atomic card
@@ -108,15 +108,14 @@ export const Card: React.FC<CardComponentProps> = ({
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
-        backgroundColor: tokens.bg.surface,
-        border: `1.5px ${borderStyle} ${borderColor}`,
-        borderRadius: tokens.radius.card,
+        backgroundColor: handDrawn.colors.paperAlt,
+        border: `${activeVisualState === "normal" ? 2 : 2.5}px ${borderStyle} ${borderColor}`,
+        borderRadius: handDrawn.radius.card,
         padding: "26px 30px",
         boxShadow: glowStyle,
-        backdropFilter: "blur(12px)",
         boxSizing: "border-box",
         overflow: "hidden",
-        fontFamily: tokens.font.family,
+        fontFamily: handDrawn.font.body,
         filter: filterStyle,
         transition: "border 0.3s ease, box-shadow 0.3s ease",
         ...style,
@@ -129,8 +128,9 @@ export const Card: React.FC<CardComponentProps> = ({
           top: 0,
           left: 0,
           right: 0,
-          height: 4,
+          height: 8,
           backgroundColor: accentColor,
+          opacity: 0.92,
         }}
       />
 
@@ -142,11 +142,11 @@ export const Card: React.FC<CardComponentProps> = ({
             top: 16,
             right: 20,
             padding: "4px 10px",
-            borderRadius: 6,
-            backgroundColor: `${accentColor}26`,
+            borderRadius: handDrawn.radius.pill,
+            backgroundColor: handDrawn.colors.paper,
             border: `1px solid ${accentColor}`,
             color: accentColor,
-            fontFamily: tokens.font.family,
+            fontFamily: handDrawn.font.label,
             fontSize: 11,
             fontWeight: 700,
             letterSpacing: "0.06em",
@@ -170,13 +170,13 @@ export const Card: React.FC<CardComponentProps> = ({
             borderRadius: 8,
             padding: "6px 14px",
             color: stamp.color || "#EF4444",
-            fontFamily: tokens.font.family,
+            fontFamily: handDrawn.font.label,
             fontSize: 18,
             fontWeight: 900,
             letterSpacing: "0.15em",
             textTransform: "uppercase",
-            backgroundColor: "rgba(0, 0, 0, 0.35)",
-            boxShadow: `0 0 15px ${stamp.color || "#EF4444"}44`,
+            backgroundColor: handDrawn.colors.paperAlt,
+            boxShadow: handDrawn.shadow.paper,
             zIndex: 10,
             pointerEvents: "none",
           }}
@@ -191,7 +191,7 @@ export const Card: React.FC<CardComponentProps> = ({
           style={{
             fontSize: 17,
             fontWeight: 600,
-            color: tokens.text.secondary,
+            color: handDrawn.colors.inkMuted,
             letterSpacing: "0.05em",
             textTransform: "uppercase",
             marginBottom: 8,
@@ -219,10 +219,10 @@ export const Card: React.FC<CardComponentProps> = ({
         {hasValue && (
           <div
             style={{
-              fontFamily: tokens.font.family,
+              fontFamily: handDrawn.font.display,
               fontSize: 50,
               fontWeight: 800,
-              color: tokens.text.primary,
+            color: handDrawn.colors.ink,
               letterSpacing: "-0.03em",
               lineHeight: 1.1,
               fontVariantNumeric: "tabular-nums",
@@ -238,7 +238,7 @@ export const Card: React.FC<CardComponentProps> = ({
         <div
           style={{
             fontSize: 14,
-            color: tokens.text.muted,
+              color: handDrawn.colors.inkMuted,
             marginTop: 6,
             zIndex: 2,
             lineHeight: 1.35,

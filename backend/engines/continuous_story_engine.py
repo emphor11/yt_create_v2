@@ -268,6 +268,12 @@ def format_programmatic_repair_prompt(
                             '   Valid facing: "left", "right".\n'
                             "   Do not specify card, chart, number, or image fields on character.\n"
                         )
+                    elif obj_type == "image":
+                        specific_guidance = (
+                            '   Image requires: "type": "image", "layout" ("split_left", "split_right", or "center"), "asset_request": {"query": "cinematic search phrase"}.\n'
+                            '   Optional on image: "caption", "badge", "fit".\n'
+                            "   Do not specify title, subtitle, display_value, or numeric_value on image.\n"
+                        )
 
             lines.append(f"{err_idx}. {loc_str}:\n{item_info}{specific_guidance}   Detail: {msg}\n")
             err_idx += 1
@@ -350,6 +356,24 @@ def format_programmatic_repair_prompt(
                     f"     Macro/split zones cannot overlap in time with child/conflicting zones.\n"
                     f"     Assign '{target_id}' or '{other_id}' to non-conflicting zones, or exit one before the other enters.\n"
                 )
+            elif code == "CARD_OVERLAP":
+                id1 = details.get("id1", "")
+                id2 = details.get("id2", target_id or "")
+                z1 = details.get("zone1", "")
+                z2 = details.get("zone2", "")
+                s_ms = details.get("start_ms", "")
+                e_ms = details.get("end_ms", "")
+                s_sec = f"{s_ms/1000:.1f}s" if isinstance(s_ms, (int, float)) else str(s_ms)
+                e_sec = f"{e_ms/1000:.1f}s" if isinstance(e_ms, (int, float)) else str(e_ms)
+                zone_desc = f" in '{z1}' and '{z2}'" if z1 and z2 else ""
+                guidance = (
+                    f"   Spatial bounding box overlap details:\n"
+                    f"     - '{id1}' and '{id2}'{zone_desc} physically collide on screen during {s_sec} to {e_sec} ({s_ms}ms–{e_ms}ms).\n"
+                    f"     - Elements in 'center' (especially wide text primitives) physically cross into and overlap with 'split_left' and 'split_right'.\n"
+                    f"   Required fix:\n"
+                    f"     Option A: Add an explicit 'exit' event to remove '{id1}' before '{id2}' enters.\n"
+                    f"     Option B: Place both elements in non-overlapping layout zones (e.g., split_left and split_right).\n"
+                )
             elif code == "MISSING_ENTER_EVENT":
                 guidance = (
                     f"   Missing enter event for '{target_id}'.\n"
@@ -415,7 +439,7 @@ def build_continuous_story_prompt(
         f"\"{narration_text}\"\n\n"
         f"{strategy_str}"
         f"AVAILABLE IMAGE ASSETS:\n{assets_str}\n\n"
-        "The system prompt above is the single authoritative contract. Use direct-authoring mode, exact spoken anchors, and the editorial beat requirements. Return the complete ContinuousStoryDraft JSON only."
+        "The system prompt above is the single authoritative contract. Follow the mandatory 3-second visual refresh rate and the explicit budget (35–50 declared objects, 60–80 events, and 3–6 real-world 'image' objects with descriptive 'asset_request' for 120–180s narration). Localized images conform to 420x240 dimensions. Use direct-authoring mode, exact spoken anchors, and return the complete ContinuousStoryDraft JSON only."
     )
     return system_prompt, user_prompt
 
@@ -552,6 +576,18 @@ def _validate_editorial_composition(
         errors.append(
             "MISSING_STANDALONE_NUMBER: the finance narration contains major numeric information, "
             "but no standalone number primitive was declared for the primary reveal."
+        )
+
+    institution_or_physical_cues = (
+        "bank", "lender", "insurer", "insurance", "company", "office", "branch",
+        "home", "house", "property", "car", "vehicle", "gold",
+        "document", "contract", "policy", "agreement", "paperwork", "form",
+    )
+    image_count = sum(1 for obj in draft.objects if obj.type == "image")
+    if any(cue in narration for cue in institution_or_physical_cues) and card_count >= 2 and image_count < 1:
+        errors.append(
+            "MISSING_IMAGE_FOR_PHYSICAL_GROUNDING: the narration references institutions, documents, or physical assets, "
+            "but no 'image' primitive was declared. Declare at least 2–3 images with 'asset_request' to ground these entities."
         )
 
     if errors:
@@ -830,7 +866,7 @@ class ContinuousStoryEngine:
             )
 
             # 4. Run pre-compilation draft validation (occupancy & temporal simulation) with iterative repair
-            max_validation_attempts = 3
+            max_validation_attempts = 4
             for attempt in range(max_validation_attempts):
                 draft_validation = validate_story_draft(
                     draft=draft,
@@ -901,6 +937,11 @@ class ContinuousStoryEngine:
             _validate_direct_authoring_contract(draft, available_assets_list)
 
         # 4. Deterministic compilation
+        asset_durations = {
+            rec["asset_id"]: rec.get("duration")
+            for rec in resolved_assets_records
+            if isinstance(rec, dict) and "duration" in rec and rec.get("duration")
+        }
         fixture_context = {
             "story_id": draft.story_id,
             "approved_facts": approved_facts,
@@ -909,6 +950,7 @@ class ContinuousStoryEngine:
             "audio_file": voice_track.audio_file_name,
             "narration_text": voice_track.full_script_text,
             "available_assets": available_assets_list,
+            "asset_durations": asset_durations,
         }
         try:
             compiled_plan = self.compiler.compile(draft, fixture_context)

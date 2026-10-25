@@ -1,6 +1,6 @@
 import React from "react";
 import type { DocumentProps, VisualStateKind, StampProps } from "../types.ts";
-import { tokens } from "../../design-tokens.ts";
+import { handDrawn, handDrawnAccent } from "../hand-drawn-theme.ts";
 
 interface DocumentComponentProps {
   props: DocumentProps;
@@ -19,23 +19,23 @@ export const DocumentPrimitive: React.FC<DocumentComponentProps> = ({
   customAccent,
   style,
 }) => {
-  let accentColor = customAccent || props.accentColor || tokens.accent.cyan;
-  let borderColor = tokens.bg.border;
-  let glowStyle = "0 25px 50px -12px rgba(0, 0, 0, 0.7)";
+  let accentColor: string = handDrawnAccent(visualState, customAccent || props.accentColor);
+  let borderColor: string = handDrawn.colors.ink;
+  let glowStyle: string = handDrawn.shadow.paper;
   let filterStyle: string | undefined = undefined;
 
   if (visualState === "danger") {
-    accentColor = "#EF4444";
-    borderColor = "#EF4444";
-    glowStyle = "0 0 35px 5px rgba(239, 68, 68, 0.5), 0 25px 50px -12px rgba(0, 0, 0, 0.7)";
+    accentColor = handDrawn.colors.red;
+    borderColor = handDrawn.colors.red;
+    glowStyle = `4px 5px 0 ${handDrawn.colors.coralSoft}, ${handDrawn.shadow.paper}`;
   } else if (visualState === "warning") {
-    accentColor = "#F59E0B";
-    borderColor = "#F59E0B";
-    glowStyle = "0 0 28px 3px rgba(245, 158, 11, 0.4), 0 25px 50px -12px rgba(0, 0, 0, 0.7)";
+    accentColor = handDrawn.colors.amber;
+    borderColor = handDrawn.colors.amber;
+    glowStyle = `4px 5px 0 ${handDrawn.colors.amberSoft}, ${handDrawn.shadow.paper}`;
   } else if (visualState === "success") {
-    accentColor = "#10B981";
-    borderColor = "#10B981";
-    glowStyle = "0 0 30px 4px rgba(16, 185, 129, 0.45), 0 25px 50px -12px rgba(0, 0, 0, 0.7)";
+    accentColor = handDrawn.colors.green;
+    borderColor = handDrawn.colors.green;
+    glowStyle = `4px 5px 0 #CBE6D1, ${handDrawn.shadow.paper}`;
   } else if (visualState === "dimmed") {
     filterStyle = "grayscale(75%) contrast(0.85)";
   }
@@ -46,12 +46,12 @@ export const DocumentPrimitive: React.FC<DocumentComponentProps> = ({
         position: "relative",
         display: "flex",
         flexDirection: "column",
-        backgroundColor: "#0D111A",
-        border: `1.5px solid ${borderColor}`,
-        borderRadius: 12,
+        backgroundColor: handDrawn.colors.paperAlt,
+        border: `2px solid ${borderColor}`,
+        borderRadius: handDrawn.radius.card,
         padding: "24px 28px",
         boxShadow: glowStyle,
-        fontFamily: tokens.font.family,
+        fontFamily: handDrawn.font.body,
         boxSizing: "border-box",
         overflow: "hidden",
         filter: filterStyle,
@@ -67,7 +67,7 @@ export const DocumentPrimitive: React.FC<DocumentComponentProps> = ({
           left: "20%",
           fontSize: 68,
           fontWeight: 900,
-          color: "rgba(255, 255, 255, 0.03)",
+          color: `${handDrawn.colors.ink}10`,
           letterSpacing: "0.2em",
           transform: "rotate(-25deg)",
           pointerEvents: "none",
@@ -88,14 +88,14 @@ export const DocumentPrimitive: React.FC<DocumentComponentProps> = ({
             border: `3px solid ${stamp.color || "#10B981"}`,
             borderRadius: 8,
             padding: "8px 18px",
-            color: stamp.color || "#10B981",
-            fontFamily: tokens.font.family,
+            color: stamp.color || handDrawn.colors.green,
+            fontFamily: handDrawn.font.label,
             fontSize: 22,
             fontWeight: 900,
             letterSpacing: "0.2em",
             textTransform: "uppercase",
-            backgroundColor: "rgba(0, 0, 0, 0.45)",
-            boxShadow: `0 0 20px ${stamp.color || "#10B981"}55`,
+            backgroundColor: handDrawn.colors.paperAlt,
+            boxShadow: handDrawn.shadow.paper,
             zIndex: 15,
             pointerEvents: "none",
           }}
@@ -110,7 +110,7 @@ export const DocumentPrimitive: React.FC<DocumentComponentProps> = ({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+          borderBottom: `2px solid ${handDrawn.colors.ink}33`,
           paddingBottom: 12,
           marginBottom: 16,
         }}
@@ -120,7 +120,7 @@ export const DocumentPrimitive: React.FC<DocumentComponentProps> = ({
             style={{
               fontSize: 18,
               fontWeight: 800,
-              color: tokens.text.primary,
+              color: handDrawn.colors.ink,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
             }}
@@ -131,7 +131,7 @@ export const DocumentPrimitive: React.FC<DocumentComponentProps> = ({
             <div
               style={{
                 fontSize: 12,
-                color: tokens.text.muted,
+                color: handDrawn.colors.inkMuted,
                 fontFamily: "monospace",
                 marginTop: 2,
               }}
@@ -187,7 +187,7 @@ export const DocumentPrimitive: React.FC<DocumentComponentProps> = ({
           style={{
             marginTop: 14,
             paddingTop: 12,
-            borderTop: "1px dashed rgba(255, 255, 255, 0.12)",
+            borderTop: `1px dashed ${handDrawn.colors.ink}55`,
             display: "flex",
             flexDirection: "column",
             gap: 6,
@@ -201,11 +201,11 @@ export const DocumentPrimitive: React.FC<DocumentComponentProps> = ({
                 display: "flex",
                 justifyContent: "space-between",
                 fontSize: 14,
-                color: tokens.text.secondary,
+                color: handDrawn.colors.inkMuted,
               }}
             >
               <span>{item.label}</span>
-              <span style={{ fontWeight: 600, color: item.color || tokens.text.primary }}>
+              <span style={{ fontWeight: 600, color: item.color || handDrawn.colors.ink }}>
                 {item.value}
               </span>
             </div>
@@ -221,8 +221,8 @@ export const DocumentPrimitive: React.FC<DocumentComponentProps> = ({
             display: "flex",
             justifyContent: "space-between",
             fontSize: 12,
-            color: tokens.text.muted,
-            borderTop: "1px solid rgba(255, 255, 255, 0.06)",
+            color: handDrawn.colors.inkMuted,
+            borderTop: `1px solid ${handDrawn.colors.ink}22`,
             paddingTop: 8,
           }}
         >

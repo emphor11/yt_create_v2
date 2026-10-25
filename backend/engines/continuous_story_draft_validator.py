@@ -49,7 +49,7 @@ VALID_ZONES = {
 }
 
 SURFACE_TYPES = {"card", "number", "text", "chart", "image", "character", "stock_video"}
-EXIT_DURATION_MS = 800  # Conservative clearance window (approx 24-25 frames at 30fps)
+EXIT_DURATION_MS = 0  # Zone releases immediately upon exit start, enabling seamless cross-fades and handoffs without black screen gaps
 
 MACRO_ZONE_CONFLICTS: dict[str, set[str]] = {
     "full_screen": {
@@ -64,9 +64,9 @@ MACRO_ZONE_CONFLICTS: dict[str, set[str]] = {
 DEFAULT_PRIMITIVE_DIMENSIONS: dict[str, tuple[int, int]] = {
     "chart": (560, 320),
     "document": (480, 320),
-    "image": (640, 360),
+    "image": (420, 240),
     "number": (340, 160),
-    "text": (400, 90),
+    "text": (800, 160),
     "character": (240, 360),
     "card": (420, 240),
     "stock_video": (1920, 1080),
@@ -92,6 +92,11 @@ def _resolve_obj_geometry(
     default_w, default_h = DEFAULT_PRIMITIVE_DIMENSIONS.get(obj_type, (420, 240))
     w = width if width is not None else default_w
     h = height if height is not None else default_h
+
+    # Ensure localized images strictly stay under the zone's safe dimensions (420x240)
+    if obj_type == "image" and zone in ZONE_CENTERS:
+        w = min(w, 420)
+        h = min(h, 240)
 
     if zone in ZONE_CENTERS:
         cx, cy = ZONE_CENTERS[zone]
@@ -1030,6 +1035,8 @@ def validate_story_draft(
                                         details={
                                             "id1": id1,
                                             "id2": id2,
+                                            "zone1": z1,
+                                            "zone2": z2,
                                             "x_overlap": x_overlap,
                                             "y_overlap": y_overlap,
                                             "start_ms": overlap_start,

@@ -6,6 +6,7 @@ import type {
   CharacterFacing,
   VisualStateKind,
 } from "../types.ts";
+import { handDrawn } from "../hand-drawn-theme.ts";
 
 interface Point {
   x: number;
@@ -207,29 +208,33 @@ export const Character: React.FC<CharacterPrimitiveProps> = ({
   const joints = poseProgress >= 1 ? targetJoints : interpolatePose(sourceJoints, targetJoints, poseProgress);
 
   // Dynamic accent color based on visualState / customAccent
-  let accentColor = customAccent || props.accentColor || "#38BDF8";
+  let accentColor = customAccent || props.accentColor || handDrawn.colors.teal;
   if (visualState === "warning") {
-    accentColor = "#F59E0B";
+    accentColor = handDrawn.colors.amber;
   } else if (visualState === "danger") {
-    accentColor = "#EF4444";
+    accentColor = handDrawn.colors.red;
   } else if (visualState === "success") {
-    accentColor = "#10B981";
+    accentColor = handDrawn.colors.green;
   }
 
   // Visor color based on emotion
   let visorColor = accentColor;
   if (emotion === "concerned") {
-    visorColor = "#F59E0B";
+    visorColor = handDrawn.colors.amber;
   } else if (emotion === "focused") {
-    visorColor = "#60A5FA";
+    visorColor = handDrawn.colors.blue;
   } else if (emotion === "happy") {
-    visorColor = "#34D399";
+    visorColor = handDrawn.colors.green;
   } else if (emotion === "surprised") {
-    visorColor = "#38BDF8";
+    visorColor = handDrawn.colors.teal;
   }
 
   const chestY = (joints.shoulderCenter.y + joints.spine.y) * 0.45;
   const chestX = (joints.shoulderCenter.x + joints.spine.x) * 0.5;
+  const shirt = handDrawn.colors.paperAlt;
+  const shirtShadow = `${handDrawn.colors.ink}14`;
+  const silhouette = "#111313";
+  const pants = "#34383A";
 
   return (
     <div
@@ -261,13 +266,13 @@ export const Character: React.FC<CharacterPrimitiveProps> = ({
             </feMerge>
           </filter>
           <radialGradient id={`holo-floor-${filterId}`} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={accentColor} stopOpacity="0.35" />
-            <stop offset="60%" stopColor={accentColor} stopOpacity="0.1" />
+            <stop offset="0%" stopColor={accentColor} stopOpacity="0.22" />
+            <stop offset="60%" stopColor={accentColor} stopOpacity="0.06" />
             <stop offset="100%" stopColor={accentColor} stopOpacity="0" />
           </radialGradient>
         </defs>
 
-        {/* Subtle holographic floor ring at base */}
+        {/* Subtle hand-drawn grounding mark at the character's feet */}
         <ellipse
           cx="120"
           cy="338"
@@ -279,16 +284,52 @@ export const Character: React.FC<CharacterPrimitiveProps> = ({
         {/* Stick figure group with horizontal facing reflection */}
         <g
           transform={facing === "left" ? "translate(240, 0) scale(-1, 1)" : undefined}
-          filter={`url(#neon-glow-${filterId})`}
         >
-          {/* Spine / Torso */}
+          {/* Loose oversized T-shirt silhouette. */}
+          <path
+            d={`M ${joints.leftShoulder.x - 12} ${joints.leftShoulder.y + 1}
+                Q ${joints.shoulderCenter.x} ${joints.shoulderCenter.y - 12} ${joints.rightShoulder.x + 12} ${joints.rightShoulder.y + 1}
+                L ${joints.rightHip.x + 12} ${joints.rightHip.y + 10}
+                Q ${chestX} ${joints.spine.y + 18} ${joints.leftHip.x - 12} ${joints.leftHip.y + 10} Z`}
+            fill={shirt}
+            stroke={silhouette}
+            strokeWidth="3.5"
+            strokeLinejoin="round"
+          />
+          <path
+            d={`M ${joints.leftShoulder.x + 2} ${joints.leftShoulder.y + 8}
+                Q ${chestX} ${chestY + 9} ${joints.rightShoulder.x - 2} ${joints.rightShoulder.y + 8}
+                L ${joints.rightHip.x - 1} ${joints.rightHip.y - 2}
+                Q ${chestX} ${joints.spine.y - 1} ${joints.leftHip.x + 1} ${joints.leftHip.y - 2} Z`}
+            fill={shirtShadow}
+            stroke="none"
+          />
+
+          {/* Collar and small pocket detail. */}
+          <path
+            d={`M ${joints.shoulderCenter.x - 10} ${joints.shoulderCenter.y - 3} L ${chestX} ${chestY + 13} L ${joints.shoulderCenter.x + 10} ${joints.shoulderCenter.y - 3}`}
+            fill="none"
+            stroke={silhouette}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d={`M ${chestX + 8} ${chestY + 31} l 14 0 l 0 15 l -14 0 z`}
+            fill="none"
+            stroke={handDrawn.colors.inkMuted}
+            strokeWidth="1.5"
+            opacity="0.75"
+          />
+
+          {/* Spine / Torso guide */}
           <line
             x1={joints.shoulderCenter.x}
             y1={joints.shoulderCenter.y}
             x2={joints.spine.x}
             y2={joints.spine.y}
-            stroke={accentColor}
-            strokeWidth="3.5"
+            stroke={silhouette}
+            strokeWidth="2.5"
             strokeLinecap="round"
           />
 
@@ -298,8 +339,8 @@ export const Character: React.FC<CharacterPrimitiveProps> = ({
             y1={joints.head.y + 16}
             x2={joints.shoulderCenter.x}
             y2={joints.shoulderCenter.y}
-            stroke={accentColor}
-            strokeWidth="3"
+            stroke={silhouette}
+            strokeWidth="5"
             strokeLinecap="round"
           />
 
@@ -309,30 +350,32 @@ export const Character: React.FC<CharacterPrimitiveProps> = ({
             y1={joints.leftShoulder.y}
             x2={joints.rightShoulder.x}
             y2={joints.rightShoulder.y}
-            stroke={accentColor}
-            strokeWidth="3.5"
+            stroke={silhouette}
+            strokeWidth="5"
             strokeLinecap="round"
           />
 
-          {/* Left Arm: Shoulder -> Elbow -> Hand */}
+          {/* Left arm with a filled cuff and hand. */}
           <path
             d={`M ${joints.leftShoulder.x} ${joints.leftShoulder.y} L ${joints.leftElbow.x} ${joints.leftElbow.y} L ${joints.leftHand.x} ${joints.leftHand.y}`}
             fill="none"
-            stroke={accentColor}
-            strokeWidth="3.5"
+            stroke={silhouette}
+            strokeWidth="13"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+          <circle cx={joints.leftHand.x} cy={joints.leftHand.y} r="9" fill={silhouette} />
 
-          {/* Right Arm: Shoulder -> Elbow -> Hand */}
+          {/* Right arm with a filled cuff and hand. */}
           <path
             d={`M ${joints.rightShoulder.x} ${joints.rightShoulder.y} L ${joints.rightElbow.x} ${joints.rightElbow.y} L ${joints.rightHand.x} ${joints.rightHand.y}`}
             fill="none"
-            stroke={accentColor}
-            strokeWidth="3.5"
+            stroke={silhouette}
+            strokeWidth="13"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+          <circle cx={joints.rightHand.x} cy={joints.rightHand.y} r="9" fill={silhouette} />
 
           {/* Pelvis bar */}
           <line
@@ -340,97 +383,101 @@ export const Character: React.FC<CharacterPrimitiveProps> = ({
             y1={joints.leftHip.y}
             x2={joints.rightHip.x}
             y2={joints.rightHip.y}
-            stroke={accentColor}
-            strokeWidth="3.5"
+            stroke={silhouette}
+            strokeWidth="4"
             strokeLinecap="round"
           />
 
-          {/* Left Leg: Hip -> Knee -> Foot */}
+          {/* Trousers and shoes. */}
           <path
             d={`M ${joints.leftHip.x} ${joints.leftHip.y} L ${joints.leftKnee.x} ${joints.leftKnee.y} L ${joints.leftFoot.x} ${joints.leftFoot.y}`}
             fill="none"
-            stroke={accentColor}
-            strokeWidth="3.5"
+            stroke={pants}
+            strokeWidth="19"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+          <path d={`M ${joints.leftFoot.x - 22} ${joints.leftFoot.y - 2} Q ${joints.leftFoot.x - 2} ${joints.leftFoot.y - 13} ${joints.leftFoot.x + 18} ${joints.leftFoot.y - 2} L ${joints.leftFoot.x + 18} ${joints.leftFoot.y + 10} L ${joints.leftFoot.x - 22} ${joints.leftFoot.y + 10} Z`} fill={silhouette} stroke={silhouette} strokeWidth="3" />
+          <path d={`M ${joints.leftFoot.x - 15} ${joints.leftFoot.y + 1} l 16 0 M ${joints.leftFoot.x - 12} ${joints.leftFoot.y + 5} l 15 0`} stroke={handDrawn.colors.paperAlt} strokeWidth="2" strokeLinecap="round" opacity="0.8" />
 
-          {/* Right Leg: Hip -> Knee -> Foot */}
+          {/* Right leg. */}
           <path
             d={`M ${joints.rightHip.x} ${joints.rightHip.y} L ${joints.rightKnee.x} ${joints.rightKnee.y} L ${joints.rightFoot.x} ${joints.rightFoot.y}`}
             fill="none"
-            stroke={accentColor}
-            strokeWidth="3.5"
+            stroke={pants}
+            strokeWidth="19"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+          <path d={`M ${joints.rightFoot.x - 18} ${joints.rightFoot.y - 2} Q ${joints.rightFoot.x + 2} ${joints.rightFoot.y - 13} ${joints.rightFoot.x + 22} ${joints.rightFoot.y - 2} L ${joints.rightFoot.x + 22} ${joints.rightFoot.y + 10} L ${joints.rightFoot.x - 18} ${joints.rightFoot.y + 10} Z`} fill={silhouette} stroke={silhouette} strokeWidth="3" />
+          <path d={`M ${joints.rightFoot.x - 12} ${joints.rightFoot.y + 1} l 16 0 M ${joints.rightFoot.x - 9} ${joints.rightFoot.y + 5} l 15 0`} stroke={handDrawn.colors.paperAlt} strokeWidth="2" strokeLinecap="round" opacity="0.8" />
 
           {/* Joint Nodes */}
-          <circle cx={joints.leftElbow.x} cy={joints.leftElbow.y} r="2.8" fill="#F0F9FF" />
-          <circle cx={joints.rightElbow.x} cy={joints.rightElbow.y} r="2.8" fill="#F0F9FF" />
-          <circle cx={joints.leftKnee.x} cy={joints.leftKnee.y} r="2.8" fill="#F0F9FF" />
-          <circle cx={joints.rightKnee.x} cy={joints.rightKnee.y} r="2.8" fill="#F0F9FF" />
-          <circle cx={joints.spine.x} cy={joints.spine.y} r="3" fill="#F0F9FF" />
+          <circle cx={joints.leftElbow.x} cy={joints.leftElbow.y} r="2.8" fill={handDrawn.colors.paperAlt} />
+          <circle cx={joints.rightElbow.x} cy={joints.rightElbow.y} r="2.8" fill={handDrawn.colors.paperAlt} />
+          <circle cx={joints.leftKnee.x} cy={joints.leftKnee.y} r="2.8" fill={handDrawn.colors.paperAlt} />
+          <circle cx={joints.rightKnee.x} cy={joints.rightKnee.y} r="2.8" fill={handDrawn.colors.paperAlt} />
+          <circle cx={joints.spine.x} cy={joints.spine.y} r="3" fill={handDrawn.colors.paperAlt} />
 
           {/* Futuristic Chest Core Node */}
           <circle cx={chestX} cy={chestY} r="3.2" fill={accentColor} />
-          <circle cx={chestX} cy={chestY} r="1.5" fill="#FFFFFF" />
+          <circle cx={chestX} cy={chestY} r="1.5" fill={handDrawn.colors.white} />
 
-          {/* Head & Futuristic Helmet/Visor */}
+          {/* Black mascot head with simple white oval eyes. */}
           <circle
             cx={joints.head.x}
             cy={joints.head.y}
-            r="19"
-            fill="#090D16"
-            stroke={accentColor}
-            strokeWidth="2.8"
+            r="29"
+            fill={silhouette}
+            stroke={silhouette}
+            strokeWidth="3"
           />
 
-          {/* Glowing Visor Slit */}
+          {/* Face expression changes with the existing emotion states. */}
           {emotion === "happy" ? (
             <path
-              d={`M ${joints.head.x - 11} ${joints.head.y - 1} Q ${joints.head.x} ${joints.head.y + 4} ${joints.head.x + 11} ${joints.head.y - 1}`}
+              d={`M ${joints.head.x - 8} ${joints.head.y + 5} Q ${joints.head.x} ${joints.head.y + 12} ${joints.head.x + 8} ${joints.head.y + 5}`}
               fill="none"
-              stroke={visorColor}
-              strokeWidth="2.8"
+              stroke={handDrawn.colors.paperAlt}
+              strokeWidth="2.2"
               strokeLinecap="round"
             />
           ) : emotion === "concerned" ? (
             <path
-              d={`M ${joints.head.x - 11} ${joints.head.y + 2} L ${joints.head.x + 11} ${joints.head.y - 2}`}
+              d={`M ${joints.head.x - 9} ${joints.head.y + 8} Q ${joints.head.x} ${joints.head.y + 3} ${joints.head.x + 9} ${joints.head.y + 8}`}
               fill="none"
-              stroke={visorColor}
-              strokeWidth="2.8"
+              stroke={handDrawn.colors.paperAlt}
+              strokeWidth="2.2"
               strokeLinecap="round"
             />
           ) : emotion === "surprised" ? (
             <circle
               cx={joints.head.x}
-              cy={joints.head.y}
-              r="4.5"
+              cy={joints.head.y + 7}
+              r="3.5"
               fill="none"
-              stroke={visorColor}
-              strokeWidth="2.5"
+              stroke={handDrawn.colors.paperAlt}
+              strokeWidth="2.2"
             />
           ) : (
-            <line
-              x1={joints.head.x - 11}
-              y1={joints.head.y}
-              x2={joints.head.x + 11}
-              y2={joints.head.y}
-              stroke={visorColor}
-              strokeWidth="2.8"
-              strokeLinecap="round"
-            />
+            <path d={`M ${joints.head.x - 7} ${joints.head.y + 9} Q ${joints.head.x} ${joints.head.y + 5} ${joints.head.x + 7} ${joints.head.y + 9}`} fill="none" stroke={handDrawn.colors.paperAlt} strokeWidth="2" strokeLinecap="round" />
           )}
+          <ellipse cx={joints.head.x - 9} cy={joints.head.y - 2} rx="4.5" ry="8" fill={handDrawn.colors.paperAlt} />
+          <ellipse cx={joints.head.x + 9} cy={joints.head.y - 2} rx="4.5" ry="8" fill={handDrawn.colors.paperAlt} />
 
-          {/* Visor Core Highlight */}
-          <circle
-            cx={joints.head.x}
-            cy={joints.head.y}
-            r="1.4"
-            fill="#FFFFFF"
-          />
+          {(emotion === "concerned" || activePose === "worried") && (
+            <>
+              <path d={`M ${joints.head.x - 31} ${joints.head.y - 8} l -8 -5 M ${joints.head.x + 31} ${joints.head.y - 8} l 8 -5`} stroke={handDrawn.colors.coral} strokeWidth="2.5" strokeLinecap="round" />
+              <path d={`M ${joints.head.x - 29} ${joints.head.y + 12} l -7 4 M ${joints.head.x + 29} ${joints.head.y + 12} l 7 4`} stroke={handDrawn.colors.coral} strokeWidth="2" strokeLinecap="round" />
+            </>
+          )}
+          {activePose === "celebrate" && (
+            <>
+              <path d={`M ${joints.head.x - 31} ${joints.head.y + 3} l -9 -4 M ${joints.head.x + 31} ${joints.head.y + 3} l 9 -4`} stroke={handDrawn.colors.amber} strokeWidth="2.5" strokeLinecap="round" />
+              <circle cx={joints.head.x - 33} cy={joints.head.y - 13} r="2.5" fill={handDrawn.colors.coral} />
+              <circle cx={joints.head.x + 33} cy={joints.head.y - 13} r="2.5" fill={handDrawn.colors.coral} />
+            </>
+          )}
         </g>
       </svg>
 
@@ -449,13 +496,13 @@ export const Character: React.FC<CharacterPrimitiveProps> = ({
             style={{
               padding: "3px 10px",
               borderRadius: 8,
-              background: "rgba(9, 13, 22, 0.85)",
-              border: `1px solid ${accentColor}55`,
-              boxShadow: `0 2px 8px rgba(0,0,0,0.6)`,
+              background: handDrawn.colors.paperAlt,
+              border: `1px solid ${handDrawn.colors.ink}66`,
+              boxShadow: handDrawn.shadow.paper,
               fontSize: 11,
               fontWeight: 600,
-              fontFamily: "monospace",
-              color: "#E2E8F0",
+              fontFamily: handDrawn.font.label,
+              color: handDrawn.colors.ink,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
               whiteSpace: "nowrap",

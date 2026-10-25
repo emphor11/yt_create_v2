@@ -73,11 +73,11 @@ export function getDefaultDimensionsForType(type: PrimitiveType): { width: numbe
     case "document":
       return { width: 480, height: 320 };
     case "image":
-      return { width: 640, height: 360 };
+      return { width: 420, height: 240 };
     case "number":
       return { width: 340, height: 160 };
     case "text":
-      return { width: 400, height: 90 };
+      return { width: 800, height: 160 };
     case "character":
       return { width: 240, height: 360 };
     case "stock_video":
@@ -125,6 +125,12 @@ export function resolveLayouts(
     const defaults = getDefaultDimensionsForType(obj.type);
     let width = obj.width ?? (obj.cardProps?.width ?? defaults.width);
     let height = obj.height ?? (obj.cardProps?.height ?? defaults.height);
+
+    // Ensure localized images strictly stay under the zone's safe dimensions (420x240)
+    if (obj.type === "image" && layout !== "full_screen") {
+      width = Math.min(width, 420);
+      height = Math.min(height, 240);
+    }
 
     let x = (canvasWidth - width) / 2;
     let y = (canvasHeight - height) / 2;

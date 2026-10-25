@@ -501,8 +501,9 @@ class ContinuousStoryAssetResolver:
                             meta = {}
                     cached_duration = meta.get("duration", 10.0)
                     if min_duration is not None and cached_duration < min_duration:
-                        raise ContinuousStoryAssetResolverError(
-                            f"VIDEO_DURATION_TOO_SHORT: Cached video for '{query}' has duration {cached_duration}s, but required duration is {min_duration:.1f}s."
+                        logger.info(
+                            f"Cached video for '{query}' has duration {cached_duration}s < required {min_duration:.1f}s. "
+                            f"Accepting asset to loop seamlessly in renderer."
                         )
 
                     return self._finalize_video_asset(
@@ -556,15 +557,18 @@ class ContinuousStoryAssetResolver:
                 f"VIDEO_SEARCH_NO_RESULT: Search returned no usable video for query '{query}' on Pexels or Pixabay."
             )
 
-        # Check duration requirements
+        # Check duration requirements: prefer candidates >= min_duration, but fall back to the longest candidate and loop it seamlessly
         if min_duration is not None:
             valid_duration_cands = [c for c in candidates if c.get("duration", 0) >= min_duration]
-            if not valid_duration_cands:
-                max_cand_dur = max(c.get("duration", 0) for c in candidates)
-                raise ContinuousStoryAssetResolverError(
-                    f"VIDEO_DURATION_TOO_SHORT: Best video found for '{query}' has duration {max_cand_dur}s, but required duration is {min_duration:.1f}s."
+            if valid_duration_cands:
+                candidates = valid_duration_cands
+            else:
+                # Sort by duration descending to pick the longest available video to loop
+                candidates.sort(key=lambda c: c.get("duration", 0), reverse=True)
+                logger.info(
+                    f"No single video candidate >= {min_duration:.1f}s for '{query}'. "
+                    f"Using longest available ({candidates[0].get('duration', 0)}s) and looping seamlessly."
                 )
-            candidates = valid_duration_cands
 
         # ----------------------------------------------------
         # 3. Download, Validate, and Cache Candidate Video

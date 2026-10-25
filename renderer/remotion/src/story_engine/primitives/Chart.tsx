@@ -1,6 +1,6 @@
 import React from "react";
 import type { ChartProps } from "../types.ts";
-import { tokens } from "../../design-tokens.ts";
+import { handDrawn } from "../hand-drawn-theme.ts";
 
 interface ChartPrimitiveProps {
   props: ChartProps;
@@ -16,7 +16,7 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
   style,
 }) => {
   const { chartType, title, subtitle, series, segments, totalValue, accentColor } = props;
-  const themeColor = accentColor || tokens.accent.cyan;
+  const themeColor = accentColor || handDrawn.colors.teal;
 
   // 1. Trajectory Area Chart (e.g. 10-Year Inflation Decay or 20-Year Loan Burden)
   const trajectoryPoints =
@@ -64,10 +64,10 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
         style={{
           width: "100%",
           height: "100%",
-          backgroundColor: tokens.bg.surface,
-          borderRadius: tokens.radius.card,
-          border: `1px solid ${tokens.bg.border}`,
-          boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.5)",
+          backgroundColor: handDrawn.colors.paperAlt,
+          borderRadius: handDrawn.radius.card,
+          border: `2px solid ${handDrawn.colors.ink}`,
+          boxShadow: handDrawn.shadow.paper,
           padding: 24,
           display: "flex",
           flexDirection: "column",
@@ -82,10 +82,10 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
             {title && (
               <div
                 style={{
-                  fontFamily: tokens.font.family,
+                  fontFamily: handDrawn.font.label,
                   fontSize: 16,
                   fontWeight: 600,
-                  color: tokens.text.primary,
+                  color: handDrawn.colors.ink,
                   letterSpacing: "0.04em",
                   textTransform: "uppercase",
                 }}
@@ -96,9 +96,9 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
             {subtitle && (
               <div
                 style={{
-                  fontFamily: tokens.font.family,
+                  fontFamily: handDrawn.font.body,
                   fontSize: 13,
-                  color: tokens.text.secondary,
+                  color: handDrawn.colors.inkMuted,
                   marginTop: 2,
                 }}
               >
@@ -135,8 +135,8 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
                   y1={gy}
                   x2={padX + plotW}
                   y2={gy}
-                  stroke="rgba(255, 255, 255, 0.08)"
-                  strokeDasharray="4 4"
+                  stroke="#D6C9B5"
+                  strokeDasharray="3 6"
                 />
               );
             })}
@@ -172,9 +172,9 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
                     x={pt.x}
                     y={padY + plotH + 20}
                     textAnchor="middle"
-                    fill={tokens.text.muted}
+                    fill={handDrawn.colors.inkMuted}
                     fontSize="11"
-                    fontFamily={tokens.font.family}
+                    fontFamily={handDrawn.font.body}
                   >
                     {pt.label}
                   </text>
@@ -190,7 +190,7 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
                   y1={padY}
                   x2={activeCoord.x}
                   y2={padY + plotH}
-                  stroke="rgba(255, 255, 255, 0.25)"
+                  stroke={handDrawn.colors.inkMuted}
                   strokeDasharray="3 3"
                 />
                 <rect
@@ -199,7 +199,7 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
                   width="90"
                   height="24"
                   rx="6"
-                  fill="#1E293B"
+                  fill={handDrawn.colors.paperAlt}
                   stroke={themeColor}
                   strokeWidth="1.5"
                 />
@@ -207,10 +207,10 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
                   x={activeCoord.x}
                   y={activeCoord.y - 18}
                   textAnchor="middle"
-                  fill="#FFFFFF"
+                  fill={handDrawn.colors.ink}
                   fontSize="12"
                   fontWeight="600"
-                  fontFamily={tokens.font.family}
+                  fontFamily={handDrawn.font.label}
                 >
                   ₹{(activeCoord.value / 100000).toFixed(2)}L
                 </text>
@@ -224,13 +224,13 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
 
   // 2. Split Bar / Stack / Multi Bar Breakdown
   const palette = [
-    tokens.accent.cyan || "#38BDF8",
-    tokens.accent.rose || "#F43F5E",
-    tokens.accent.emerald || "#10B981",
-    tokens.accent.amber || "#F59E0B",
-    tokens.accent.primary || "#3B82F6",
-    "#8B5CF6",
-    "#EC4899",
+    handDrawn.colors.teal,
+    handDrawn.colors.coral,
+    handDrawn.colors.green,
+    handDrawn.colors.amber,
+    handDrawn.colors.blue,
+    "#8B6FA8",
+    "#D88987",
   ];
 
   let segmentList: { label: string; value: number; color: string }[] = segments || [];
@@ -266,10 +266,10 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
       style={{
         width: "100%",
         height: "100%",
-        backgroundColor: tokens.bg.surface,
-        borderRadius: tokens.radius.card,
-        border: `1px solid ${tokens.bg.border}`,
-        boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.5)",
+        backgroundColor: handDrawn.colors.paperAlt,
+        borderRadius: handDrawn.radius.card,
+        border: `2px solid ${handDrawn.colors.ink}`,
+        boxShadow: handDrawn.shadow.paper,
         padding: 24,
         display: "flex",
         flexDirection: "column",
@@ -281,10 +281,10 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
         {title && (
           <div
             style={{
-              fontFamily: tokens.font.family,
+              fontFamily: handDrawn.font.label,
               fontSize: 16,
               fontWeight: 600,
-              color: tokens.text.primary,
+              color: handDrawn.colors.ink,
               letterSpacing: "0.04em",
               textTransform: "uppercase",
               marginBottom: 4,
@@ -296,9 +296,9 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
         {subtitle && (
           <div
             style={{
-              fontFamily: tokens.font.family,
+              fontFamily: handDrawn.font.body,
               fontSize: 13,
-              color: tokens.text.secondary,
+              color: handDrawn.colors.inkMuted,
               marginBottom: 16,
             }}
           >
@@ -315,10 +315,10 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
               width: "100%",
               height: 18,
               borderRadius: 9,
-              backgroundColor: "rgba(255, 255, 255, 0.08)",
+              backgroundColor: handDrawn.colors.paperDeep,
               overflow: "hidden",
               display: "flex",
-              boxShadow: "inset 0 1px 3px rgba(0,0,0,0.4)",
+              boxShadow: "inset 0 1px 2px rgba(32,37,34,0.10)",
             }}
           >
             {segmentList.map((seg, i) => {
@@ -364,9 +364,9 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
                   <div>
                     <span
                       style={{
-                        fontFamily: tokens.font.family,
+                        fontFamily: handDrawn.font.body,
                         fontSize: 12,
-                        color: tokens.text.secondary,
+                        color: handDrawn.colors.inkMuted,
                         marginRight: 6,
                       }}
                     >
@@ -374,10 +374,10 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
                     </span>
                     <span
                       style={{
-                        fontFamily: tokens.font.family,
+                        fontFamily: handDrawn.font.body,
                         fontSize: 12,
                         fontWeight: 600,
-                        color: tokens.text.primary,
+                        color: handDrawn.colors.ink,
                       }}
                     >
                       {pct}%
@@ -389,7 +389,7 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
           </div>
         </>
       ) : (
-        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: tokens.text.muted, fontSize: 14 }}>
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: handDrawn.colors.inkMuted, fontSize: 14 }}>
           {title || "Chart Data"}
         </div>
       )}

@@ -167,6 +167,7 @@ export interface StockVideoProps {
   caption?: string;
   fit?: "cover" | "contain";
   overlayTint?: string;
+  durationSeconds?: number;
 }
 
 export interface ConnectorProps {

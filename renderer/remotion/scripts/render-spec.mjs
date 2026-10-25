@@ -93,7 +93,7 @@ await renderMedia({
   inputProps,
   overwrite: true,
   muted: false,
-  concurrency: 2,
+  concurrency: 1,
   logLevel: "warn",
 });
 

@@ -713,3 +713,34 @@ def test_real_mp4_render_using_downloaded_image(sample_voice_data):
     assert video.size_bytes > 10000, f"Rendered video is too small ({video.size_bytes} bytes)"
     mp4_path = media_storage.path_for_key(video.storage_key)
     assert mp4_path.exists(), f"Output file does not exist at {mp4_path}"
+
+
+def test_image_dimension_clamping_under_zone_boundaries():
+    """Verifies that localized images default to 420x240 and clamp to zone safe dimensions."""
+    from engines.continuous_story_draft_validator import _resolve_obj_geometry, DEFAULT_PRIMITIVE_DIMENSIONS
+
+    # Default dimensions match card
+    assert DEFAULT_PRIMITIVE_DIMENSIONS["image"] == (420, 240)
+
+    # In split_left, default resolves to 420x240 centered at (480, 540)
+    x, y, w, h = _resolve_obj_geometry("image", "split_left")
+    assert (w, h) == (420, 240)
+    assert x == 480 - 210  # 270
+    assert y == 540 - 120  # 420
+    # Clean distance to divider (960) and center card (750)
+    assert x + w == 690
+    assert 690 < 750
+
+    # In center, default resolves to 420x240 centered at (960, 540)
+    cx, cy, cw, ch = _resolve_obj_geometry("image", "center")
+    assert (cw, ch) == (420, 240)
+    assert cx == 960 - 210  # 750
+    assert cy == 540 - 120  # 420
+
+    # If an oversized width (e.g. 800x600) is specified on localized image, it is clamped to zone bounds (420x240)
+    clamped_x, clamped_y, clamped_w, clamped_h = _resolve_obj_geometry(
+        "image", "split_left", width=800, height=600
+    )
+    assert clamped_w <= 420
+    assert clamped_h <= 240
+    assert clamped_x + clamped_w <= 690

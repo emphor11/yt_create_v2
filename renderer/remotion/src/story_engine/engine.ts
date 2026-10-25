@@ -42,6 +42,7 @@ export interface EvaluatedObjectState {
   currentSubtitleValue?: string;
   currentTextColor?: string;
   highlightIntensity: number;
+  highlightProgress: number;
   highlightColor?: string;
   connectorProgress: number;
   isDominant: boolean;
@@ -402,14 +403,22 @@ export function evaluateFrame(
       }
     }
 
-    // 6. Highlight action (Smooth bell-curve pulse)
+    // 6. Highlight action (Smooth draw-on & persistent marker stroke)
     let highlightIntensity = 0;
+    let highlightProgress = 0;
     let highlightColor: string | undefined = undefined;
     const highlightEvents = targetEvents.filter((e): e is HighlightAction => e.action === "highlight");
     for (const h of highlightEvents) {
-      if (frame >= h.startFrame && frame < h.startFrame + h.durationFrames) {
-        const relProgress = (frame - h.startFrame) / h.durationFrames;
-        highlightIntensity = Math.sin(relProgress * Math.PI);
+      if (frame >= h.startFrame) {
+        const elapsed = frame - h.startFrame;
+        const duration = Math.max(1, h.durationFrames);
+        const relProgress = Math.min(1.0, elapsed / duration);
+        highlightProgress = relProgress;
+        if (elapsed < duration) {
+          highlightIntensity = Math.sin((elapsed / duration) * Math.PI);
+        } else {
+          highlightIntensity = 0.15; // gentle resting presence
+        }
         highlightColor = h.color;
       }
     }
@@ -625,6 +634,7 @@ export function evaluateFrame(
       currentSubtitleValue,
       currentTextColor,
       highlightIntensity,
+      highlightProgress,
       highlightColor,
       connectorProgress,
       isDominant,
@@ -655,49 +665,149 @@ export function evaluateFrame(
   let camPanX = 0;
   let camPanY = 0;
 
-  for (const cam of cameraEvents) {
-    if (frame >= cam.startFrame) {
-      const p = interpolate(
-        frame,
-        [cam.startFrame, cam.startFrame + cam.durationFrames],
-        [0, 1],
-        {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-          easing: Easing.inOut(Easing.cubic),
-        }
-      );
+  if (cameraEvents.length > 0) {
+    for (const cam of cameraEvents) {
+      if (frame >= cam.startFrame) {
+        const p = interpolate(
+          frame,
+          [cam.startFrame, cam.startFrame + cam.durationFrames],
+          [0, 1],
+          {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+            easing: Easing.inOut(Easing.cubic),
+          }
+        );
 
-      if (cam.behavior === "push_in") {
-        const targetZoom = cam.zoom ?? 1.15;
-        camZoom = 1.0 + (targetZoom - 1.0) * p;
-      } else if (cam.behavior === "pull_out") {
-        const targetZoom = cam.zoom ?? 0.95;
-        camZoom = 1.0 + (targetZoom - 1.0) * p;
-      } else if (cam.behavior === "pan") {
-        const targetX = cam.pan?.x ?? 0;
-        const targetY = cam.pan?.y ?? 0;
-        camPanX += targetX * p;
-        camPanY += targetY * p;
-      } else if (cam.behavior === "focus" && cam.targetId) {
-        const targetState = result.get(cam.targetId);
-        if (targetState) {
-          const targetZoom = cam.zoom ?? 1.18;
+        if (cam.behavior === "push_in") {
+          const targetZoom = cam.zoom ?? 1.15;
           camZoom = 1.0 + (targetZoom - 1.0) * p;
+        } else if (cam.behavior === "pull_out") {
+          const targetZoom = cam.zoom ?? 0.95;
+          camZoom = 1.0 + (targetZoom - 1.0) * p;
+        } else if (cam.behavior === "pan") {
+          const targetX = cam.pan?.x ?? 0;
+          const targetY = cam.pan?.y ?? 0;
+          camPanX += targetX * p;
+          camPanY += targetY * p;
+        } else if (cam.behavior === "focus" && cam.targetId) {
+          const targetState = result.get(cam.targetId);
+          if (targetState) {
+            const targetZoom = cam.zoom ?? 1.18;
+            camZoom = 1.0 + (targetZoom - 1.0) * p;
 
-          const cardCenterX = targetState.x + targetState.width / 2;
-          const cardCenterY = targetState.y + targetState.height / 2;
-          const sceneCenterX = plan.width / 2;
-          const sceneCenterY = plan.height / 2;
+            const cardCenterX = targetState.x + targetState.width / 2;
+            const cardCenterY = targetState.y + targetState.height / 2;
+            const sceneCenterX = plan.width / 2;
+            const sceneCenterY = plan.height / 2;
 
-          const panOffsetX = (sceneCenterX - cardCenterX) * 0.45;
-          const panOffsetY = (sceneCenterY - cardCenterY) * 0.45;
+            const panOffsetX = (sceneCenterX - cardCenterX) * 0.45;
+            const panOffsetY = (sceneCenterY - cardCenterY) * 0.45;
 
-          camPanX += panOffsetX * p;
-          camPanY += panOffsetY * p;
+            camPanX += panOffsetX * p;
+            camPanY += panOffsetY * p;
+          }
         }
       }
     }
+  } else {
+    // ----------------------------------------------------
+    // Automatic Cinematic Camera Track (Documentary Auto-Framing)
+    // Evaluates focal framing and organic push-in when explicit
+    // camera events are absent.
+    // ----------------------------------------------------
+    const beatFramesSet = new Set<number>([0]);
+    for (const ev of plan.events) {
+      if (ev.action === "enter" || ev.action === "exit" || ev.action === "highlight") {
+        beatFramesSet.add(ev.startFrame);
+      }
+    }
+    const beatFrames = Array.from(beatFramesSet).sort((a, b) => a - b);
+
+    const getTargetAtFrame = (f: number) => {
+      const active: Array<{ type: string; layout?: string }> = [];
+      for (const obj of plan.objects) {
+        if (obj.type === "connector") continue;
+        const enterEv = plan.events.find(
+          (e) => (e.action === "enter" || e.action === "connect") && e.targetId === obj.id
+        );
+        const exitEv = plan.events.find((e) => e.action === "exit" && e.targetId === obj.id);
+        const start = enterEv ? enterEv.startFrame : 0;
+        const end = exitEv ? exitEv.startFrame : plan.durationInFrames;
+        if (f >= start && f < end) {
+          active.push({ type: obj.type, layout: obj.layout });
+        }
+      }
+
+      if (active.length === 0) return { zoom: 1.0, panX: 0, panY: 0 };
+      if (active.some((o) => o.layout === "full_screen" || o.type === "stock_video")) {
+        return { zoom: 1.03, panX: 0, panY: 0 };
+      }
+      const hasLeft = active.some((o) => o.layout === "split_left");
+      const hasRight = active.some((o) => o.layout === "split_right");
+      const hasCenter = active.some((o) => o.layout === "center");
+      const hasBottom = active.some((o) => o.layout === "full_bottom");
+
+      if (hasBottom) {
+        return { zoom: 1.05, panX: 0, panY: -35 };
+      }
+      if (hasLeft && hasRight) {
+        return { zoom: 1.05, panX: 0, panY: 0 };
+      }
+      if (hasLeft && !hasRight) {
+        return { zoom: 1.15, panX: 135, panY: -10 };
+      }
+      if (hasRight && !hasLeft) {
+        return { zoom: 1.15, panX: -135, panY: -10 };
+      }
+      if (hasCenter) {
+        return { zoom: 1.12, panX: 0, panY: -15 };
+      }
+      return { zoom: 1.04, panX: 0, panY: 0 };
+    };
+
+    const keyframes = beatFrames.map((bf) => ({ frame: bf, ...getTargetAtFrame(bf + 2) }));
+
+    let prev = keyframes[0];
+    for (let i = 0; i < keyframes.length; i++) {
+      if (keyframes[i].frame <= frame) {
+        prev = keyframes[i];
+      } else {
+        break;
+      }
+    }
+
+    const transFrames = 26;
+    let curZoom = prev.zoom;
+    let curPanX = prev.panX;
+    let curPanY = prev.panY;
+
+    const dt = frame - prev.frame;
+    if (dt < transFrames) {
+      const prevIdx = keyframes.indexOf(prev);
+      const beforePrev = prevIdx > 0 ? keyframes[prevIdx - 1] : { zoom: 1.0, panX: 0, panY: 0 };
+      const p = Math.min(1, Math.max(0, dt / transFrames));
+      const eased = interpolate(p, [0, 1], [0, 1], {
+        easing: Easing.inOut(Easing.cubic),
+      });
+      curZoom = beforePrev.zoom + (prev.zoom - beforePrev.zoom) * eased;
+      curPanX = beforePrev.panX + (prev.panX - beforePrev.panX) * eased;
+      curPanY = beforePrev.panY + (prev.panY - beforePrev.panY) * eased;
+    }
+
+    const isFullScreenActive = plan.objects.some((obj) => {
+      if (obj.layout === "full_screen" || obj.type === "stock_video") {
+        const s = result.get(obj.id);
+        return s && s.isEntered && s.opacity > 0.1;
+      }
+      return false;
+    });
+
+    const drift = isFullScreenActive ? 0 : 0.015 * Math.sin((frame / 45) * Math.PI);
+
+    camZoom = Math.max(0.95, Math.min(1.25, curZoom + drift));
+    camPanX = curPanX;
+    camPanY = curPanY;
   }
 
   return {

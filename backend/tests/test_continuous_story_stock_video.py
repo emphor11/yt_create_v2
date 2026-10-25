@@ -375,11 +375,15 @@ def test_video_resolver_search_no_results():
         assert "VIDEO_SEARCH_NO_RESULT" in str(exc_info.value)
 
 
-def test_video_resolver_duration_too_short():
-    """10. Fails loudly with VIDEO_DURATION_TOO_SHORT when clip is shorter than required duration."""
+def test_video_resolver_duration_shorter_than_required_loops(tmp_path: Path):
+    """10. Accepts candidate shorter than required duration to allow seamless looping in Remotion."""
+    cache_dir = tmp_path / "cache"
+    remotion_dir = tmp_path / "remotion"
     resolver = ContinuousStoryAssetResolver(
         pexels_api_key="mock_pexels",
         pixabay_api_key="mock_pixabay",
+        cache_dir=cache_dir,
+        remotion_public_dir=remotion_dir,
     )
     req = VideoAssetRequest(query="bank exterior")
 
@@ -394,15 +398,23 @@ def test_video_resolver_duration_too_short():
         "duration": 5.0,
     }]
 
-    with patch.object(resolver, "_search_pexels_video", return_value=short_candidate):
-        with pytest.raises(ContinuousStoryAssetResolverError) as exc_info:
-            resolver.resolve_video_asset(
-                req,
-                object_id="test_video",
-                project_id="test_proj",
-                required_duration_seconds=15.0,
-            )
-        assert "VIDEO_DURATION_TOO_SHORT" in str(exc_info.value)
+    fake_mp4_bytes = b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom" + b"\x00" * 100
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = fake_mp4_bytes
+    mock_resp.__enter__.return_value = mock_resp
+    mock_resp.__exit__.return_value = False
+
+    with patch.object(resolver, "_search_pexels_video", return_value=short_candidate), \
+         patch("urllib.request.urlopen", return_value=mock_resp):
+        resolved = resolver.resolve_video_asset(
+            req,
+            object_id="test_video",
+            project_id="test_proj",
+            required_duration_seconds=15.0,
+        )
+        assert resolved.asset_id == "assets/test_video.mp4"
+        assert resolved.duration == 5.0
+        assert (remotion_dir / resolved.local_path).exists()
 
 
 def test_video_resolver_download_failure(tmp_path: Path):

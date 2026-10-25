@@ -16,6 +16,8 @@ import {
   Character,
 } from "./primitives/index.ts";
 import { tokens } from "../design-tokens.ts";
+import { handDrawn } from "./hand-drawn-theme.ts";
+import { SoundEffectsLayer } from "./audio/SoundEffectsLayer.tsx";
 
 interface StorySceneProps {
   plan: StoryPlan;
@@ -46,7 +48,7 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
         position: "relative",
         width: plan.width,
         height: plan.height,
-        backgroundColor: "#09090B",
+        backgroundColor: handDrawn.colors.paper,
         overflow: "hidden",
       }}
     >
@@ -55,29 +57,77 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
         <Audio src={staticFile(plan.audioFileName)} />
       )}
 
-      {/* Dynamic Background Atmosphere */}
+      {/* Tactile Audio SFX Engine Layer */}
+      <SoundEffectsLayer plan={plan} />
+
+      {/* 1. Base Tactile Paper Canvas */}
       <div
         style={{
           position: "absolute",
           inset: 0,
-          background: tokens.gradients.darkAtmosphere,
+          background: `radial-gradient(ellipse at 50% 25%, ${handDrawn.colors.paperAlt} 0%, ${handDrawn.colors.paper} 70%, ${handDrawn.colors.paperDeep} 100%)`,
           opacity: 1 - backdropDim * 0.4,
         }}
       />
 
-      {/* Atmospheric Hero Glow */}
+      {/* 2. Architectural / Accounting Ledger Grid (Subtle tactile desk texture) */}
+      <svg
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          pointerEvents: "none",
+          opacity: 0.045,
+        }}
+      >
+        <defs>
+          <pattern
+            id="accounting-grid"
+            width="48"
+            height="48"
+            patternUnits="userSpaceOnUse"
+          >
+            <path
+              d="M 48 0 L 0 0 0 48"
+              fill="none"
+              stroke="#202522"
+              strokeWidth="0.75"
+            />
+            <circle cx="0" cy="0" r="1.2" fill="#202522" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#accounting-grid)" />
+      </svg>
+
+      {/* 3. Studio Overhead Lighting & Optical Vignette (Draws eye to active elements) */}
       <div
         style={{
           position: "absolute",
-          top: "20%",
-          left: "25%",
-          width: 800,
-          height: 500,
-          background: tokens.gradients.heroGlow,
+          inset: 0,
+          background: `
+            radial-gradient(ellipse at 50% 28%, rgba(255, 253, 247, 0.65) 0%, rgba(247, 241, 229, 0) 62%),
+            radial-gradient(ellipse at 50% 50%, transparent 48%, rgba(32, 37, 34, 0.05) 75%, rgba(32, 37, 34, 0.16) 100%)
+          `,
           pointerEvents: "none",
-          opacity: 1 - backdropDim * 0.7,
+          opacity: 1 - backdropDim * 0.5,
         }}
       />
+
+      {/* 4. Documentary Registration Inset & Corner Crosshairs */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 32,
+          border: "1px solid rgba(32, 37, 34, 0.045)",
+          pointerEvents: "none",
+        }}
+      >
+        <span style={{ position: "absolute", top: -8, left: -8, fontSize: 13, color: "rgba(32, 37, 34, 0.2)", fontFamily: "monospace", userSelect: "none" }}>+</span>
+        <span style={{ position: "absolute", top: -8, right: -8, fontSize: 13, color: "rgba(32, 37, 34, 0.2)", fontFamily: "monospace", userSelect: "none" }}>+</span>
+        <span style={{ position: "absolute", bottom: -8, left: -8, fontSize: 13, color: "rgba(32, 37, 34, 0.2)", fontFamily: "monospace", userSelect: "none" }}>+</span>
+        <span style={{ position: "absolute", bottom: -8, right: -8, fontSize: 13, color: "rgba(32, 37, 34, 0.2)", fontFamily: "monospace", userSelect: "none" }}>+</span>
+      </div>
 
       {/* Camera Viewport Wrapper (Handles Focus, Push-in, Pull-out, Pan) */}
       <div
@@ -179,7 +229,9 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
               >
                 <Highlight
                   intensity={state.highlightIntensity}
-                  color={state.highlightColor || state.customAccent || obj.documentProps.accentColor || tokens.accent.cyan}
+                  progress={state.highlightProgress}
+                  color={state.highlightColor || state.customAccent || obj.documentProps.accentColor || "#FACC15"}
+                  strokePosition="bottom"
                   style={{
                     width: "100%",
                     height: "100%",
@@ -218,7 +270,8 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
               >
                 <Highlight
                   intensity={state.highlightIntensity}
-                  color={state.highlightColor || state.customAccent || obj.chartProps.accentColor || tokens.accent.cyan}
+                  progress={state.highlightProgress}
+                  color={state.highlightColor || state.customAccent || obj.chartProps.accentColor || "#FACC15"}
                   style={{
                     width: "100%",
                     height: "100%",
@@ -255,7 +308,8 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
               >
                 <Highlight
                   intensity={state.highlightIntensity}
-                  color={state.highlightColor || state.customAccent || obj.imageProps.borderColor || tokens.accent.primary}
+                  progress={state.highlightProgress}
+                  color={state.highlightColor || state.customAccent || obj.imageProps.borderColor || "#FACC15"}
                   style={{
                     width: "100%",
                     height: "100%",
@@ -314,7 +368,9 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
               >
                 <Highlight
                   intensity={state.highlightIntensity}
-                  color={state.highlightColor || state.customAccent || obj.cardProps.accentColor || tokens.accent.rose}
+                  progress={state.highlightProgress}
+                  color={state.highlightColor || state.customAccent || obj.cardProps.accentColor || "#FACC15"}
+                  strokePosition="bottom"
                   style={{
                     width: "100%",
                     height: "100%",
@@ -362,7 +418,9 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
               >
                 <Highlight
                   intensity={state.highlightIntensity}
-                  color={state.highlightColor || state.customAccent || tokens.accent.primary}
+                  progress={state.highlightProgress}
+                  color={state.highlightColor || state.customAccent || "#FACC15"}
+                  strokePosition="middle"
                   style={{ borderRadius: 12 }}
                 >
                   <NumberPrimitive
@@ -396,7 +454,9 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
               >
                 <Highlight
                   intensity={state.highlightIntensity}
-                  color={state.highlightColor || state.customAccent || tokens.accent.primary}
+                  progress={state.highlightProgress}
+                  color={state.highlightColor || state.customAccent || "#FACC15"}
+                  strokePosition="middle"
                   style={{ borderRadius: 8 }}
                 >
                   <TextPrimitive
@@ -429,7 +489,8 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
               >
                 <Highlight
                   intensity={state.highlightIntensity}
-                  color={state.highlightColor || state.customAccent || obj.characterProps.accentColor || tokens.accent.cyan}
+                  progress={state.highlightProgress}
+                  color={state.highlightColor || state.customAccent || obj.characterProps.accentColor || "#FACC15"}
                   style={{
                     width: "100%",
                     height: "100%",

@@ -363,12 +363,12 @@ class ContinuousStoryCompiler:
             "id": obj.id,
             "type": "text",
             "layout": obj.layout,
-            "width": 500,
-            "height": 100,
+            "width": 800,
+            "height": 160,
             "textProps": {
                 "text": obj.text or obj.purpose or "",
-                "variant": "header" if "title" in obj.id.lower() else "caption",
-                "color": "#F8FAFC",
+                "variant": "title",
+                "color": "#202522",
             },
         }
 
@@ -529,6 +529,10 @@ class ContinuousStoryCompiler:
             "assetId": obj.asset_id,
             "fit": obj.fit or "cover",
         }
+        if fixture and "asset_durations" in fixture:
+            dur = fixture.get("asset_durations", {}).get(obj.asset_id)
+            if dur:
+                stock_video_props["durationSeconds"] = float(dur)
         if obj.alt:
             stock_video_props["alt"] = obj.alt
         if obj.caption:

@@ -1,6 +1,6 @@
 import React from "react";
 import type { ConnectorProps } from "../types.ts";
-import { tokens } from "../../design-tokens";
+import { handDrawn } from "../hand-drawn-theme.ts";
 
 interface ConnectorComponentProps {
   props: ConnectorProps;
@@ -33,9 +33,9 @@ export const Connector: React.FC<ConnectorComponentProps> = ({
   const length = Math.sqrt(dx * dx + dy * dy) * 1.2 + 20;
   const strokeDashoffset = length * (1 - Math.min(1, Math.max(0, progress)));
 
-  const strokeColor = intensityMultiplier > 1.2 ? tokens.semantic.danger : tokens.accent.cyan;
-  const strokeWidth = 3 * intensityMultiplier;
-  const glowWidth = 8 * intensityMultiplier;
+  const strokeColor = intensityMultiplier > 1.2 ? handDrawn.colors.red : handDrawn.colors.teal;
+  const strokeWidth = 3.5 * intensityMultiplier;
+  const glowWidth = 7 * intensityMultiplier;
 
   // Midpoint for label
   const midX = (fromPoint.x + toPoint.x) / 2;
@@ -74,7 +74,7 @@ export const Connector: React.FC<ConnectorComponentProps> = ({
         fill="none"
         stroke={strokeColor}
         strokeWidth={glowWidth}
-        strokeOpacity={Math.min(0.6, 0.25 * progress * intensityMultiplier)}
+        strokeOpacity={Math.min(0.28, 0.14 * progress * intensityMultiplier)}
         strokeDasharray={length}
         strokeDashoffset={strokeDashoffset}
       />
@@ -105,18 +105,18 @@ export const Connector: React.FC<ConnectorComponentProps> = ({
             width={120}
             height={28}
             rx={6}
-            fill="#0F172A"
+            fill={handDrawn.colors.paperAlt}
             stroke={strokeColor}
-            strokeWidth={1.5}
+            strokeWidth={2}
           />
           <text
             x={0}
             y={4}
             textAnchor="middle"
-            fill={tokens.text.primary}
+            fill={handDrawn.colors.ink}
             fontSize={13}
             fontWeight={700}
-            fontFamily={tokens.font.family}
+            fontFamily={handDrawn.font.label}
           >
             {props.label}
           </text>

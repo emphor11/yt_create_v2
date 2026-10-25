@@ -1,7 +1,7 @@
 import React from "react";
-import { OffthreadVideo, staticFile } from "remotion";
+import { Loop, OffthreadVideo, staticFile, useVideoConfig } from "remotion";
 import type { StockVideoProps } from "../types.ts";
-import { tokens } from "../../design-tokens.ts";
+import { handDrawn } from "../hand-drawn-theme.ts";
 
 interface StockVideoPrimitiveProps {
   props: StockVideoProps;
@@ -9,7 +9,8 @@ interface StockVideoPrimitiveProps {
 }
 
 export const StockVideoPrimitive: React.FC<StockVideoPrimitiveProps> = ({ props, style }) => {
-  const { alt, caption, fit = "cover", overlayTint } = props;
+  const { alt, caption, fit = "cover", overlayTint, durationSeconds } = props;
+  const { fps } = useVideoConfig();
 
   // Resolve local public or absolute src (supports both src and assetId gracefully)
   const rawSrc = props.src || props.assetId || "";
@@ -19,6 +20,25 @@ export const StockVideoPrimitive: React.FC<StockVideoPrimitiveProps> = ({ props,
     ? rawSrc
     : staticFile(rawSrc);
 
+  const loopDurationInFrames = durationSeconds && Number.isFinite(durationSeconds) && durationSeconds > 0
+    ? Math.max(1, Math.ceil(durationSeconds * fps))
+    : null;
+
+  const videoElement = (
+    <OffthreadVideo
+      src={videoSrc}
+      muted
+      volume={0}
+      style={{
+        width: "100%",
+        height: caption ? "86%" : "100%",
+        objectFit: fit,
+        display: "block",
+      }}
+      aria-label={alt ?? "Stock documentary video footage"}
+    />
+  );
+
   return (
     <div
       style={{
@@ -26,7 +46,7 @@ export const StockVideoPrimitive: React.FC<StockVideoPrimitiveProps> = ({ props,
         width: "100%",
         height: "100%",
         overflow: "hidden",
-        backgroundColor: "#000000",
+        backgroundColor: handDrawn.colors.paper,
         display: "flex",
         flexDirection: "column",
         ...style,
@@ -42,26 +62,19 @@ export const StockVideoPrimitive: React.FC<StockVideoPrimitiveProps> = ({ props,
           bottom: caption ? "14%" : 0,
           background:
             overlayTint ||
-            "linear-gradient(180deg, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.5) 100%)",
+            "linear-gradient(180deg, rgba(247, 241, 229, 0.03) 0%, rgba(32, 37, 34, 0.42) 100%)",
           pointerEvents: "none",
           zIndex: 2,
         }}
       />
 
-      {/* Main Stock Video footage rendered via OffthreadVideo for rock-solid deterministic frame extraction */}
+      {/* Main Stock Video footage rendered via OffthreadVideo, looped seamlessly if interval exceeds duration */}
       {videoSrc ? (
-        <OffthreadVideo
-          src={videoSrc}
-          muted
-          volume={0}
-          style={{
-            width: "100%",
-            height: caption ? "86%" : "100%",
-            objectFit: fit,
-            display: "block",
-          }}
-          aria-label={alt ?? "Stock documentary video footage"}
-        />
+        loopDurationInFrames ? (
+          <Loop durationInFrames={loopDurationInFrames}>{videoElement}</Loop>
+        ) : (
+          videoElement
+        )
       ) : (
         <div
           style={{
@@ -70,9 +83,9 @@ export const StockVideoPrimitive: React.FC<StockVideoPrimitiveProps> = ({ props,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: tokens.text.muted,
+            color: handDrawn.colors.inkMuted,
             fontSize: 16,
-            fontFamily: tokens.font.family,
+            fontFamily: handDrawn.font.body,
           }}
         >
           {props.assetId || "Stock Video Asset"}
@@ -84,16 +97,15 @@ export const StockVideoPrimitive: React.FC<StockVideoPrimitiveProps> = ({ props,
         <div
           style={{
             height: "14%",
-            backgroundColor: "rgba(10, 10, 15, 0.85)",
-            backdropFilter: "blur(8px)",
-            borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+            backgroundColor: handDrawn.colors.paperAlt,
+            borderTop: `2px solid ${handDrawn.colors.ink}33`,
             padding: "0 24px",
             display: "flex",
             alignItems: "center",
-            fontFamily: tokens.font.family,
+            fontFamily: handDrawn.font.body,
             fontSize: 14,
             fontWeight: 500,
-            color: tokens.text.secondary,
+            color: handDrawn.colors.ink,
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
