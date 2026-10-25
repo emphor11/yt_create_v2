@@ -2,12 +2,15 @@ import React from "react";
 import type { DocumentProps, VisualStateKind, StampProps } from "../types.ts";
 import { handDrawn, handDrawnAccent } from "../hand-drawn-theme.ts";
 
-interface DocumentComponentProps {
+export interface DocumentComponentProps {
   props: DocumentProps;
   visualState?: VisualStateKind;
   badge?: string;
   stamp?: StampProps;
   customAccent?: string;
+  width?: number;
+  height?: number;
+  layout?: string;
   style?: React.CSSProperties;
 }
 
@@ -17,8 +20,12 @@ export const DocumentPrimitive: React.FC<DocumentComponentProps> = ({
   badge,
   stamp,
   customAccent,
+  width,
+  height,
+  layout,
   style,
 }) => {
+  const isCompact = (width ?? 480) <= 380 || (height ?? 320) <= 240;
   let accentColor: string = handDrawnAccent(visualState, customAccent || props.accentColor);
   let borderColor: string = handDrawn.colors.ink;
   let glowStyle: string = handDrawn.shadow.paper;

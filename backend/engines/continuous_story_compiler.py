@@ -196,7 +196,30 @@ class ContinuousStoryCompiler:
         duration_in_frames = max(self.min_duration_frames, calculated_frames)
 
         # ----------------------------------------------------
-        # 1. Compile Atomic Elements Directly
+        # 1. Resolve Object Lifespans to Enable Context-Aware Promotion
+        # ----------------------------------------------------
+        object_intervals: dict[str, tuple[int, int]] = {}
+        for event in draft.events:
+            tgt = event.target_id
+            if event.action in ("enter", "connect"):
+                try:
+                    start_ms = resolve_anchor_ms(word_timestamps, event.anchor)
+                    s_frame = round((start_ms / 1000.0) * fps)
+                except Exception:
+                    s_frame = 0
+                cur_end = object_intervals.get(tgt, (s_frame, duration_in_frames))[1]
+                object_intervals[tgt] = (s_frame, cur_end)
+            elif event.action == "exit":
+                try:
+                    exit_ms = resolve_anchor_ms(word_timestamps, event.anchor)
+                    e_frame = round((exit_ms / 1000.0) * fps)
+                except Exception:
+                    e_frame = duration_in_frames
+                cur_start = object_intervals.get(tgt, (0, duration_in_frames))[0]
+                object_intervals[tgt] = (cur_start, e_frame)
+
+        # ----------------------------------------------------
+        # 2. Compile Atomic Elements Directly
         # ----------------------------------------------------
         compiled_objects: list[dict[str, Any]] = []
 
@@ -220,6 +243,19 @@ class ContinuousStoryCompiler:
 
             elif obj.type == "chart":
                 chart_dict = self._compile_chart(obj)
+                if obj.layout == "full_bottom":
+                    chart_start, chart_end = object_intervals.get(obj.id, (0, duration_in_frames))
+                    has_concurrent = False
+                    for other in draft.objects:
+                        if other.id != obj.id and other.type in ("card", "number", "image", "text", "character"):
+                            o_start, o_end = object_intervals.get(other.id, (0, duration_in_frames))
+                            if max(chart_start, o_start) < min(chart_end, o_end):
+                                has_concurrent = True
+                                break
+                    if not has_concurrent:
+                        chart_dict["layout"] = "center"
+                        chart_dict["width"] = 1440
+                        chart_dict["height"] = 560
                 compiled_objects.append(chart_dict)
 
             elif obj.type == "image":
@@ -324,13 +360,23 @@ class ContinuousStoryCompiler:
             "accentColor": accent_color,
         }
 
-        # Dimensions: standard card 420x240
+        # Dynamic responsive dimensions based on layout zone
+        if card_obj.layout == "center":
+            width = 720
+            height = 360
+        elif card_obj.layout in ("split_left", "split_right"):
+            width = 560
+            height = 300
+        else:
+            width = 420
+            height = 240
+
         return {
             "id": card_obj.id,
             "type": "card",
             "layout": card_obj.layout,
-            "width": 420,
-            "height": 240,
+            "width": width,
+            "height": height,
             "cardProps": card_props,
         }
 
@@ -348,12 +394,15 @@ class ContinuousStoryCompiler:
             "factId": fact_key,
         }
 
+        width = 680 if obj.layout == "center" else 360
+        height = 220 if obj.layout == "center" else 180
+
         return {
             "id": obj.id,
             "type": "number",
             "layout": obj.layout,
-            "width": 360,
-            "height": 180,
+            "width": width,
+            "height": height,
             "numberProps": number_props,
         }
 
@@ -418,15 +467,19 @@ class ContinuousStoryCompiler:
                 f"Chart '{obj.id}' requires directly authored 'series' or 'points'. Fallback and fact lookup data are not permitted in open direct-authoring mode."
             )
 
-        # If layout is full_bottom or full_screen, width/height adjust accordingly
+        # If layout is full_bottom, full_screen, or center, width/height adjust accordingly
         is_full_bottom = obj.layout == "full_bottom"
         is_full_screen = obj.layout == "full_screen"
+        is_center = obj.layout == "center"
         if is_full_bottom:
             width = 1760
             height = 260
         elif is_full_screen:
             width = 1760
             height = 920
+        elif is_center:
+            width = 1440
+            height = 560
         else:
             width = 640
             height = 280

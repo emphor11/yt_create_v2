@@ -105,6 +105,35 @@ def _safe_temporal_repair(
     )
 
 
+def _normalize_and_sanitize_draft_payload(
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Sanitizes deterministic contract constraints (e.g. stock_video cut transitions)."""
+    if not isinstance(payload, dict):
+        return payload
+
+    objects = payload.get("objects", [])
+    events = payload.get("events", [])
+    if not isinstance(objects, list) or not isinstance(events, list):
+        return payload
+
+    # 1. Normalize stock_video transitions (enter style MUST be 'cut', exit direction MUST be 'cut')
+    stock_video_ids = {
+        obj.get("id")
+        for obj in objects
+        if isinstance(obj, dict) and obj.get("type") == "stock_video" and obj.get("id")
+    }
+    if stock_video_ids:
+        for ev in events:
+            if isinstance(ev, dict) and ev.get("target_id") in stock_video_ids:
+                if ev.get("action") == "enter" and ev.get("style") != "cut":
+                    ev["style"] = "cut"
+                elif ev.get("action") == "exit" and ev.get("direction") != "cut":
+                    ev["direction"] = "cut"
+
+    return payload
+
+
 def print_local_preflight_report(
     raw_payload: dict[str, Any],
     validation_error: Exception | None = None,
@@ -378,7 +407,22 @@ def format_programmatic_repair_prompt(
                 guidance = (
                     f"   Missing enter event for '{target_id}'.\n"
                     f"   Required fix: Every object in 'objects' must have an explicit 'enter' (or 'connect' for connector) event in 'events'.\n"
-                    f"   Add an enter event for '{target_id}' with an exact anchor phrase from the narration.\n"
+                    f"   Option A: Add an enter event for '{target_id}' with an exact anchor phrase from the narration.\n"
+                    f"   Option B: If '{target_id}' was declared by mistake and is not needed, remove it from 'objects'.\n"
+                )
+            elif code == "STOCK_VIDEO_INVALID_TRANSITION":
+                guidance = (
+                    f"   stock_video transition error on '{target_id}':\n"
+                    f"   Required fix: stock_video enter event style must be 'cut', and exit event direction must be 'cut'. Never use fade or slide on stock_video.\n"
+                )
+            elif code == "STOCK_VIDEO_EVENT_COUNT":
+                guidance = (
+                    f"   stock_video '{target_id}' must have exactly one 'enter' event (style: 'cut') and exactly one 'exit' event (direction: 'cut').\n"
+                )
+            elif code == "STOCK_VIDEO_CONNECTOR_COLLISION":
+                guidance = (
+                    f"   stock_video '{target_id}' overlaps with a connector.\n"
+                    f"   Required fix: Connectors cannot be active during a full_screen stock_video. Exit the connector before stock_video enters.\n"
                 )
             elif code == "ACTION_BEFORE_OBJECT_ENTER":
                 enter_anchor = details.get("enter_anchor", "")
@@ -818,6 +862,7 @@ class ContinuousStoryEngine:
             response = self.llm_provider.generate_json(req)
             raw_gemini_payload = response.payload
             provider_metadata = response.metadata
+            _normalize_and_sanitize_draft_payload(raw_gemini_payload)
             try:
                 draft = ContinuousStoryDraft.model_validate(raw_gemini_payload)
             except Exception as first_error:
@@ -834,7 +879,7 @@ class ContinuousStoryEngine:
                             role="system",
                             content=(
                                 system_prompt
-                                + "\nReturn only the complete corrected JSON object. Do not explain the repair."
+                                + "\nReturn only the complete corrected JSON object containing both 'objects' and 'events'. Do not explain the repair."
                             ),
                         ),
                         LLMMessage(role="user", content=repair_prompt_content),
@@ -845,8 +890,15 @@ class ContinuousStoryEngine:
                     max_tokens=32768,
                 )
                 repaired = self.llm_provider.generate_json(repair_req)
-                raw_gemini_payload = repaired.payload
+                new_payload = repaired.payload
                 provider_metadata = repaired.metadata
+                if (not new_payload.get("events") or len(new_payload.get("events", [])) == 0) and raw_gemini_payload.get("events"):
+                    print("[WARN] Repaired payload returned empty events list! Preserving previous events.")
+                    new_payload["events"] = raw_gemini_payload["events"]
+                if (not new_payload.get("objects") or len(new_payload.get("objects", [])) == 0) and raw_gemini_payload.get("objects"):
+                    new_payload["objects"] = raw_gemini_payload["objects"]
+                raw_gemini_payload = new_payload
+                _normalize_and_sanitize_draft_payload(raw_gemini_payload)
                 try:
                     draft = ContinuousStoryDraft.model_validate(raw_gemini_payload)
                 except Exception as second_error:
@@ -910,8 +962,15 @@ class ContinuousStoryEngine:
                     max_tokens=32768,
                 )
                 repaired = self.llm_provider.generate_json(repair_req)
-                raw_gemini_payload = repaired.payload
+                new_payload = repaired.payload
                 provider_metadata = repaired.metadata
+                if (not new_payload.get("events") or len(new_payload.get("events", [])) == 0) and raw_gemini_payload.get("events"):
+                    print("[WARN] Repaired payload returned empty events list! Preserving previous events.")
+                    new_payload["events"] = raw_gemini_payload["events"]
+                if (not new_payload.get("objects") or len(new_payload.get("objects", [])) == 0) and raw_gemini_payload.get("objects"):
+                    new_payload["objects"] = raw_gemini_payload["objects"]
+                raw_gemini_payload = new_payload
+                _normalize_and_sanitize_draft_payload(raw_gemini_payload)
                 try:
                     draft = ContinuousStoryDraft.model_validate(raw_gemini_payload)
                 except Exception as schema_err:

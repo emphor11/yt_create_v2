@@ -126,10 +126,12 @@ export function resolveLayouts(
     let width = obj.width ?? (obj.cardProps?.width ?? defaults.width);
     let height = obj.height ?? (obj.cardProps?.height ?? defaults.height);
 
-    // Ensure localized images strictly stay under the zone's safe dimensions (420x240)
+    // Ensure localized images strictly stay under the zone's safe dimensions (up to 640x360 in split zones, 420x240 otherwise)
     if (obj.type === "image" && layout !== "full_screen") {
-      width = Math.min(width, 420);
-      height = Math.min(height, 240);
+      const maxW = (layout === "split_left" || layout === "split_right") ? 640 : 420;
+      const maxH = (layout === "split_left" || layout === "split_right") ? 360 : 240;
+      width = Math.min(width, maxW);
+      height = Math.min(height, maxH);
     }
 
     let x = (canvasWidth - width) / 2;

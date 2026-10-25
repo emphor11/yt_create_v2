@@ -203,18 +203,50 @@ def run_pipeline_for_topic(topic: str, angle: str, audience: str, channel: str, 
     print("=" * 75)
 
     artifact_dir = Path("/Users/dakshyadav/.gemini/antigravity/brain/0ea3762c-60ae-40de-96c0-ce19c83dda9d")
+    import shutil
+    slug = "".join(c if c.isalnum() else "_" for c in topic.lower()).strip("_")[:28]
+    ws_dest = Path("/Users/dakshyadav/Documents/YTcreate_V2") / f"{slug}.mp4"
+    shutil.copy2(video_path, ws_dest)
+    print(f"  * Copied video to workspace: {ws_dest}")
+
     if artifact_dir.exists():
-        import shutil
         dest = artifact_dir / "e2e_story.mp4"
         shutil.copy2(video_path, dest)
         print(f"  * Copied video to artifact directory: {dest}")
-        slug = "".join(c if c.isalnum() else "_" for c in topic.lower()).strip("_")[:28]
         dest_topic = artifact_dir / f"{slug}.mp4"
         shutil.copy2(video_path, dest_topic)
         print(f"  * Copied video to artifact directory: {dest_topic}")
-        dest_specific = artifact_dir / "home_loan_prepayment_story.mp4"
-        shutil.copy2(video_path, dest_specific)
-        print(f"  * Copied video to artifact directory: {dest_specific}")
+
+        # Write player HTML for this new video
+        player_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{topic} — Continuous Story Video Player</title>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b1120; color: #f8fafc; margin: 0; padding: 32px 24px; display: flex; flex-direction: column; align-items: center; }}
+    .container {{ max-width: 980px; width: 100%; }}
+    h1 {{ font-size: 26px; font-weight: 700; margin: 0 0 8px; color: #38bdf8; }}
+    p.subtitle {{ color: #94a3b8; font-size: 15px; margin: 0 0 20px; }}
+    .video-wrapper {{ position: relative; width: 100%; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6); border: 1px solid #1e293b; }}
+    video {{ width: 100%; height: auto; display: block; }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>{topic}</h1>
+    <p class="subtitle">{angle}</p>
+    <div class="video-wrapper">
+      <video id="player" controls autoplay playsinline preload="auto">
+        <source src="{slug}.mp4" type="video/mp4">
+        Your browser does not support the video tag.
+      </video>
+    </div>
+  </div>
+</body>
+</html>"""
+        (artifact_dir / f"{slug}_player.html").write_text(player_html, encoding="utf-8")
+        print(f"  * Created interactive player: {artifact_dir / f'{slug}_player.html'}")
 
 
 

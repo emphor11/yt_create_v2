@@ -39,7 +39,8 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
 
   const containerW = width ?? 560;
   const containerH = height ?? 280;
-  const isPanoramic = layout === "full_bottom" || containerW >= 1200;
+  const isHero = layout === "center" || containerH >= 400;
+  const isPanoramic = layout === "full_bottom" || containerW >= 1200 || isHero;
 
   // ----------------------------------------------------
   // 1. Trajectory Area Chart (e.g. 20-Year Loan Burden or Cumulative Savings)
@@ -343,7 +344,7 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
   }
 
   const total = totalValue || segmentList.reduce((sum, s) => sum + Math.abs(s.value), 0) || 1;
-  const barHeight = isPanoramic ? 38 : (containerH > 300 ? 32 : 24);
+  const barHeight = isHero ? 52 : isPanoramic ? 38 : (containerH > 300 ? 32 : 24);
 
   return (
     <div
@@ -352,9 +353,9 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
         height: "100%",
         backgroundColor: handDrawn.colors.paperAlt,
         borderRadius: handDrawn.radius.card,
-        border: `2px solid ${handDrawn.colors.ink}`,
+        border: `${isHero ? 3 : 2}px solid ${handDrawn.colors.ink}`,
         boxShadow: handDrawn.shadow.paper,
-        padding: isPanoramic ? "18px 32px" : "22px 24px",
+        padding: isHero ? "28px 36px" : isPanoramic ? "18px 32px" : "22px 24px",
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
@@ -368,12 +369,12 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
           <div
             style={{
               fontFamily: handDrawn.font.label,
-              fontSize: isPanoramic ? 15 : 16,
-              fontWeight: 700,
+              fontSize: isHero ? 24 : isPanoramic ? 15 : 16,
+              fontWeight: 800,
               color: handDrawn.colors.ink,
-              letterSpacing: "0.04em",
+              letterSpacing: "0.05em",
               textTransform: "uppercase",
-              marginBottom: 4,
+              marginBottom: isHero ? 6 : 4,
             }}
           >
             {title}
@@ -383,9 +384,9 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
           <div
             style={{
               fontFamily: handDrawn.font.body,
-              fontSize: 12,
+              fontSize: isHero ? 15 : 12,
               color: handDrawn.colors.inkMuted,
-              marginBottom: isPanoramic ? 8 : 12,
+              marginBottom: isHero ? 14 : isPanoramic ? 8 : 12,
             }}
           >
             {subtitle}
@@ -433,7 +434,7 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
                       style={{
                         color: "#FFFFFF",
                         fontFamily: handDrawn.font.label,
-                        fontSize: isPanoramic ? 13 : 11,
+                        fontSize: isHero ? 17 : isPanoramic ? 13 : 11,
                         fontWeight: 700,
                         textShadow: "0 1px 2px rgba(0,0,0,0.5)",
                         letterSpacing: "0.02em",
@@ -454,8 +455,8 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                gap: 16,
-                marginTop: 10,
+                gap: isHero ? 20 : 16,
+                marginTop: isHero ? 16 : 10,
                 flexWrap: "nowrap",
               }}
             >
@@ -466,41 +467,41 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
                     key={i}
                     style={{
                       flex: 1,
-                      minWidth: 140,
-                      padding: "8px 14px",
+                      minWidth: isHero ? 180 : 140,
+                      padding: isHero ? "14px 20px" : "8px 14px",
                       backgroundColor: handDrawn.colors.paperDeep,
-                      borderRadius: 8,
-                      border: `1px solid ${seg.color}33`,
+                      borderRadius: isHero ? 10 : 8,
+                      border: `1.5px solid ${seg.color}44`,
                       display: "flex",
                       alignItems: "center",
-                      gap: 12,
+                      gap: isHero ? 16 : 12,
                     }}
                   >
                     <div
                       style={{
-                        width: 10,
-                        height: 28,
+                        width: isHero ? 8 : 6,
+                        height: isHero ? 28 : 20,
                         borderRadius: 3,
                         backgroundColor: seg.color,
-                        boxShadow: `0 0 8px ${seg.color}88`,
+                        flexShrink: 0,
                       }}
                     />
-                    <div>
-                      <div
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <span
                         style={{
-                          fontSize: 18,
-                          fontWeight: 800,
                           fontFamily: handDrawn.font.label,
+                          fontSize: isHero ? 22 : 15,
+                          fontWeight: 800,
                           color: handDrawn.colors.ink,
                           lineHeight: 1.1,
                         }}
                       >
                         {pct}%
-                      </div>
-                      <div
+                      </span>
+                      <span
                         style={{
-                          fontSize: 12,
                           fontFamily: handDrawn.font.body,
+                          fontSize: isHero ? 14 : 11,
                           color: handDrawn.colors.inkMuted,
                           marginTop: 2,
                           whiteSpace: "nowrap",
@@ -509,7 +510,7 @@ export const ChartPrimitive: React.FC<ChartPrimitiveProps> = ({
                         }}
                       >
                         {seg.label}
-                      </div>
+                      </span>
                     </div>
                   </div>
                 );

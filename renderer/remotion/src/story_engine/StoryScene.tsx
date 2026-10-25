@@ -245,6 +245,9 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
                     badge={state.visualBadge}
                     stamp={state.visualStamp}
                     customAccent={state.customAccent}
+                    width={state.width}
+                    height={state.height}
+                    layout={obj.layout}
                     style={{ width: "100%", height: "100%" }}
                   />
                 </Highlight>
@@ -322,6 +325,9 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
                 >
                   <ImagePrimitive
                     props={obj.imageProps}
+                    width={state.width}
+                    height={state.height}
+                    layout={obj.layout}
                     style={{ width: "100%", height: "100%" }}
                   />
                 </Highlight>
@@ -390,6 +396,9 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
                     currentDisplayValue={state.currentDisplayValue}
                     currentValue={state.currentNumberValue}
                     currentSubtitle={state.currentSubtitleValue}
+                    width={state.width}
+                    height={state.height}
+                    layout={obj.layout}
                     style={{
                       width: "100%",
                       height: "100%",
@@ -430,6 +439,9 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
                     props={obj.numberProps}
                     currentDisplayValue={state.currentDisplayValue}
                     currentValue={state.currentNumberValue}
+                    width={state.width}
+                    height={state.height}
+                    layout={obj.layout}
                   />
                 </Highlight>
               </div>
@@ -468,6 +480,9 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
                       text: state.currentTextValue || obj.textProps.text,
                       color: state.currentTextColor || obj.textProps.color,
                     }}
+                    width={state.width}
+                    height={state.height}
+                    layout={obj.layout}
                   />
                 </Highlight>
               </div>

@@ -136,17 +136,57 @@ def rerun_stage7_and_render(project_id: str, run_id: str):
     print(f"  * Duration:      {v_payload.get('duration_frames')} frames @ {v_payload.get('fps')}fps ({(v_payload.get('duration_frames', 0) / v_payload.get('fps', 30)):.1f}s)")
     print("=" * 75)
 
+    ws_dir = Path("/Users/dakshyadav/Documents/YTcreate_V2")
+    slug = "the_mutual_fund_1_percent_expense_ratio_trap"
+    ws_dest = ws_dir / f"{slug}.mp4"
+    shutil.copy2(video_path, ws_dest)
+    print(f"  * Copied video to workspace: {ws_dest}")
+
     artifact_dir = Path("/Users/dakshyadav/.gemini/antigravity/brain/0ea3762c-60ae-40de-96c0-ce19c83dda9d")
     if artifact_dir.exists():
-        dest = artifact_dir / "term_insurance_trop_rerun_stage7.mp4"
+        dest = artifact_dir / "e2e_story.mp4"
         shutil.copy2(video_path, dest)
-        print(f"  * Copied video to artifact directory: {dest}")
+        dest_topic = artifact_dir / f"{slug}.mp4"
+        shutil.copy2(video_path, dest_topic)
+        print(f"  * Copied video to artifact directory: {dest_topic}")
+
+        # Write player HTML for this video
+        player_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>The Mutual Fund 1% Expense Ratio Trap — Continuous Story Video Player</title>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b1120; color: #f8fafc; margin: 0; padding: 32px 24px; display: flex; flex-direction: column; align-items: center; }}
+    .container {{ max-width: 980px; width: 100%; }}
+    h1 {{ font-size: 26px; font-weight: 700; margin: 0 0 8px; color: #38bdf8; }}
+    p.subtitle {{ color: #94a3b8; font-size: 15px; margin: 0 0 20px; }}
+    .video-wrapper {{ position: relative; width: 100%; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6); border: 1px solid #1e293b; }}
+    video {{ width: 100%; height: auto; display: block; }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>The Mutual Fund 1% Expense Ratio Trap</h1>
+    <p class="subtitle">How an innocent-looking 1% fee difference between Regular and Direct plans quietly wipes out ₹45 Lakhs in retirement wealth over 25 years</p>
+    <div class="video-wrapper">
+      <video id="player" controls autoplay playsinline preload="auto">
+        <source src="{slug}.mp4" type="video/mp4">
+        Your browser does not support the video tag.
+      </video>
+    </div>
+  </div>
+</body>
+</html>"""
+        player_path = artifact_dir / f"{slug}_player.html"
+        player_path.write_text(player_html, encoding="utf-8")
+        print(f"  * Created interactive player: {player_path}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Rerun Stage 7 & 8 for an existing run.")
-    parser.add_argument("--project-id", default="project_8442d44d78694e6fa34cf08c798729d1", help="Project ID")
-    parser.add_argument("--run-id", default="run_451aaa5a4a174d70bdaaa9a9fb06a243", help="Run ID")
+    parser.add_argument("--project-id", default="project_427bc84c7e864f34a523fe9229bd8285", help="Project ID")
+    parser.add_argument("--run-id", default="run_407e6bdc0bd048b4a461e9df5b49571f", help="Run ID")
     args = parser.parse_args()
 
     rerun_stage7_and_render(args.project_id, args.run_id)
