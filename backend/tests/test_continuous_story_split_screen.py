@@ -374,6 +374,8 @@ def test_collision_across_divider_and_same_half(loan_fixture: dict):
         ],
     }
     draft_geom = ContinuousStoryDraft.model_validate(raw_geom_overlap)
+    # Give the bottom chart height of 320 (y=640..960) so it overlaps split_left (y=420..660)
+    object.__setattr__(draft_geom.objects[1], "height", 320)
     result_geom = validate_story_draft(
         draft=draft_geom,
         approved_facts=loan_fixture["approved_facts"],

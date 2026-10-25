@@ -283,6 +283,9 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
                     props={obj.chartProps}
                     progress={state.chartProgress}
                     activePointIndex={state.chartActivePointIndex}
+                    width={state.width}
+                    height={state.height}
+                    layout={obj.layout}
                     style={{ width: "100%", height: "100%" }}
                   />
                 </Highlight>

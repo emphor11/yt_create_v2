@@ -592,8 +592,7 @@ export function validateStoryPlan(
 
     const enterFrame = enterEvent ? enterEvent.startFrame : (splitEvent ? splitEvent.startFrame : 0);
     const exitEvent = plan.events.find((e): e is ExitAction => e.action === "exit" && "targetId" in e && e.targetId === surf.id);
-    // Zone occupancy releases immediately at exitEvent.startFrame to allow cross-dissolves and seamless replacement without collision errors
-    const exitEndFrame = exitEvent ? exitEvent.startFrame : plan.durationInFrames;
+    const exitEndFrame = exitEvent ? (exitEvent.startFrame + (exitEvent.durationFrames ?? 0)) : plan.durationInFrames;
 
     const moves = plan.events
       .filter((e): e is MoveAction => e.action === "move" && e.targetId === surf.id)
@@ -636,12 +635,12 @@ export function validateStoryPlan(
 
     // Subtitle reservation check (full_bottom must respect height budget and non-full_screen elements must not encroach bottom subtitle line)
     for (const int of intervals) {
-      if (int.zone === "full_bottom" && int.geom.height > 380) {
+      if (int.zone === "full_bottom" && int.geom.height > 280) {
         errors.push({
           code: "SUBTITLE_OVERLAP",
-          message: `Surface element '${surf.id}' in 'full_bottom' has height ${int.geom.height}px exceeding maximum 380px, encroaching into subtitle space.`,
+          message: `Surface element '${surf.id}' in 'full_bottom' has height ${int.geom.height}px exceeding maximum 280px, encroaching into subtitle space.`,
           targetId: surf.id,
-          details: { height: int.geom.height, maxHeight: 380 },
+          details: { height: int.geom.height, maxHeight: 280 },
         });
       }
       if (int.zone !== "full_screen" && int.geom.y + int.geom.height > plan.height - safeMargin - 40) {

@@ -156,7 +156,7 @@ export function resolveLayouts(
       }
     } else if (layout === "full_bottom") {
       width = canvasWidth - safeMargin * 2;
-      height = obj.height ?? 360;
+      height = obj.height ?? 260;
       x = safeMargin;
       y = canvasHeight - safeMargin - height - 40; // Preserves subtitle line
     } else if (layout === "split_left") {

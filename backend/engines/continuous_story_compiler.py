@@ -419,9 +419,17 @@ class ContinuousStoryCompiler:
             )
 
         # If layout is full_bottom or full_screen, width/height adjust accordingly
-        is_macro = obj.layout in ("full_bottom", "full_screen")
-        width = 1760 if is_macro else 640
-        height = 360 if is_macro else 280
+        is_full_bottom = obj.layout == "full_bottom"
+        is_full_screen = obj.layout == "full_screen"
+        if is_full_bottom:
+            width = 1760
+            height = 260
+        elif is_full_screen:
+            width = 1760
+            height = 920
+        else:
+            width = 640
+            height = 280
 
         return {
             "id": obj.id,

@@ -108,6 +108,8 @@ def _resolve_obj_geometry(
         else:
             x, y, w, h = 80, 80, 1920 - 160, 1080 - 160
     elif zone == "full_bottom":
+        if height is None:
+            h = 260
         x, w, h = 80, 1920 - 160, h
         y = 1080 - 80 - h - 40
     else:
@@ -917,16 +919,16 @@ def validate_story_draft(
                 )
 
             # Subtitle clearance check
-            if z == "full_bottom" and h > 380:
+            if z == "full_bottom" and h > 280:
                 errors.append(
                     DraftValidationError(
                         code="SUBTITLE_OVERLAP",
                         message=(
-                            f"Surface element '{obj_id}' in 'full_bottom' has height {h}px exceeding maximum 380px, "
+                            f"Surface element '{obj_id}' in 'full_bottom' has height {h}px exceeding maximum 280px, "
                             f"encroaching into subtitle space."
                         ),
                         target_id=obj_id,
-                        details={"height": h, "max_height": 380},
+                        details={"height": h, "max_height": 280},
                     )
                 )
             if z != "full_screen" and y + h > 960:

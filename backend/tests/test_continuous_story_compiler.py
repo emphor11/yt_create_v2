@@ -339,7 +339,7 @@ def test_compiled_chart_object(loan_draft: ContinuousStoryDraft, loan_fixture: d
     assert chart["type"] == "chart"
     assert chart["layout"] == "full_bottom"
     assert chart["width"] == 1760
-    assert chart["height"] == 360
+    assert chart["height"] == 260
     assert chart["chartProps"]["chartType"] == "trajectory_area"
     assert chart["chartProps"]["title"] == "20-Year Extra Interest Trajectory"
     assert len(chart["chartProps"]["series"]) == 1
