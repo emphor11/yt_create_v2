@@ -833,3 +833,117 @@ def test_generate_timing_report_format():
     assert "Visible interval: 33.73s – 41.83s" in report
 
 
+def test_compile_story_draft_with_atmosphere_and_stamp():
+    """Verify Atmosphere preset and ImpactStamp compile cleanly with exact contract."""
+    draft_data = {
+        "story_id": "atmosphere_stamp_story",
+        "atmosphere": "paper_clean",
+        "objects": [
+            {
+                "id": "valuation_card",
+                "type": "card",
+                "layout": "center",
+                "title": "Jio Valuation",
+                "display_value": "₹10 Lakh Cr",
+            }
+        ],
+        "events": [
+            {
+                "action": "enter",
+                "target_id": "valuation_card",
+                "anchor": "ten lakh crore",
+            },
+            {
+                "action": "stamp",
+                "target_id": "valuation_card",
+                "anchor": "perfection",
+                "stamp_text": "PRICED FOR PERFECTION",
+                "stamp_tone": "verdict",
+                "rotation_deg": -5.5,
+                "shake": True,
+            },
+        ],
+    }
+
+    draft = ContinuousStoryDraft.model_validate(draft_data)
+    fixture = {
+        "approved_facts": {},
+        "word_timestamps": [
+            {"word": "ten", "start_ms": 1000, "end_ms": 1200},
+            {"word": "lakh", "start_ms": 1250, "end_ms": 1400},
+            {"word": "crore", "start_ms": 1450, "end_ms": 1700},
+            {"word": "priced", "start_ms": 3000, "end_ms": 3300},
+            {"word": "for", "start_ms": 3350, "end_ms": 3500},
+            {"word": "perfection", "start_ms": 3550, "end_ms": 3900},
+        ],
+        "total_duration_ms": 5000,
+        "audio_file": "test_audio.mp3",
+    }
+
+    compiled = ContinuousStoryCompiler().compile(draft, fixture)
+
+    # 1. Atmosphere compiled
+    assert "atmosphere" in compiled
+    assert compiled["atmosphere"]["preset"] == "paper_clean"
+
+    # 2. Stamp event compiled
+    stamp_events = [e for e in compiled["events"] if e["action"] == "stamp"]
+    assert len(stamp_events) == 1
+    stamp_ev = stamp_events[0]
+    assert stamp_ev["targetId"] == "valuation_card"
+    assert stamp_ev["text"] == "PRICED FOR PERFECTION"
+    assert stamp_ev["tone"] == "verdict"
+    assert stamp_ev["rotationDeg"] == -5.5
+    assert stamp_ev["shake"] is True
+    assert stamp_ev["startFrame"] == round((3550 / 1000.0) * 30)
+    assert stamp_ev["durationFrames"] == 180
+
+
+def test_compiler_chronological_anchor_resolution():
+    """
+    Verifies that ContinuousStoryCompiler resolves repeated anchors chronologically.
+    """
+    word_timestamps = [
+        {"word": "intro", "start_ms": 1000, "end_ms": 1500},
+        {"word": "late", "start_ms": 2000, "end_ms": 2500},
+        {"word": "2024", "start_ms": 2500, "end_ms": 3000},
+        {"word": "first", "start_ms": 4000, "end_ms": 4500},
+        {"word": "middle", "start_ms": 50000, "end_ms": 50500},
+        {"word": "late", "start_ms": 60000, "end_ms": 60500},
+        {"word": "2024", "start_ms": 60500, "end_ms": 61000},
+        {"word": "conclusion", "start_ms": 70000, "end_ms": 70500},
+    ]
+
+    draft = ContinuousStoryDraft.model_validate({
+        "story_id": "test_chronological_compiler",
+        "objects": [
+            {
+                "id": "card_late",
+                "type": "card",
+                "layout": "split_left",
+                "title": "Late Card",
+            },
+        ],
+        "events": [
+            {"action": "enter", "target_id": "card_late", "anchor": "middle"},
+            {"action": "change_visual_state", "target_id": "card_late", "anchor": "late 2024", "to_state": "warning"},
+            {"action": "exit", "target_id": "card_late", "anchor": "conclusion"},
+        ],
+    })
+
+    fixture = {
+        "word_timestamps": word_timestamps,
+        "total_duration_ms": 75000,
+        "audio_file": "test.mp3",
+    }
+    compiler = ContinuousStoryCompiler(default_fps=30)
+    plan = compiler.compile(draft=draft, fixture=fixture)
+
+    events = plan["events"]
+    change_state_ev = next(e for e in events if e["action"] == "change_visual_state")
+    # 60,000ms at 30 fps is 1800 frames (not 2000ms = 60 frames)
+    assert change_state_ev["startFrame"] == 1800
+
+
+
+

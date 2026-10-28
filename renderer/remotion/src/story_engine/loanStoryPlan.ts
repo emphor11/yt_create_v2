@@ -23,6 +23,9 @@ export const loanStoryPlan: StoryPlan = {
   width: 1920,
   height: 1080,
   safeMargin: 80,
+  atmosphere: {
+    preset: "desk_noir",
+  },
   audioFileName: "loan_narration.mp3",
   narration: {
     text: loanTimestamps.full_text,
@@ -234,6 +237,17 @@ export const loanStoryPlan: StoryPlan = {
       startFrame: 295,
       durationFrames: 35,
       color: "#EF4444",
+    },
+    // 14. Impact Stamp: 'THE RATE TRAP' slams down with camera shake and thud
+    {
+      action: "stamp",
+      targetId: "card_emi",
+      startFrame: 300,
+      durationFrames: 200,
+      text: "THE RATE TRAP",
+      tone: "verdict",
+      rotationDeg: -6.5,
+      shake: true,
     },
   ],
 };

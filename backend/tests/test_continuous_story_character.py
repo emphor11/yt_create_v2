@@ -373,12 +373,68 @@ def test_compiler_output_for_change_pose(base_character_story, base_narration_da
 
 
 # ====================================================================
-# TEST 12: Character Collision with Cards
+# TEST 12: Character Coexistence with Cards & Overcrowding Collision
 # ====================================================================
 def test_character_collision_with_cards(base_character_story, base_narration_data):
     data = dict(base_character_story)
-    # Put card in SAME zone as character: "split_left"
+    # 1. Two objects in split_left (character + card) are now VALID (auto-stacked vertically)
     data["objects"][1]["layout"] = "split_left"
+    draft_valid = ContinuousStoryDraft(**data)
+    val_res_valid = validate_story_draft(
+        draft_valid,
+        approved_facts={},
+        word_timestamps=base_narration_data["word_timestamps"],
+    )
+    assert val_res_valid.valid
+
+    # 2. Adding a 3rd and 4th concurrent object to split_left is valid (up to 4 elements stacked vertically)
+    data["objects"].extend([
+        {
+            "id": "third_card",
+            "type": "card",
+            "layout": "split_left",
+            "title": "Third Card",
+            "display_value": "₹10 Lakhs",
+            "numeric_value": 1000000,
+            "subtitle": "Element 3",
+        },
+        {
+            "id": "fourth_card",
+            "type": "card",
+            "layout": "split_left",
+            "title": "Fourth Card",
+            "display_value": "₹15 Lakhs",
+            "numeric_value": 1500000,
+            "subtitle": "Element 4",
+        },
+    ])
+    data["events"].extend([
+        {"action": "enter", "target_id": "third_card", "anchor": "salaried employee"},
+        {"action": "enter", "target_id": "fourth_card", "anchor": "salaried employee"},
+    ])
+    draft_four = ContinuousStoryDraft(**data)
+    val_res_four = validate_story_draft(
+        draft_four,
+        approved_facts={},
+        word_timestamps=base_narration_data["word_timestamps"],
+    )
+    assert val_res_four.valid
+
+    # Adding a 5th concurrent object to split_left exceeds the capacity (max 4) and causes collision
+    data["objects"].append({
+        "id": "fifth_card",
+        "type": "card",
+        "layout": "split_left",
+        "title": "Fifth Card",
+        "display_value": "₹20 Lakhs",
+        "numeric_value": 2000000,
+        "subtitle": "Exceeds max 4",
+    })
+    data["events"].append({
+        "action": "enter",
+        "target_id": "fifth_card",
+        "anchor": "salaried employee",
+    })
     draft = ContinuousStoryDraft(**data)
     val_res = validate_story_draft(
         draft,

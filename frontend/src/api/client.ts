@@ -104,7 +104,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export type DurationProfile = "short_2min" | "long_5min";
-export type VisualMode = "legacy" | "composition";
+export type VisualMode = "legacy" | "composition" | "continuous_story";
 
 export function listProjects(): Promise<ProjectRecord[]> {
   return request<ProjectRecord[]>("/projects");
@@ -197,6 +197,15 @@ export function runVoiceGeneration(
   runId: string
 ): Promise<RunStageResponse> {
   return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/voice_generation`, {
+    method: "POST",
+  });
+}
+
+export function runContinuousStory(
+  projectId: string,
+  runId: string
+): Promise<RunStageResponse> {
+  return request<RunStageResponse>(`/projects/${projectId}/runs/${runId}/run/continuous_story`, {
     method: "POST",
   });
 }

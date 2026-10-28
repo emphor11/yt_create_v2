@@ -939,10 +939,11 @@ def test_format_programmatic_repair_prompt_structure():
     assert "Do not paraphrase." in prompt
     assert "Do not summarize." in prompt
     assert "Do not invent anchor text." in prompt
-    assert "Use a unique phrase of at least 3 meaningful words." in prompt
+    assert "Every anchor must be between 1 and 3 words (minimum 1 word, maximum 3 words)." in prompt
     assert "An exit anchor must occur strictly after the target object's enter anchor." in prompt
     assert "Never use the same anchor for enter and exit." in prompt
-    assert "If there is no later spoken phrase, omit the exit event instead of inventing one." in prompt
+    assert "Every surface object must have an explicit exit event" in prompt
+    assert "Stock videos are full-screen B-roll cutaways outside the canvas." in prompt
 
 
 def test_repair_prompt_contains_narration_text_and_exit_conflict_details():
@@ -1139,36 +1140,62 @@ def test_direct_authoring_draft_validation():
     assert draft.events[1].to_numeric_value == 13800000
 
 
-def test_direct_authoring_contract_requires_card_display_value_and_subtitle():
+def test_direct_authoring_contract_card_validation():
     from engines.continuous_story_engine import _validate_direct_authoring_contract
 
-    # Missing display_value
-    draft_no_val = ContinuousStoryDraft.model_validate({
-        "story_id": "test_missing_val",
-        "objects": [{"id": "c1", "type": "card", "layout": "center", "title": "My Card", "subtitle": "Some Subtitle"}],
+    # Missing both subtitle and display_value (only title) -> rejected by direct-authoring contract
+    draft_title_only = ContinuousStoryDraft.model_validate({
+        "story_id": "test_missing_both",
+        "objects": [{"id": "c1", "type": "card", "layout": "center", "title": "My Card"}],
         "events": [{"action": "enter", "target_id": "c1", "anchor": "test"}]
     })
-    with pytest.raises(ContinuousStoryEngineError) as exc_val:
-        _validate_direct_authoring_contract(draft_no_val)
-    assert "Card 'c1' requires non-empty direct 'display_value'." in str(exc_val.value)
+    with pytest.raises(ContinuousStoryEngineError) as exc_both:
+        _validate_direct_authoring_contract(draft_title_only)
+    assert "Card 'c1' requires direct 'subtitle' or 'display_value'." in str(exc_both.value)
 
-    # Missing subtitle
-    draft_no_sub = ContinuousStoryDraft.model_validate({
-        "story_id": "test_missing_sub",
-        "objects": [{"id": "c2", "type": "card", "layout": "center", "title": "My Card", "display_value": "₹10 Lakhs"}],
-        "events": [{"action": "enter", "target_id": "c2", "anchor": "test"}]
-    })
-    with pytest.raises(ContinuousStoryEngineError) as exc_sub:
-        _validate_direct_authoring_contract(draft_no_sub)
-    assert "Card 'c2' requires non-empty direct 'subtitle'." in str(exc_sub.value)
-
-    # Valid card with title, display_value, and subtitle passes
-    draft_valid = ContinuousStoryDraft.model_validate({
-        "story_id": "test_valid",
-        "objects": [{"id": "c3", "type": "card", "layout": "center", "title": "My Card", "display_value": "₹10 Lakhs", "subtitle": "Some Subtitle"}],
+    # Conceptual card (title + subtitle, no display_value) -> valid
+    draft_conceptual = ContinuousStoryDraft.model_validate({
+        "story_id": "test_conceptual",
+        "objects": [{"id": "c3", "type": "card", "layout": "center", "title": "Systemic Risk", "subtitle": "Unsecured lending spike"}],
         "events": [{"action": "enter", "target_id": "c3", "anchor": "test"}]
     })
-    _validate_direct_authoring_contract(draft_valid)
+    _validate_direct_authoring_contract(draft_conceptual)
+
+    # Metric card (title + display_value, no subtitle) -> valid
+    draft_metric = ContinuousStoryDraft.model_validate({
+        "story_id": "test_metric",
+        "objects": [{"id": "c4", "type": "card", "layout": "center", "title": "Interest Rate", "display_value": "8.5%"}],
+        "events": [{"action": "enter", "target_id": "c4", "anchor": "test"}]
+    })
+    _validate_direct_authoring_contract(draft_metric)
+
+    # Hybrid card (title + display_value + subtitle) -> valid
+    draft_hybrid = ContinuousStoryDraft.model_validate({
+        "story_id": "test_hybrid",
+        "objects": [{"id": "c5", "type": "card", "layout": "center", "title": "Total Borrowed", "display_value": "₹50 Lakhs", "subtitle": "Original principal"}],
+        "events": [{"action": "enter", "target_id": "c5", "anchor": "test"}]
+    })
+    _validate_direct_authoring_contract(draft_hybrid)
+
+
+def test_build_continuous_story_prompt_enforces_rule_1_fixed_budget():
+    from engines.continuous_story_engine import build_continuous_story_prompt
+
+    # Short narration (~50 words, ~20s) -> Rule 1 fixed budget
+    short_text = "This is a short narration describing a mortgage calculation with interest rates."
+    _, short_prompt = build_continuous_story_prompt("story_short", short_text)
+    assert "Rule 1 FIXED BUDGET" in short_prompt
+    assert "50–60 declared objects" in short_prompt
+    assert "90–100 viewer-facing visual refresh events" in short_prompt
+
+    # Long narration (600 words, ~250s) -> Same Rule 1 fixed budget
+    long_text = " ".join(["wealth"] * 600)
+    _, long_prompt = build_continuous_story_prompt("story_long", long_text)
+    assert "Rule 1 FIXED BUDGET" in long_prompt
+    assert "50–60 declared objects" in long_prompt
+    assert "90–100 viewer-facing visual refresh events" in long_prompt
+    assert "5–10 real-world 'image' objects" in long_prompt
+
 
 
 

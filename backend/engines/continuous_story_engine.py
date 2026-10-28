@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from typing import Any
 
@@ -37,6 +37,7 @@ class ContinuousStoryEngineResult:
     draft: ContinuousStoryDraft
     raw_payload: dict[str, Any]
     provider_metadata: LLMProviderMetadata | None = None
+    call_history: list[dict[str, Any]] = field(default_factory=list)
 
 
 class ContinuousStoryEngineError(Exception):
@@ -46,10 +47,12 @@ class ContinuousStoryEngineError(Exception):
         *,
         raw_payload: dict[str, Any] | None = None,
         provider_metadata: LLMProviderMetadata | None = None,
+        call_history: list[dict[str, Any]] | None = None,
     ):
         super().__init__(message)
         self.raw_payload = raw_payload or {}
         self.provider_metadata = provider_metadata
+        self.call_history = call_history or []
 
 
 def _format_inr(val: float | int) -> str:
@@ -108,28 +111,81 @@ def _safe_temporal_repair(
 def _normalize_and_sanitize_draft_payload(
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Sanitizes deterministic contract constraints (e.g. stock_video cut transitions)."""
+    """Sanitizes deterministic contract constraints (e.g. stock_video cut transitions, atmosphere, card fields)."""
     if not isinstance(payload, dict):
         return payload
+
+    # 1. Enforce real archival white background (completely eliminate desk_noir)
+    if not payload.get("atmosphere") or payload.get("atmosphere") == "desk_noir":
+        payload["atmosphere"] = "paper_clean"
 
     objects = payload.get("objects", [])
     events = payload.get("events", [])
     if not isinstance(objects, list) or not isinstance(events, list):
         return payload
 
-    # 1. Normalize stock_video transitions (enter style MUST be 'cut', exit direction MUST be 'cut')
+    # Build object lookup
+    object_map: dict[str, dict[str, Any]] = {}
+    for obj in objects:
+        if isinstance(obj, dict) and obj.get("id"):
+            object_map[obj["id"]] = obj
+            # stock_video is a full-screen cutaway layer outside the canvas grid
+            if obj.get("type") == "stock_video":
+                obj["layout"] = "full_screen"
+            # If card specified 'text' instead of 'subtitle', normalize to subtitle
+            if obj.get("type") == "card" and "text" in obj:
+                if not obj.get("subtitle") and obj.get("text"):
+                    obj["subtitle"] = obj["text"]
+                obj.pop("text", None)
+
+    # 2. Normalize stock_video transitions (enter style MUST be 'cut', exit direction MUST be 'cut')
     stock_video_ids = {
-        obj.get("id")
-        for obj in objects
-        if isinstance(obj, dict) and obj.get("type") == "stock_video" and obj.get("id")
+        obj_id for obj_id, obj in object_map.items() if obj.get("type") == "stock_video"
     }
-    if stock_video_ids:
-        for ev in events:
-            if isinstance(ev, dict) and ev.get("target_id") in stock_video_ids:
-                if ev.get("action") == "enter" and ev.get("style") != "cut":
-                    ev["style"] = "cut"
-                elif ev.get("action") == "exit" and ev.get("direction") != "cut":
-                    ev["direction"] = "cut"
+    for ev in events:
+        if not isinstance(ev, dict):
+            continue
+        target_id = ev.get("target_id")
+        if target_id in stock_video_ids:
+            if ev.get("action") == "enter" and ev.get("style") != "cut":
+                ev["style"] = "cut"
+            elif ev.get("action") == "exit" and ev.get("direction") != "cut":
+                ev["direction"] = "cut"
+
+        # 3. If change_visual_state targets non-card/character (e.g. image or chart), normalize to highlight
+        if ev.get("action") == "change_visual_state":
+            target_obj = object_map.get(target_id)
+            if target_obj and target_obj.get("type") not in ("card", "character"):
+                ev["action"] = "highlight"
+                ev.pop("state", None)
+
+    # 4. Remove zero-duration exit events where an object exits on the exact same anchor it entered
+    # (e.g. final concluding visuals where LLM emitted an exit on the final spoken punch word)
+    enter_anchors_by_target: dict[str, str] = {}
+    for ev in events:
+        if isinstance(ev, dict) and ev.get("action") in ("enter", "connect"):
+            tgt = ev.get("target_id")
+            if tgt and tgt not in enter_anchors_by_target and ev.get("anchor"):
+                enter_anchors_by_target[tgt] = ev["anchor"].strip().lower()
+
+    filtered_events = []
+    for ev in events:
+        if not isinstance(ev, dict):
+            filtered_events.append(ev)
+            continue
+        tgt = ev.get("target_id")
+        action = ev.get("action")
+        # Connectors do not exit
+        if action == "exit" and tgt and object_map.get(tgt, {}).get("type") == "connector":
+            continue
+        # If exit anchor is identical to enter anchor, drop the zero-duration exit
+        # so the object remains on screen (especially critical for final concluding visuals)
+        if action == "exit" and tgt in enter_anchors_by_target:
+            exit_anc = (ev.get("anchor") or "").strip().lower()
+            if exit_anc == enter_anchors_by_target[tgt]:
+                continue
+        filtered_events.append(ev)
+    payload["events"] = filtered_events
 
     return payload
 
@@ -192,10 +248,12 @@ EXACT_REPAIR_INSTRUCTION = (
     "Do not paraphrase.\n"
     "Do not summarize.\n"
     "Do not invent anchor text.\n"
-    "Use a unique phrase of at least 3 meaningful words.\n\n"
+    "Every anchor must be between 1 and 3 words (minimum 1 word, maximum 3 words).\n"
+    "Never use more than 3 words for any anchor.\n\n"
     "An exit anchor must occur strictly after the target object's enter anchor.\n"
     "Never use the same anchor for enter and exit.\n"
-    "If there is no later spoken phrase, omit the exit event instead of inventing one."
+    "Every surface object must have an explicit exit event (only the final concluding visual at the end of the video may omit an exit).\n"
+    "Stock videos are full-screen B-roll cutaways outside the canvas. Canvas elements (characters, cards, charts, connectors) remain alive across stock video cutaways without exiting."
 )
 
 
@@ -303,6 +361,36 @@ def format_programmatic_repair_prompt(
                             '   Optional on image: "caption", "badge", "fit".\n'
                             "   Do not specify title, subtitle, display_value, or numeric_value on image.\n"
                         )
+                    elif obj_type == "scale":
+                        specific_guidance = (
+                            '   Scale requires: "type": "scale", "layout" ("center", "split_left", or "split_right"), "left_title", "right_title".\n'
+                            '   Optional on scale: "title", "left_display_value", "left_numeric_value", "left_badge", "right_display_value", "right_numeric_value", "right_badge", "tilt_direction" ("left", "right", "balanced"), "visual_state".\n'
+                            "   Do not specify chart, connector, or image fields on scale.\n"
+                        )
+                    elif obj_type == "money_stack":
+                        specific_guidance = (
+                            '   MoneyStack requires: "type": "money_stack", "layout" ("center", "split_left", or "split_right"), and either "total_display_value" (for single_tower) or "comparison_left_value" + "comparison_right_value" (for comparison).\n'
+                            '   Optional on money_stack: "title", "stack_mode" ("single_tower" or "comparison"), "unit_label", "unit_value", "total_numeric_value", "comparison_left_label", "comparison_right_label", "show_human_scale" (true/false), "badge", "visual_state".\n'
+                            "   Do not specify chart, connector, or image fields on money_stack.\n"
+                        )
+                    elif obj_type == "document":
+                        specific_guidance = (
+                            '   Document requires: "type": "document", "layout" ("center", "split_left", or "split_right"), "doc_title", "doc_body".\n'
+                            '   Optional on document: "doc_reference", "highlight_phrase", "watermark", "stamp_text", "visual_state".\n'
+                            "   Do not specify chart, connector, or image fields on document.\n"
+                        )
+                    elif obj_type == "waterfall":
+                        specific_guidance = (
+                            '   Waterfall requires: "type": "waterfall", "layout" ("center", "split_left", or "split_right"), "initial_label", "initial_display_value", "steps" (list of {label, display_value, value, step_type}), "final_label", "final_display_value".\n'
+                            '   Optional on waterfall: "title", "initial_value", "final_value", "visual_state", "badge".\n'
+                            "   Do not specify chart, connector, or image fields on waterfall.\n"
+                        )
+                    elif obj_type == "capital_flow":
+                        specific_guidance = (
+                            '   CapitalFlow requires: "type": "capital_flow", "layout" ("center", "split_left", or "split_right"), "source_label", "target_label", "flow_display_value".\n'
+                            '   Optional on capital_flow: "title", "source_sublabel", "target_sublabel", "flow_label", "flow_direction" ("left_to_right", "right_to_left", "bidirectional"), "visual_state", "badge".\n'
+                            "   Do not specify chart, connector, or image fields on capital_flow.\n"
+                        )
 
             lines.append(f"{err_idx}. {loc_str}:\n{item_info}{specific_guidance}   Detail: {msg}\n")
             err_idx += 1
@@ -332,7 +420,8 @@ def format_programmatic_repair_prompt(
                     f"   Required fix:\n"
                     f"     An exit anchor must occur strictly after the target object's enter anchor.\n"
                     f"     Never use the same anchor for enter and exit.\n"
-                    f"     If there is no later spoken phrase, omit the exit event instead of inventing one.\n"
+                    f"     If '{target_id}' is a concluding visual appearing near or at the end of the video, REMOVE its 'exit' event entirely so it remains on screen until the video concludes.\n"
+                    f"     Otherwise, pick a later spoken anchor occurring strictly after '{enter_anchor}'.\n"
                 )
             elif code == "ANCHOR_NOT_FOUND":
                 anchor_val = details.get("anchor", "")
@@ -366,9 +455,9 @@ def format_programmatic_repair_prompt(
                     f"   Spatial collision details:\n"
                     f"     - Zone '{zone}' is occupied by '{other_id}' during {s_sec} to {e_sec} ({s_ms}ms–{e_ms}ms).\n"
                     f"   Required fix:\n"
-                    f"     Two elements cannot occupy the same zone at the same time.\n"
-                    f"     Option A: Place '{target_id}' into a different, free zone (e.g. split_left, split_right, center, full_bottom).\n"
-                    f"     Option B: Add an explicit 'exit' event to remove '{other_id}' before '{target_id}' enters zone '{zone}'.\n"
+                    f"     Zone '{zone}' exceeds maximum concurrent occupancy (max 2 for split/center, max 1 for full_screen/full_bottom).\n"
+                    f"     Option A: Place '{target_id}' into a different free zone (e.g. split_left, split_right, center, full_bottom).\n"
+                    f"     Option B: Add an explicit 'exit' event to remove an incumbent object before adding a new one to zone '{zone}'.\n"
                 )
             elif code == "MACRO_LAYOUT_COLLISION":
                 macro_zone = details.get("macro_zone", "")
@@ -410,6 +499,35 @@ def format_programmatic_repair_prompt(
                     f"   Option A: Add an enter event for '{target_id}' with an exact anchor phrase from the narration.\n"
                     f"   Option B: If '{target_id}' was declared by mistake and is not needed, remove it from 'objects'.\n"
                 )
+            elif code == "MISSING_EXIT_BEFORE_FULLSCREEN":
+                fs_id = details.get("fullscreen_id", "")
+                fs_t = details.get("fullscreen_enter_ms", "")
+                fs_sec = f"{fs_t/1000:.1f}s" if isinstance(fs_t, (int, float)) else str(fs_t)
+                guidance = (
+                    f"   Preceding foreground visual '{target_id}' has no explicit exit before full-screen element '{fs_id}' enters at {fs_sec} ({fs_t}ms).\n"
+                    f"   Required fix: Add an explicit 'exit' event for '{target_id}' with an anchor on or before '{fs_id}' enters (e.g. direction: 'cut' or 'fade').\n"
+                )
+            elif code == "EXIT_AFTER_FULLSCREEN_ENTER":
+                fs_id = details.get("fullscreen_id", "")
+                guidance = (
+                    f"   Preceding foreground visual '{target_id}' exits after full-screen element '{fs_id}' enters.\n"
+                    f"   Required fix: Move '{target_id}' exit anchor to occur on or strictly before '{fs_id}' enters.\n"
+                )
+            elif code == "LOW_VISUAL_DENSITY":
+                req_events = details.get("required_events", "")
+                act_events = details.get("actual_events", "")
+                dur_sec = details.get("duration_seconds", "")
+                guidance = (
+                    f"   Low visual density failure: Draft contains only {act_events} events for a {dur_sec}s video.\n"
+                    f"   Mandatory floor: At least {req_events} events (cadence of at least 1 choreographic action every 3 seconds).\n"
+                    f"   Required fix: Add more choreographic events across the timeline to keep the canvas dynamic every 2 to 3 seconds:\n"
+                    f"     - Introduce supporting secondary cards, documentary photo plates, or charts during spoken beats.\n"
+                    f"     - Add 'transform_number' actions to update metrics as the narration progresses.\n"
+                    f"     - Add 'change_visual_state' actions with badges ('warning', 'danger', 'success', 'stamped') during dramatic beats.\n"
+                    f"     - Add 'change_pose' actions on characters to reflect emotional shifts.\n"
+                    f"     - Add 'connect' actions to draw causal arrows between related cards.\n"
+                    f"     - Ensure EVERY spoken sentence has at least one visual trigger or micro-action.\n"
+                )
             elif code == "STOCK_VIDEO_INVALID_TRANSITION":
                 guidance = (
                     f"   stock_video transition error on '{target_id}':\n"
@@ -419,10 +537,10 @@ def format_programmatic_repair_prompt(
                 guidance = (
                     f"   stock_video '{target_id}' must have exactly one 'enter' event (style: 'cut') and exactly one 'exit' event (direction: 'cut').\n"
                 )
-            elif code == "STOCK_VIDEO_CONNECTOR_COLLISION":
+            elif code == "STOCK_VIDEO_OVERLAP_COLLISION":
                 guidance = (
-                    f"   stock_video '{target_id}' overlaps with a connector.\n"
-                    f"   Required fix: Connectors cannot be active during a full_screen stock_video. Exit the connector before stock_video enters.\n"
+                    f"   stock_video cutaway '{target_id}' overlaps with another stock video.\n"
+                    f"   Required fix: Stock videos are full-screen cutaways; only one stock video can be active at a time. Do not overlap stock video intervals.\n"
                 )
             elif code == "ACTION_BEFORE_OBJECT_ENTER":
                 enter_anchor = details.get("enter_anchor", "")
@@ -459,12 +577,11 @@ def build_continuous_story_prompt(
     """Builds system and user prompts for Gemini visual choreography in open direct-authoring mode."""
     system_prompt = load_prompt("continuous_story_system.txt")
 
-    approved_facts = approved_facts or {}
     available_assets = available_assets or []
     assets_str = (
-        ", ".join(repr(a) for a in available_assets)
+        ", ".join(f'"{a}"' for a in available_assets)
         if available_assets
-        else "(None pre-loaded — request real-world images dynamically using 'asset_request')"
+        else "(None pre-loaded — declare 'image' and 'stock_video' objects with descriptive 'asset_request' to resolve them dynamically)"
     )
 
     strategy_str = ""
@@ -480,10 +597,36 @@ def build_continuous_story_prompt(
     user_prompt = (
         f"STORY ID: {story_id}\n\n"
         f"NARRATION TEXT (Spoken Audio Track):\n"
-        f"\"{narration_text}\"\n\n"
+        f'"""\n{(narration_text or "").strip()}\n"""\n\n'
         f"{strategy_str}"
-        f"AVAILABLE IMAGE ASSETS:\n{assets_str}\n\n"
-        "The system prompt above is the single authoritative contract. Follow the mandatory 3-second visual refresh rate and the explicit budget (35–50 declared objects, 60–80 events, and 3–6 real-world 'image' objects with descriptive 'asset_request' for 120–180s narration). Localized images conform to 420x240 dimensions. Use direct-authoring mode, exact spoken anchors, and return the complete ContinuousStoryDraft JSON only."
+        f"AVAILABLE ASSETS:\n{assets_str}\n\n"
+        "AUTHORING DIRECTIVES:\n"
+        "1. Rule 1 FIXED BUDGET: Exactly 50–60 declared objects (target ~56) and 90–100 viewer-facing visual refresh events "
+        "(target ~92: enters plus in-scene choreography). Include 5–10 real-world 'image' objects with descriptive 'asset_request', "
+        "and at least one 'stock_video' cutaway.\n"
+        "2. OBJECT LIFECYCLE (ENTER, EXIT & ZONE CLEARANCE): Every declared object in 'objects' MUST have an explicit 'enter' event (or 'connect' for connectors). "
+        "Every intermediate object MUST have an explicit 'exit' event when its narrative moment concludes, and specifically BEFORE or WHEN a new visual enters that zone to prevent zone collisions. "
+        "CONCLUDING VISUAL EXCEPTION: The final concluding takeaway visual(s) appearing at the end of the video remain on screen until the video concludes and must NOT have an exit event. "
+        "Strict timing: an object's exit anchor must occur strictly after its enter anchor (never use the exact same anchor for enter and exit, and never force an exit on the final word). "
+        "Distribute objects smoothly across all story beats; never declare extra objects and dump them all on the final sentence.\n"
+        "3. ANCHORS AS IT IS FROM NARRATION: Every event anchor MUST be an exact 1-to-3 word phrase copied character-for-character directly "
+        "as it is from the spoken audio narration text above. Do NOT paraphrase, summarize, or alter words (e.g. if the narration says 'stop', "
+        "do not write 'not'; if it says 'replaces', do not write 'replace'; if it says 'FY 23-24', write 'FY 23-24' exactly). Never use more than 3 words. "
+        "Never output timestamps or frame numbers.\n"
+        "4. DIRECT AUTHORING: Directly author all visual text and numeric metrics ('title', 'subtitle', 'badge', 'display_value', 'numeric_value', 'text', 'series', 'points', 'left_title', 'right_title', 'total_display_value', 'unit_label', 'doc_title', 'doc_body', 'initial_label', 'final_label', 'source_label', 'target_label', 'flow_display_value'). "
+        "Use 'scale' when comparing opposing forces or physical tipping points (requires 'left_title', 'right_title'; optional 'left_display_value', 'right_display_value', 'tilt_direction'). "
+        "Use 'money_stack' for monumental numbers or wealth divides (requires 'total_display_value' for 'single_tower' with 'show_human_scale', or 'comparison_left_value' + 'comparison_right_value' for 'comparison'). "
+        "Use 'document' for investigative proof, circulars, filings, or official reports (requires 'doc_title', 'doc_body'; optional 'highlight_phrase', 'watermark', 'stamp_text'). "
+        "Use 'waterfall' for step-by-step cash flow leakage, fee deduction, or margin breakdowns (requires 'initial_label', 'initial_display_value', 'steps', 'final_label', 'final_display_value'). "
+        "Use 'capital_flow' for global money flight, market capital outflows, or cross-border pipelines (requires 'source_label', 'target_label', 'flow_display_value'). "
+        "Do not use 'fact_id', 'value_fact_id', or 'to_fact_id'.\n"
+        "5. ATMOSPHERE & VISUAL STATE: Always set 'atmosphere': 'paper_clean' (archival white background). Never use dark backgrounds. "
+        "Express emotional weight via 'visual_state' ('normal', 'warning', 'danger', 'success', 'dimmed', 'stamped', 'eroded'). Do not output hex accents.\n"
+        "6. ACTIVE CHOREOGRAPHY: Maintain an energetic 2-to-3 second visual refresh cadence across the entire narration using diverse actions "
+        "('transform_number', 'change_visual_state', 'connect', 'highlight', 'move', 'change_pose', 'stamp').\n"
+        "7. LAYOUT CONSTRAINTS: Surface objects occupy 'split_left', 'split_right', 'center', or 'full_bottom'. Only 'stock_video' cutaways use 'full_screen'. "
+        "Remember: 'center' holds at most 1 element; 'split_left' and 'split_right' hold at most 2 simultaneous elements. Do not overcrowd zones.\n"
+        "8. CLEAN JSON ONLY: Return only the complete ContinuousStoryDraft JSON object matching the schema. No explanations, no markdown fences."
     )
     return system_prompt, user_prompt
 
@@ -501,10 +644,10 @@ def _validate_direct_authoring_contract(
         if obj.type == "card":
             if not obj.title or not obj.title.strip():
                 errors.append(f"Card '{obj.id}' requires non-empty direct 'title'.")
-            if not obj.display_value or not str(obj.display_value).strip():
-                errors.append(f"Card '{obj.id}' requires non-empty direct 'display_value'.")
-            if not obj.subtitle or not obj.subtitle.strip():
-                errors.append(f"Card '{obj.id}' requires non-empty direct 'subtitle'.")
+            has_sub = bool(obj.subtitle and obj.subtitle.strip())
+            has_val = bool(obj.display_value and str(obj.display_value).strip())
+            if not has_sub and not has_val:
+                errors.append(f"Card '{obj.id}' requires direct 'subtitle' or 'display_value'.")
         elif obj.type == "number":
             if not obj.display_value and obj.numeric_value is None:
                 errors.append(f"Standalone number '{obj.id}' requires direct 'display_value' or 'numeric_value'.")
@@ -537,6 +680,49 @@ def _validate_direct_authoring_contract(
                 errors.append(f"Character '{obj.id}' requires valid 'pose'.")
             if not obj.facing or obj.facing not in ("left", "right"):
                 errors.append(f"Character '{obj.id}' requires valid 'facing' ('left' or 'right').")
+        elif obj.type == "scale":
+            has_label = bool(
+                (obj.left_title and obj.left_title.strip())
+                or (obj.right_title and obj.right_title.strip())
+                or (obj.title and obj.title.strip())
+            )
+            if not has_label:
+                errors.append(f"Scale '{obj.id}' requires 'left_title', 'right_title', or 'title'.")
+        elif obj.type == "money_stack":
+            has_val = bool(
+                (obj.total_display_value and obj.total_display_value.strip())
+                or (obj.comparison_left_value and obj.comparison_left_value.strip())
+                or (obj.display_value and str(obj.display_value).strip())
+            )
+            if not has_val:
+                errors.append(f"MoneyStack '{obj.id}' requires 'total_display_value', 'comparison_left_value', or 'display_value'.")
+        elif obj.type == "document":
+            has_title = bool(
+                (obj.doc_title and obj.doc_title.strip())
+                or (obj.title and obj.title.strip())
+            )
+            if not has_title:
+                errors.append(f"Document '{obj.id}' requires 'doc_title' or 'title'.")
+            if not obj.doc_body or not obj.doc_body.strip():
+                errors.append(f"Document '{obj.id}' requires non-empty 'doc_body' text excerpt.")
+        elif obj.type == "waterfall":
+            if not obj.initial_label or not obj.initial_label.strip():
+                errors.append(f"Waterfall '{obj.id}' requires 'initial_label'.")
+            if not obj.initial_display_value or not obj.initial_display_value.strip():
+                errors.append(f"Waterfall '{obj.id}' requires 'initial_display_value'.")
+            if not obj.steps:
+                errors.append(f"Waterfall '{obj.id}' requires at least one step in 'steps'.")
+            if not obj.final_label or not obj.final_label.strip():
+                errors.append(f"Waterfall '{obj.id}' requires 'final_label'.")
+            if not obj.final_display_value or not obj.final_display_value.strip():
+                errors.append(f"Waterfall '{obj.id}' requires 'final_display_value'.")
+        elif obj.type == "capital_flow":
+            if not obj.source_label or not obj.source_label.strip():
+                errors.append(f"CapitalFlow '{obj.id}' requires 'source_label'.")
+            if not obj.target_label or not obj.target_label.strip():
+                errors.append(f"CapitalFlow '{obj.id}' requires 'target_label'.")
+            if not obj.flow_display_value or not obj.flow_display_value.strip():
+                errors.append(f"CapitalFlow '{obj.id}' requires 'flow_display_value'.")
 
     obj_map = {o.id: o for o in draft.objects}
     for event in draft.events:
@@ -557,86 +743,6 @@ def _validate_direct_authoring_contract(
     if errors:
         raise ContinuousStoryEngineError(
             "Stage 7 failed: direct-authoring contract violation: " + " ".join(errors)
-        )
-
-
-def _validate_editorial_composition(
-    draft: ContinuousStoryDraft,
-    narration_text: str,
-) -> None:
-    """Rejects visually impoverished drafts before compilation.
-
-    This is an editorial quality gate, not a value/fact validator. The renderer
-    already supports every primitive; this gate prevents Gemini from taking the
-    safest but least expressive path of emitting only metric cards.
-    """
-    object_types = {obj.type for obj in draft.objects}
-    card_count = sum(1 for obj in draft.objects if obj.type == "card")
-    errors: list[str] = []
-    narration = narration_text.lower()
-
-    if card_count >= 2 and not (object_types - {"card"}):
-        errors.append(
-            "CARD_ONLY_COMPOSITION: two or more cards were declared without any supporting primitive. "
-            "Use a standalone number, connector, chart, character, text, or image where the narration warrants it."
-        )
-
-    human_cues = (
-        "person", "people", "employee", "worker", "borrower", "investor", "customer",
-        "family", "household", "salary", "professional", "retiree", "saver", "their life",
-        "your money", "your salary", "someone",
-    )
-    if any(cue in narration for cue in human_cues) and "character" not in object_types:
-        errors.append(
-            "MISSING_CHARACTER_FOR_HUMAN_NARRATIVE: the narration describes a person or lived financial experience, "
-            "but no character primitive was declared."
-        )
-
-    trend_cues = (
-        "over time", "over the years", "over decades", "year by year", "compounds", "compound",
-        "growth", "grows", "trajectory", "declines", "decline", "falls", "rises", "trend",
-        "difference", "gap", "compare", "comparison", "from ", " to ",
-    )
-    if any(cue in narration for cue in trend_cues) and "chart" not in object_types:
-        errors.append(
-            "MISSING_CHART_FOR_TREND_NARRATIVE: the narration describes a trend, comparison, gap, or time progression, "
-            "but no chart primitive was declared."
-        )
-
-    causal_cues = (
-        "because", "leads to", "leads", "causes", "caused", "results in", "drives", "turns into",
-        "erodes", "eats away", "converts into", "becomes", "as a result", "which means",
-    )
-    if any(cue in narration for cue in causal_cues) and card_count >= 2 and "connector" not in object_types:
-        errors.append(
-            "MISSING_CONNECTOR_FOR_CAUSAL_NARRATIVE: the narration expresses a cause-and-effect relationship, "
-            "but no connector object was declared."
-        )
-
-    numeric_cues = (
-        "₹", "rupee", "rupees", "lakh", "crore", "%", "percent", "per cent", "years", "months",
-    )
-    if any(cue in narration for cue in numeric_cues) and card_count >= 2 and "number" not in object_types:
-        errors.append(
-            "MISSING_STANDALONE_NUMBER: the finance narration contains major numeric information, "
-            "but no standalone number primitive was declared for the primary reveal."
-        )
-
-    institution_or_physical_cues = (
-        "bank", "lender", "insurer", "insurance", "company", "office", "branch",
-        "home", "house", "property", "car", "vehicle", "gold",
-        "document", "contract", "policy", "agreement", "paperwork", "form",
-    )
-    image_count = sum(1 for obj in draft.objects if obj.type == "image")
-    if any(cue in narration for cue in institution_or_physical_cues) and card_count >= 2 and image_count < 1:
-        errors.append(
-            "MISSING_IMAGE_FOR_PHYSICAL_GROUNDING: the narration references institutions, documents, or physical assets, "
-            "but no 'image' primitive was declared. Declare at least 2–3 images with 'asset_request' to ground these entities."
-        )
-
-    if errors:
-        raise ContinuousStoryEngineError(
-            "Stage 7 failed: editorial composition quality gate: " + " ".join(errors)
         )
 
 
@@ -661,6 +767,7 @@ class ContinuousStoryEngine:
         self.llm_provider = llm_provider
         self.compiler = compiler or ContinuousStoryCompiler()
         self.asset_resolver = asset_resolver or ContinuousStoryAssetResolver()
+        self.last_call_history: list[dict[str, Any]] = []
 
     def _resolve_image_assets(
         self,
@@ -797,6 +904,8 @@ class ContinuousStoryEngine:
         # 2. Generate visual choreography (Gemini or mock for testing)
         raw_gemini_payload: dict[str, Any] = {}
         provider_metadata: LLMProviderMetadata | None = None
+        call_history: list[dict[str, Any]] = []
+        self.last_call_history = call_history
 
         if mock_draft is not None:
             if isinstance(mock_draft, dict):
@@ -827,12 +936,25 @@ class ContinuousStoryEngine:
                 total_duration_ms=total_duration_ms,
                 available_assets=available_assets_list,
             )
+            mock_errors = [
+                {"code": e.code, "message": e.message, "target_id": e.target_id, "details": e.details or {}}
+                for e in draft_validation.errors
+            ]
+            call_history.append({
+                "attempt": 1,
+                "call_type": "mock_draft",
+                "model": "mock",
+                "raw_response": raw_gemini_payload,
+                "validation_errors": mock_errors,
+                "status": "valid" if draft_validation.valid else "failed",
+            })
             if not draft_validation.valid:
                 print_local_preflight_report(raw_gemini_payload, draft_errors=draft_validation.errors)
                 error_msgs = [f"[{e.code}] {e.message}" for e in draft_validation.errors]
                 raise ContinuousStoryEngineError(
                     f"Stage 7 failed: invalid visual choreography contract: CONTINUOUS_STORY_VALIDATION_ERROR: {'; '.join(error_msgs)}",
                     raw_payload=raw_gemini_payload,
+                    call_history=call_history,
                 )
             print_local_preflight_report(raw_gemini_payload)
         else:
@@ -863,9 +985,23 @@ class ContinuousStoryEngine:
             raw_gemini_payload = response.payload
             provider_metadata = response.metadata
             _normalize_and_sanitize_draft_payload(raw_gemini_payload)
+
+            model_name = getattr(provider_metadata, "model", None) or getattr(self.llm_provider, "model", "unknown")
+            initial_call_record = {
+                "attempt": 1,
+                "call_type": "initial_draft",
+                "model": model_name,
+                "raw_response": raw_gemini_payload,
+                "validation_errors": [],
+                "status": "pending_validation",
+            }
+            call_history.append(initial_call_record)
+
             try:
                 draft = ContinuousStoryDraft.model_validate(raw_gemini_payload)
             except Exception as first_error:
+                initial_call_record["validation_errors"] = [{"code": "PYDANTIC_SCHEMA_ERROR", "message": str(first_error)}]
+                initial_call_record["status"] = "failed"
                 print_local_preflight_report(raw_gemini_payload, validation_error=first_error)
                 repair_prompt_content = format_programmatic_repair_prompt(
                     raw_payload=raw_gemini_payload,
@@ -899,14 +1035,28 @@ class ContinuousStoryEngine:
                     new_payload["objects"] = raw_gemini_payload["objects"]
                 raw_gemini_payload = new_payload
                 _normalize_and_sanitize_draft_payload(raw_gemini_payload)
+
+                schema_repair_record = {
+                    "attempt": len(call_history) + 1,
+                    "call_type": "schema_repair",
+                    "model": getattr(provider_metadata, "model", None) or getattr(self.llm_provider, "model", "unknown"),
+                    "raw_response": raw_gemini_payload,
+                    "validation_errors": [],
+                    "status": "pending_validation",
+                }
+                call_history.append(schema_repair_record)
+
                 try:
                     draft = ContinuousStoryDraft.model_validate(raw_gemini_payload)
                 except Exception as second_error:
+                    schema_repair_record["validation_errors"] = [{"code": "PYDANTIC_SCHEMA_ERROR", "message": str(second_error)}]
+                    schema_repair_record["status"] = "failed"
                     print_local_preflight_report(raw_gemini_payload, validation_error=second_error)
                     raise ContinuousStoryEngineError(
                         f"Stage 7 failed: invalid visual choreography contract: {second_error}",
                         raw_payload=raw_gemini_payload,
                         provider_metadata=provider_metadata,
+                        call_history=call_history,
                     ) from second_error
 
             # 3. Resolve every image asset_request
@@ -918,7 +1068,7 @@ class ContinuousStoryEngine:
             )
 
             # 4. Run pre-compilation draft validation (occupancy & temporal simulation) with iterative repair
-            max_validation_attempts = 4
+            max_validation_attempts = 3
             for attempt in range(max_validation_attempts):
                 draft_validation = validate_story_draft(
                     draft=draft,
@@ -928,15 +1078,25 @@ class ContinuousStoryEngine:
                     available_assets=available_assets_list,
                 )
                 if draft_validation.valid:
+                    if call_history:
+                        call_history[-1]["status"] = "valid"
+                        call_history[-1]["validation_errors"] = []
                     break
+
+                current_errors = [{"code": e.code, "message": e.message} for e in draft_validation.errors]
+                if call_history:
+                    call_history[-1]["status"] = "failed"
+                    call_history[-1]["validation_errors"] = current_errors
 
                 print_local_preflight_report(raw_gemini_payload, draft_errors=draft_validation.errors)
                 if attempt == max_validation_attempts - 1:
+                    self.last_call_history = call_history
                     error_msgs = [f"[{e.code}] {e.message}" for e in draft_validation.errors]
                     raise ContinuousStoryEngineError(
                         f"Stage 7 failed: invalid visual choreography contract: CONTINUOUS_STORY_VALIDATION_ERROR: {'; '.join(error_msgs)}",
                         raw_payload=raw_gemini_payload,
                         provider_metadata=provider_metadata,
+                        call_history=call_history,
                     )
 
                 temporal_repair_prompt = format_programmatic_repair_prompt(
@@ -971,14 +1131,29 @@ class ContinuousStoryEngine:
                     new_payload["objects"] = raw_gemini_payload["objects"]
                 raw_gemini_payload = new_payload
                 _normalize_and_sanitize_draft_payload(raw_gemini_payload)
+
+                temporal_call_record = {
+                    "attempt": len(call_history) + 1,
+                    "call_type": f"temporal_repair_attempt_{attempt + 1}",
+                    "model": getattr(provider_metadata, "model", None) or getattr(self.llm_provider, "model", "unknown"),
+                    "raw_response": raw_gemini_payload,
+                    "validation_errors": [],
+                    "status": "pending_validation",
+                }
+                call_history.append(temporal_call_record)
+
                 try:
                     draft = ContinuousStoryDraft.model_validate(raw_gemini_payload)
                 except Exception as schema_err:
+                    temporal_call_record["status"] = "failed"
+                    temporal_call_record["validation_errors"] = [{"code": "PYDANTIC_SCHEMA_ERROR", "message": str(schema_err)}]
+                    self.last_call_history = call_history
                     print_local_preflight_report(raw_gemini_payload, validation_error=schema_err)
                     raise ContinuousStoryEngineError(
                         f"Stage 7 failed: invalid visual choreography contract: {schema_err}",
                         raw_payload=raw_gemini_payload,
                         provider_metadata=provider_metadata,
+                        call_history=call_history,
                     ) from schema_err
 
                 resolved_assets_records = self._resolve_image_assets(
@@ -993,7 +1168,11 @@ class ContinuousStoryEngine:
 
         # Real Gemini drafts must use direct authored values.
         if mock_draft is None:
-            _validate_direct_authoring_contract(draft, available_assets_list)
+            try:
+                _validate_direct_authoring_contract(draft, available_assets_list)
+            except Exception:
+                self.last_call_history = call_history
+                raise
 
         # 4. Deterministic compilation
         asset_durations = {
@@ -1014,10 +1193,12 @@ class ContinuousStoryEngine:
         try:
             compiled_plan = self.compiler.compile(draft, fixture_context)
         except Exception as compile_err:
+            self.last_call_history = call_history
             raise ContinuousStoryEngineError(
                 f"Stage 7 failed: invalid visual choreography contract: CONTINUOUS_STORY_COMPILER_ERROR: {compile_err}",
                 raw_payload=raw_gemini_payload,
                 provider_metadata=provider_metadata,
+                call_history=call_history,
             ) from compile_err
 
         # 5. Build artifact envelope
@@ -1028,9 +1209,11 @@ class ContinuousStoryEngine:
             resolved_assets=resolved_assets_records,
         )
 
+        self.last_call_history = call_history
         return ContinuousStoryEngineResult(
             artifact=artifact_model,
             draft=draft,
             raw_payload=raw_gemini_payload,
             provider_metadata=provider_metadata,
+            call_history=call_history,
         )

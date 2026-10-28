@@ -8,6 +8,11 @@ export * from "./Chart.tsx";
 export * from "./Image.tsx";
 export * from "./StockVideo.tsx";
 export * from "./Character.tsx";
+export * from "./ImpactStamp.tsx";
+export * from "./Scale.tsx";
+export * from "./MoneyStack.tsx";
+export * from "./Waterfall.tsx";
+export * from "./CapitalFlow.tsx";
 
 
 

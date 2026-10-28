@@ -21,9 +21,155 @@ import type {
   CharacterEmotion,
   CharacterFacing,
   ChangePoseAction,
+  StampAction,
+  StampTone,
 } from "./types.ts";
-import { resolveSemanticDestination } from "./layout.ts";
+import { resolveSemanticDestination, resolveContextualTopology } from "./layout.ts";
 import type { ResolvedGeometry } from "./layout.ts";
+
+export interface TopologySegment {
+  startFrame: number;
+  activeIds: Set<string>;
+  layouts: Map<string, ResolvedGeometry>;
+}
+
+export const REFLOW_TRANSITION_FRAMES = 16;
+
+const planSegmentsCache = new WeakMap<StoryPlan, TopologySegment[]>();
+
+export function computeDynamicTopologyTimeline(
+  plan: StoryPlan,
+  baseLayouts: Map<string, ResolvedGeometry>
+): TopologySegment[] {
+  const surfaces = plan.objects.filter((o) => o.type !== "connector");
+  if (surfaces.length === 0) {
+    return [{ startFrame: 0, activeIds: new Set(), layouts: new Map(baseLayouts) }];
+  }
+
+  const enterFrames = new Map<string, number>();
+  const exitFrames = new Map<string, number>();
+
+  for (const surf of surfaces) {
+    const enterEv = plan.events.find(
+      (e): e is EnterAction => e.action === "enter" && "targetId" in e && e.targetId === surf.id
+    );
+    const splitEv = plan.events.find(
+      (e): e is SplitAction => e.action === "split" && e.targetIds?.includes(surf.id)
+    );
+
+    let enterF = 0;
+    if (enterEv) {
+      enterF = enterEv.startFrame;
+    } else if (splitEv) {
+      const idx = splitEv.targetIds.indexOf(surf.id);
+      const stagger = splitEv.staggerFrames ?? 12;
+      enterF = splitEv.startFrame + idx * stagger;
+    }
+    enterFrames.set(surf.id, enterF);
+
+    const exitEv = plan.events.find(
+      (e): e is ExitAction => e.action === "exit" && "targetId" in e && e.targetId === surf.id
+    );
+    const exitF = exitEv ? exitEv.startFrame + (exitEv.durationFrames ?? 15) : (plan.durationInFrames ?? 999999);
+    exitFrames.set(surf.id, exitF);
+  }
+
+  const boundarySet = new Set<number>([0]);
+  for (const [, f] of enterFrames.entries()) {
+    boundarySet.add(f);
+  }
+  for (const [, f] of exitFrames.entries()) {
+    boundarySet.add(f);
+  }
+
+  const sortedBoundaries = Array.from(boundarySet).sort((a, b) => a - b);
+  const segments: TopologySegment[] = [];
+
+  for (const bFrame of sortedBoundaries) {
+    const activeSurfaces = surfaces.filter((surf) => {
+      const start = enterFrames.get(surf.id) ?? 0;
+      const end = exitFrames.get(surf.id) ?? (plan.durationInFrames ?? 999999);
+      return bFrame >= start && bFrame < end;
+    });
+
+    const activeIds = new Set(activeSurfaces.map((s) => s.id));
+
+    if (activeSurfaces.length === 0) {
+      segments.push({ startFrame: bFrame, activeIds, layouts: new Map(baseLayouts) });
+    } else {
+      const segmentMap = resolveContextualTopology(
+        activeSurfaces,
+        plan.width,
+        plan.height,
+        plan.safeMargin ?? 80
+      );
+      for (const [id, geom] of baseLayouts.entries()) {
+        if (!segmentMap.has(id)) {
+          segmentMap.set(id, geom);
+        }
+      }
+      segments.push({ startFrame: bFrame, activeIds, layouts: segmentMap });
+    }
+  }
+
+  return segments;
+}
+
+export function resolveDynamicGeometry(
+  objId: string,
+  frame: number,
+  segments: TopologySegment[],
+  baseGeom: ResolvedGeometry
+): ResolvedGeometry {
+  if (segments.length === 0) return baseGeom;
+
+  let curIndex = 0;
+  for (let i = 0; i < segments.length; i++) {
+    if (frame >= segments[i].startFrame) {
+      curIndex = i;
+    } else {
+      break;
+    }
+  }
+
+  const curSegment = segments[curIndex];
+  const targetGeom = curSegment.layouts.get(objId) || baseGeom;
+
+  if (curIndex === 0) {
+    return targetGeom;
+  }
+
+  const windowProgress = (frame - curSegment.startFrame) / REFLOW_TRANSITION_FRAMES;
+  if (windowProgress >= 1) {
+    return targetGeom;
+  }
+
+  const prevSegment = segments[curIndex - 1];
+  // If this object was not active in the previous segment, it newly entered; do not tween from inactive position
+  if (!prevSegment.activeIds.has(objId)) {
+    return targetGeom;
+  }
+
+  const prevGeom = prevSegment.layouts.get(objId) || baseGeom;
+
+  const p = interpolate(
+    frame,
+    [curSegment.startFrame, curSegment.startFrame + REFLOW_TRANSITION_FRAMES],
+    [0, 1],
+    {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+      easing: Easing.inOut(Easing.cubic),
+    }
+  );
+
+  return {
+    x: Math.round(prevGeom.x + (targetGeom.x - prevGeom.x) * p),
+    y: Math.round(prevGeom.y + (targetGeom.y - prevGeom.y) * p),
+    width: Math.round(prevGeom.width + (targetGeom.width - prevGeom.width) * p),
+    height: Math.round(prevGeom.height + (targetGeom.height - prevGeom.height) * p),
+  };
+}
 
 export interface EvaluatedObjectState {
   id: string;
@@ -65,11 +211,23 @@ export interface EvaluatedCameraState {
   panY: number;
 }
 
+export interface EvaluatedStampState {
+  id: string;
+  text: string;
+  tone?: StampTone;
+  color?: string;
+  rotationDeg?: number;
+  startFrame: number;
+  durationFrames: number;
+  targetId?: string;
+}
+
 export interface EvaluatedFrameState {
   objects: Map<string, EvaluatedObjectState>;
   camera: EvaluatedCameraState;
   backdropDim: number;
   connectorIntensityMultiplier: number;
+  activeStamps: EvaluatedStampState[];
 }
 
 /**
@@ -113,6 +271,7 @@ export function evaluateFrame(
   const splitEvents: SplitAction[] = [];
   const mergeEvents: MergeAction[] = [];
   const visualStateEvents: ChangeVisualStateAction[] = [];
+  const stampEvents: StampAction[] = [];
 
   for (const event of resolvedEvents) {
     if (event.action === "camera") {
@@ -126,6 +285,8 @@ export function evaluateFrame(
       splitEvents.push(event as SplitAction);
     } else if (event.action === "merge") {
       mergeEvents.push(event as MergeAction);
+    } else if (event.action === "stamp") {
+      stampEvents.push(event as StampAction);
     } else if (event.action === "change_visual_state") {
       visualStateEvents.push(event as ChangeVisualStateAction);
       const list = eventsByTarget.get(event.targetId) || [];
@@ -143,6 +304,17 @@ export function evaluateFrame(
   // ----------------------------------------------------
   let backdropDim = 0;
   let connectorIntensityMultiplier = 1;
+
+  const useAutoLayout = plan.autoLayout === true;
+  let segments: TopologySegment[] = [];
+  if (useAutoLayout) {
+    let cached = planSegmentsCache.get(plan);
+    if (!cached) {
+      cached = computeDynamicTopologyTimeline(plan, baseLayouts);
+      planSegmentsCache.set(plan, cached);
+    }
+    segments = cached;
+  }
 
   for (const emp of emphasizeEvents) {
     if (frame >= emp.startFrame) {
@@ -179,6 +351,10 @@ export function evaluateFrame(
       height: obj.height || 240,
     };
 
+    const targetGeom = useAutoLayout
+      ? resolveDynamicGeometry(obj.id, frame, segments, baseGeom)
+      : baseGeom;
+
     const targetEvents = eventsByTarget.get(obj.id) || [];
 
     // Check if object is born from a true SplitAction
@@ -190,8 +366,8 @@ export function evaluateFrame(
     let translateY = 24;
     let baseScale = 0.95;
     let isEntered = false;
-    let curX = baseGeom.x;
-    let curY = baseGeom.y;
+    let curX = targetGeom.x;
+    let curY = targetGeom.y;
 
     if (splitForObj) {
       const daughterIdx = splitForObj.targetIds.indexOf(obj.id);
@@ -201,8 +377,8 @@ export function evaluateFrame(
 
       if (sourceGeom) {
         // Emerge physically from inside the source parent's bounding box
-        const originX = sourceGeom.x + sourceGeom.width / 2 - baseGeom.width / 2;
-        const originY = sourceGeom.y + sourceGeom.height / 2 - baseGeom.height / 2;
+        const originX = sourceGeom.x + sourceGeom.width / 2 - targetGeom.width / 2;
+        const originY = sourceGeom.y + sourceGeom.height / 2 - targetGeom.height / 2;
 
         if (frame < birthFrame) {
           opacity = 0;
@@ -221,14 +397,14 @@ export function evaluateFrame(
               easing: Easing.out(Easing.cubic),
             }
           );
-          curX = originX + (baseGeom.x - originX) * p;
-          curY = originY + (baseGeom.y - originY) * p;
+          curX = originX + (targetGeom.x - originX) * p;
+          curY = originY + (targetGeom.y - originY) * p;
           baseScale = 0.25 + 0.75 * p;
           opacity = p;
           isEntered = true;
         } else {
-          curX = baseGeom.x;
-          curY = baseGeom.y;
+          curX = targetGeom.x;
+          curY = targetGeom.y;
           opacity = 1;
           baseScale = 1;
           isEntered = true;
@@ -621,8 +797,8 @@ export function evaluateFrame(
       id: obj.id,
       x: curX,
       y: curY,
-      width: baseGeom.width,
-      height: baseGeom.height,
+      width: targetGeom.width,
+      height: targetGeom.height,
       opacity,
       translateY,
       scale: finalScale,
@@ -734,13 +910,13 @@ export function evaluateFrame(
         const exitEv = plan.events.find((e) => e.action === "exit" && e.targetId === obj.id);
         const start = enterEv ? enterEv.startFrame : 0;
         const end = exitEv ? exitEv.startFrame : plan.durationInFrames;
-        if (f >= start && f < end) {
+        if (obj.type !== "stock_video" && f >= start && f < end) {
           active.push({ type: obj.type, layout: obj.layout });
         }
       }
 
       if (active.length === 0) return { zoom: 1.0, panX: 0, panY: 0 };
-      if (active.some((o) => o.layout === "full_screen" || o.type === "stock_video")) {
+      if (active.some((o) => o.layout === "full_screen")) {
         return { zoom: 1.03, panX: 0, panY: 0 };
       }
       const hasLeft = active.some((o) => o.layout === "split_left");
@@ -754,14 +930,14 @@ export function evaluateFrame(
       if (hasLeft && hasRight) {
         return { zoom: 1.05, panX: 0, panY: 0 };
       }
+      if (hasCenter) {
+        return { zoom: 1.08, panX: 0, panY: -10 };
+      }
       if (hasLeft && !hasRight) {
         return { zoom: 1.15, panX: 135, panY: -10 };
       }
       if (hasRight && !hasLeft) {
         return { zoom: 1.15, panX: -135, panY: -10 };
-      }
-      if (hasCenter) {
-        return { zoom: 1.12, panX: 0, panY: -15 };
       }
       return { zoom: 1.04, panX: 0, panY: 0 };
     };
@@ -796,7 +972,7 @@ export function evaluateFrame(
     }
 
     const isFullScreenActive = plan.objects.some((obj) => {
-      if (obj.layout === "full_screen" || obj.type === "stock_video") {
+      if (obj.layout === "full_screen" && obj.type !== "stock_video") {
         const s = result.get(obj.id);
         return s && s.isEntered && s.opacity > 0.1;
       }
@@ -810,10 +986,61 @@ export function evaluateFrame(
     camPanY = curPanY;
   }
 
+  // ----------------------------------------------------
+  // 12. Transient Impact Camera Shake & Active Stamps
+  // ----------------------------------------------------
+  let shakeX = 0;
+  let shakeY = 0;
+  const activeStamps: EvaluatedStampState[] = [];
+
+  for (const stampEv of stampEvents) {
+    const startF = stampEv.startFrame;
+    const durF = stampEv.durationFrames ?? 180;
+    if (frame >= startF && frame <= startF + durF) {
+      activeStamps.push({
+        id: `stamp_${stampEv.startFrame}_${stampEv.text.slice(0, 10)}`,
+        text: stampEv.text,
+        tone: stampEv.tone,
+        color: stampEv.color,
+        rotationDeg: stampEv.rotationDeg,
+        startFrame: startF,
+        durationFrames: durF,
+        targetId: stampEv.targetId,
+      });
+    }
+
+    if (stampEv.shake !== false) {
+      const impactFrame = startF + 6;
+      const relShake = frame - impactFrame;
+      if (relShake >= 0 && relShake <= 10) {
+        const amplitude = 5.0 * Math.exp(-0.45 * relShake);
+        shakeX += amplitude * Math.sin(relShake * 2.1);
+        shakeY += amplitude * Math.cos(relShake * 2.4);
+      }
+    }
+  }
+
+  // Also check change_visual_state with stamp
+  for (const vsEv of visualStateEvents) {
+    if (vsEv.stamp || vsEv.state === "stamped") {
+      const impactFrame = vsEv.startFrame + 6;
+      const relShake = frame - impactFrame;
+      if (relShake >= 0 && relShake <= 10) {
+        const amplitude = 4.0 * Math.exp(-0.45 * relShake);
+        shakeX += amplitude * Math.sin(relShake * 2.1);
+        shakeY += amplitude * Math.cos(relShake * 2.4);
+      }
+    }
+  }
+
+  camPanX += shakeX;
+  camPanY += shakeY;
+
   return {
     objects: result,
     camera: { zoom: camZoom, panX: camPanX, panY: camPanY },
     backdropDim,
     connectorIntensityMultiplier,
+    activeStamps,
   };
 }

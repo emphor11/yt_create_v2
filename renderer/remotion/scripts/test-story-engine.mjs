@@ -1190,24 +1190,45 @@ if (nonCutRes.valid || !nonCutRes.errors.some((e) => e.code === "STOCK_VIDEO_INV
 }
 console.log("✓ Caught and rejected stock video with non-cut transitions (STOCK_VIDEO_INVALID_TRANSITION).");
 
-// 14.7: Negative: Overlapping surface elements during stock video
+// 14.7: Positive: Surface element on living canvas remains intact during cutaway stock video
 const overlappingSvPlan = {
-  ...validStockVideoPlan,
-  id: "overlapping_sv",
+  id: "canvas_preserved_during_cutaway",
+  fps: 30,
+  durationInFrames: 100,
+  width: 1920,
+  height: 1080,
+  safeMargin: 80,
+  objects: [
+    {
+      id: "card_before",
+      type: "card",
+      layout: "center",
+      cardProps: { title: "Persistent Card", displayValue: "₹50 Lakh" },
+    },
+    {
+      id: "broll_footage",
+      type: "stock_video",
+      layout: "full_screen",
+      stockVideoProps: {
+        assetId: "assets/broll_bank.mp4",
+        fit: "cover",
+      },
+    },
+  ],
   events: [
     { action: "enter", targetId: "card_before", startFrame: 10, durationFrames: 25 },
-    { action: "exit", targetId: "card_before", startFrame: 50, durationFrames: 24, direction: "fade" },
+    { action: "exit", targetId: "card_before", startFrame: 70, durationFrames: 24, direction: "fade" },
     { action: "enter", targetId: "broll_footage", startFrame: 20, durationFrames: 0, style: "cut" },
-    { action: "exit", targetId: "broll_footage", startFrame: 60, durationFrames: 0, direction: "cut" },
+    { action: "exit", targetId: "broll_footage", startFrame: 40, durationFrames: 0, direction: "cut" },
   ],
 };
 const overlappingRes = validateStoryPlan(overlappingSvPlan);
-if (overlappingRes.valid || !overlappingRes.errors.some((e) => e.code === "MACRO_LAYOUT_COLLISION")) {
-  throw new Error("FAIL: surface element overlapping stock video must be rejected (MACRO_LAYOUT_COLLISION)");
+if (!overlappingRes.valid) {
+  throw new Error(`FAIL: living canvas card should stay active across stock video cutaway, but got errors: ${JSON.stringify(overlappingRes.errors)}`);
 }
-console.log("✓ Caught and rejected surface element overlapping stock video (MACRO_LAYOUT_COLLISION).");
+console.log("✓ Verified living canvas card remains intact across stock video cutaway without collision.");
 
-// 14.8: Negative: Active connector during stock video
+// 14.8: Positive: Active connector on living canvas coexists with cutaway stock video
 const connOverlappingSvPlan = {
   id: "conn_overlapping_sv",
   fps: 30,
@@ -1229,10 +1250,113 @@ const connOverlappingSvPlan = {
   ],
 };
 const connOverlapRes = validateStoryPlan(connOverlappingSvPlan);
-if (connOverlapRes.valid || !connOverlapRes.errors.some((e) => e.code === "STOCK_VIDEO_CONNECTOR_COLLISION")) {
-  throw new Error("FAIL: connector active during stock video must be rejected (STOCK_VIDEO_CONNECTOR_COLLISION)");
+if (!connOverlapRes.valid) {
+  throw new Error(`FAIL: living canvas connector should coexist with cutaway stock video, but got errors: ${JSON.stringify(connOverlapRes.errors)}`);
 }
-console.log("✓ Caught and rejected connector active during stock video (STOCK_VIDEO_CONNECTOR_COLLISION).");
+console.log("✓ Verified living canvas connector coexists with cutaway stock video.");
+
+// 14.9: Negative: Two cutaway stock videos overlapping each other is rejected
+const twoStockVideosOverlapPlan = {
+  id: "two_sv_overlap",
+  fps: 30,
+  durationInFrames: 100,
+  width: 1920,
+  height: 1080,
+  objects: [
+    { id: "sv1", type: "stock_video", layout: "full_screen", stockVideoProps: { assetId: "assets/broll1.mp4" } },
+    { id: "sv2", type: "stock_video", layout: "full_screen", stockVideoProps: { assetId: "assets/broll2.mp4" } },
+  ],
+  events: [
+    { action: "enter", targetId: "sv1", startFrame: 10, durationFrames: 0, style: "cut" },
+    { action: "exit", targetId: "sv1", startFrame: 40, durationFrames: 0, direction: "cut" },
+    { action: "enter", targetId: "sv2", startFrame: 30, durationFrames: 0, style: "cut" },
+    { action: "exit", targetId: "sv2", startFrame: 60, durationFrames: 0, direction: "cut" },
+  ],
+};
+const twoSvRes = validateStoryPlan(twoStockVideosOverlapPlan);
+if (twoSvRes.valid || !twoSvRes.errors.some((e) => e.code === "STOCK_VIDEO_OVERLAP_COLLISION")) {
+  throw new Error("FAIL: two overlapping stock video cutaways must be rejected (STOCK_VIDEO_OVERLAP_COLLISION)");
+}
+console.log("✓ Caught and rejected overlapping cutaway stock videos (STOCK_VIDEO_OVERLAP_COLLISION).");
+
+// ----------------------------------------------------
+// 15. DYNAMIC LIVING CANVAS: CONTEXT-AWARE TEMPORAL REFLOW
+// ----------------------------------------------------
+console.log("\n--- TEST 15: Dynamic Living Canvas & Temporal Reflow ---");
+
+const livingCanvasPlan = {
+  id: "living_canvas_reflow_test",
+  fps: 30,
+  durationInFrames: 250,
+  width: 1920,
+  height: 1080,
+  safeMargin: 80,
+  autoLayout: true,
+  objects: [
+    { id: "hero_card", type: "card", layout: "center", cardProps: { title: "Hero Card" } },
+    { id: "left_img", type: "image", layout: "split_left", imageProps: { assetId: "doc.jpg" } },
+    { id: "right_img", type: "image", layout: "split_right", imageProps: { assetId: "photo.jpg" } },
+    { id: "evidence_chart", type: "chart", layout: "full_bottom", chartProps: { chartType: "trajectory_area", series: [] } },
+  ],
+  events: [
+    // Beat 1: Frame 10: Hero Center Card enters alone
+    { action: "enter", targetId: "hero_card", startFrame: 10, durationFrames: 10 },
+    // Beat 2: Frame 60: Left and Right images enter simultaneously (3-Column Symphony reflow begins)
+    { action: "enter", targetId: "left_img", startFrame: 60, durationFrames: 10 },
+    { action: "enter", targetId: "right_img", startFrame: 60, durationFrames: 10 },
+    // Beat 3: Frame 120: Evidence Chart enters in full_bottom (vertical compression reflow begins)
+    { action: "enter", targetId: "evidence_chart", startFrame: 120, durationFrames: 10 },
+    // Beat 4: Frame 180: Center card exits (Dual Inward Split reflow begins)
+    { action: "exit", targetId: "hero_card", startFrame: 180, durationFrames: 15, direction: "fade" },
+  ],
+};
+
+const baseGeoms = resolveLayouts(livingCanvasPlan.objects, 1920, 1080, 80);
+
+// Beat 1 Check (Frame 30): Hero card occupies Solitary Hero bounds (width: 840, height: 420, centered at x: 540)
+const evalB1 = evaluateFrame(livingCanvasPlan, baseGeoms, 30);
+const heroB1 = evalB1.objects.get("hero_card");
+if (heroB1.width !== 840 || heroB1.height !== 420 || heroB1.x !== 540) {
+  throw new Error(`FAIL: Beat 1 Hero Card should be 840x420 at x=540, got ${heroB1.width}x${heroB1.height} at x=${heroB1.x}`);
+}
+console.log(`✓ Beat 1 (Frame 30): Solitary Hero scale verified (840x420 at x=${heroB1.x})`);
+
+// Beat 2 Mid-Transition Check (Frame 68): Center card is smoothly interpolating between 840 and 580
+const evalB2Mid = evaluateFrame(livingCanvasPlan, baseGeoms, 68);
+const heroB2Mid = evalB2Mid.objects.get("hero_card");
+if (heroB2Mid.width >= 840 || heroB2Mid.width <= 580 || heroB2Mid.x <= 540 || heroB2Mid.x >= 670) {
+  throw new Error(`FAIL: Beat 2 Mid-transition card should smoothly compress (width: ${heroB2Mid.width}, x: ${heroB2Mid.x})`);
+}
+console.log(`✓ Beat 2 Mid-transition (Frame 68): Smooth elastic interpolation verified (w=${heroB2Mid.width}, x=${heroB2Mid.x})`);
+
+// Beat 2 Settled Check (Frame 80): 3-Column Symphony settled
+const evalB2 = evaluateFrame(livingCanvasPlan, baseGeoms, 80);
+const heroB2 = evalB2.objects.get("hero_card");
+const leftB2 = evalB2.objects.get("left_img");
+const rightB2 = evalB2.objects.get("right_img");
+if (heroB2.width !== 580 || heroB2.x !== 670 || leftB2.width !== 460 || leftB2.x !== 120 || rightB2.width !== 540 || rightB2.x !== 1300) {
+  throw new Error(`FAIL: Beat 2 3-Column Symphony mismatch! hero: w=${heroB2.width}, x=${heroB2.x}; left: w=${leftB2.width}, x=${leftB2.x}; right: w=${rightB2.width}, x=${rightB2.x}`);
+}
+console.log(`✓ Beat 2 (Frame 80): 3-Column Symphony verified (Left: ${leftB2.x}+${leftB2.width}, Center: ${heroB2.x}+${heroB2.width}, Right: ${rightB2.x}+${rightB2.width})`);
+
+// Beat 3 Settled Check (Frame 140): full_bottom chart compression shifts upper elements upward (y elevates)
+const evalB3 = evaluateFrame(livingCanvasPlan, baseGeoms, 140);
+const heroB3 = evalB3.objects.get("hero_card");
+const chartB3 = evalB3.objects.get("evidence_chart");
+if (chartB3.y !== 690 || heroB3.y >= heroB2.y) {
+  throw new Error(`FAIL: Beat 3 Vertical ceiling compression failed! Chart y=${chartB3.y}, Hero y=${heroB3.y} vs Prev y=${heroB2.y}`);
+}
+console.log(`✓ Beat 3 (Frame 140): Vertical ceiling compression verified (Chart at y=${chartB3.y}, Upper hero shifted up to y=${heroB3.y})`);
+
+// Beat 4 Post-Exit Check (Frame 210): Center card exited; remaining left and right breathe inward (Topology C)
+const evalB4 = evaluateFrame(livingCanvasPlan, baseGeoms, 210);
+const leftB4 = evalB4.objects.get("left_img");
+const rightB4 = evalB4.objects.get("right_img");
+const centerGap = rightB4.x - (leftB4.x + leftB4.width);
+if (centerGap > 200 || leftB4.width !== 460 || rightB4.width !== 580) {
+  throw new Error(`FAIL: Beat 4 Inward breathing or documentary geometry failed! Left w=${leftB4.width} (expected 460 doc), Right w=${rightB4.width} (expected 580 photo), Center Gap=${centerGap}`);
+}
+console.log(`✓ Beat 4 (Frame 210): Dual Inward Split & Photographic Geometry verified (Document w=${leftB4.width}, Photo w=${rightB4.width}, Center Gap=${centerGap}px!)`);
 
 console.log("\n==================================================");
 console.log("ALL ADVANCED PROTOCOL TESTS PASSED CLEANLY!");

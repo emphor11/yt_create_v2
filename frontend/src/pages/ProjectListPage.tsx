@@ -14,6 +14,7 @@ import {
   runScriptVisualStrategy,
   runQualityReview,
   runVoiceGeneration,
+  runContinuousStory,
   runVideoAssembly,
   runRender,
   runYoutubeMetadata,
@@ -44,9 +45,10 @@ export function ProjectListPage() {
   const [angle, setAngle] = useState("");
   const [runMode, setRunMode] = useState<RunMode>("ai");
   const [durationProfile, setDurationProfile] = useState<DurationProfile>("short_2min");
-  const [visualMode, setVisualMode] = useState<VisualMode>("composition");
+  const [visualMode, setVisualMode] = useState<VisualMode>("continuous_story");
   const [isBusy, setIsBusy] = useState(false);
   const [isRunningStage, setIsRunningStage] = useState(false);
+  const [runningStageName, setRunningStageName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -84,7 +86,7 @@ export function ProjectListPage() {
       setAngle("");
       setRunMode("ai");
       setDurationProfile("short_2min");
-      setVisualMode("composition");
+      setVisualMode("continuous_story");
       await selectProject(created.project);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -245,6 +247,81 @@ export function ProjectListPage() {
       setError((requestError as Error).message);
     } finally {
       setIsRunningStage(false);
+    }
+  }
+
+  async function handleRunContinuousStory() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setRunningStageName("Stage 7: Continuous Story Plan");
+    setError(null);
+    try {
+      const response = await runContinuousStory(selectedProject.id, selectedRun.id);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
+      await selectArtifact(response.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+      setRunningStageName(null);
+    }
+  }
+
+  async function handleResumeContinuousStory() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      setRunningStageName("Stage 7: Continuous Story Plan...");
+      const csResp = await runContinuousStory(selectedProject.id, selectedRun.id);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
+      await selectArtifact(csResp.artifact);
+
+      setRunningStageName("Stage 8: Rendering Video...");
+      const renderResp = await runRender(selectedProject.id, selectedRun.id);
+      await refreshRunArtifacts(selectedProject.id, selectedRun.id);
+      await selectArtifact(renderResp.artifact);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+      setRunningStageName(null);
+    }
+  }
+
+  async function handleRunFullPipeline() {
+    if (!selectedProject || !selectedRun) {
+      return;
+    }
+    setIsRunningStage(true);
+    setError(null);
+    try {
+      const stages = [
+        { name: "Stage 1: Research", fn: runResearch },
+        { name: "Stage 2: Narrative Plan", fn: runNarrativePlan },
+        { name: "Stage 3: Hook", fn: runHook },
+        { name: "Stage 4: Visual Strategy", fn: runScriptVisualStrategy },
+        { name: "Stage 5: Quality Review", fn: runQualityReview },
+        { name: "Stage 6: Voice Generation", fn: runVoiceGeneration },
+        { name: "Stage 7: Continuous Story Plan", fn: runContinuousStory },
+        { name: "Stage 8: Render Media", fn: runRender },
+      ];
+
+      for (const stage of stages) {
+        setRunningStageName(`Running ${stage.name}...`);
+        const resp = await stage.fn(selectedProject.id, selectedRun.id);
+        await refreshRunArtifacts(selectedProject.id, selectedRun.id);
+        await selectArtifact(resp.artifact);
+      }
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setIsRunningStage(false);
+      setRunningStageName(null);
     }
   }
 
@@ -435,13 +512,17 @@ export function ProjectListPage() {
           onRunScriptVisualStrategy={handleRunScriptVisualStrategy}
           onRunQualityReview={handleRunQualityReview}
           onRunVoiceGeneration={handleRunVoiceGeneration}
+          onRunContinuousStory={handleRunContinuousStory}
           onRunVideoAssembly={handleRunVideoAssembly}
           onRunRender={handleRunRender}
+          onResumeContinuousStory={handleResumeContinuousStory}
+          onRunFullPipeline={handleRunFullPipeline}
           onRunYoutubeMetadata={handleRunYoutubeMetadata}
           onRunThumbnail={handleRunThumbnail}
           onRunYoutubeUpload={handleRunYoutubeUpload}
           onRegenerateDescendants={handleRegenerateDescendants}
           isRunningStage={isRunningStage}
+          runningStageName={runningStageName}
         />
       </div>
     </div>

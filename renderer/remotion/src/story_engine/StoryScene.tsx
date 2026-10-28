@@ -14,6 +14,11 @@ import {
   ImagePrimitive,
   StockVideoPrimitive,
   Character,
+  ImpactStamp,
+  ScalePrimitive,
+  MoneyStackPrimitive,
+  WaterfallPrimitive,
+  CapitalFlowPrimitive,
 } from "./primitives/index.ts";
 import { tokens } from "../design-tokens.ts";
 import { handDrawn } from "./hand-drawn-theme.ts";
@@ -26,19 +31,25 @@ interface StorySceneProps {
 export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
   const frame = useCurrentFrame();
 
+  const effectivePlan = useMemo(() => {
+    if (plan.autoLayout !== undefined) return plan;
+    return { ...plan, autoLayout: true };
+  }, [plan]);
+
   // 1. Resolve base semantic layout once
   const baseLayouts = useMemo(() => {
-    return resolveLayouts(plan.objects, plan.width, plan.height, plan.safeMargin ?? 80);
-  }, [plan]);
+    return resolveLayouts(effectivePlan.objects, effectivePlan.width, effectivePlan.height, effectivePlan.safeMargin ?? 80);
+  }, [effectivePlan]);
 
   // 2. Evaluate full continuous world state at current frame
   const evaluated = useMemo(() => {
-    return evaluateFrame(plan, baseLayouts, frame);
-  }, [plan, baseLayouts, frame]);
+    return evaluateFrame(effectivePlan, baseLayouts, frame);
+  }, [effectivePlan, baseLayouts, frame]);
 
 
   const connectors = plan.objects.filter((o) => o.type === "connector");
-  const surfaces = plan.objects.filter((o) => o.type !== "connector");
+  const canvasSurfaces = plan.objects.filter((o) => o.type !== "connector" && o.type !== "stock_video");
+  const cutawayVideos = plan.objects.filter((o) => o.type === "stock_video");
 
   const { camera, backdropDim, connectorIntensityMultiplier } = evaluated;
 
@@ -197,8 +208,8 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
           );
         })}
 
-        {/* Render Surface Objects (Cards, Documents, Charts, Images) */}
-        {surfaces.map((obj) => {
+        {/* Render Canvas Surface Objects (Cards, Documents, Charts, Images, Characters) */}
+        {canvasSurfaces.map((obj) => {
           const state = evaluated.objects.get(obj.id);
           if (!state || state.opacity <= 0) return null;
 
@@ -335,29 +346,7 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
             );
           }
 
-          // 3b. Render Stock Video Primitive
-          if (obj.type === "stock_video" && obj.stockVideoProps) {
-            return (
-              <div
-                key={obj.id}
-                style={{
-                  position: "absolute",
-                  left: state.x,
-                  top: state.y,
-                  width: state.width,
-                  height: state.height,
-                  opacity: state.opacity,
-                  transform: `translateY(${state.translateY}px) scale(${state.scale})`,
-                  zIndex: state.zIndex,
-                }}
-              >
-                <StockVideoPrimitive
-                  props={obj.stockVideoProps}
-                  style={{ width: "100%", height: "100%" }}
-                />
-              </div>
-            );
-          }
+
 
           // 4. Render Card Primitive
           if (obj.type === "card" && obj.cardProps) {
@@ -532,9 +521,234 @@ export const StoryScene: React.FC<StorySceneProps> = ({ plan }) => {
             );
           }
 
+          // 8. Render Tipping Balance Scale Primitive
+          if (obj.type === "scale" && obj.scaleProps) {
+            return (
+              <div
+                key={obj.id}
+                style={{
+                  position: "absolute",
+                  left: state.x,
+                  top: state.y,
+                  width: state.width,
+                  height: state.height,
+                  opacity: state.opacity,
+                  transform: `translateY(${state.translateY}px) scale(${state.scale})`,
+                  zIndex: state.zIndex,
+                }}
+              >
+                <Highlight
+                  intensity={state.highlightIntensity}
+                  progress={state.highlightProgress}
+                  color={state.highlightColor || state.customAccent || obj.scaleProps.accentColor || "#FACC15"}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    boxShadow: dominanceGlow,
+                    borderRadius: 16,
+                  }}
+                >
+                  <ScalePrimitive
+                    props={obj.scaleProps}
+                    visualState={state.visualState}
+                    badge={state.visualBadge}
+                    customAccent={state.customAccent}
+                    width={state.width}
+                    height={state.height}
+                    layout={obj.layout}
+                    style={{ width: "100%", height: "100%" }}
+                  />
+                </Highlight>
+              </div>
+            );
+          }
+
+          // 9. Render Concrete Money Stack Primitive
+          if (obj.type === "money_stack" && obj.moneyStackProps) {
+            return (
+              <div
+                key={obj.id}
+                style={{
+                  position: "absolute",
+                  left: state.x,
+                  top: state.y,
+                  width: state.width,
+                  height: state.height,
+                  opacity: state.opacity,
+                  transform: `translateY(${state.translateY}px) scale(${state.scale})`,
+                  zIndex: state.zIndex,
+                }}
+              >
+                <Highlight
+                  intensity={state.highlightIntensity}
+                  progress={state.highlightProgress}
+                  color={state.highlightColor || state.customAccent || obj.moneyStackProps.accentColor || "#10B981"}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    boxShadow: dominanceGlow,
+                    borderRadius: 16,
+                  }}
+                >
+                  <MoneyStackPrimitive
+                    props={obj.moneyStackProps}
+                    visualState={state.visualState}
+                    badge={state.visualBadge}
+                    customAccent={state.customAccent}
+                    width={state.width}
+                    height={state.height}
+                    layout={obj.layout}
+                    style={{ width: "100%", height: "100%" }}
+                  />
+                </Highlight>
+              </div>
+            );
+          }
+
+          // 10. Render Cash Flow Waterfall Funnel Primitive
+          if (obj.type === "waterfall" && obj.waterfallProps) {
+            return (
+              <div
+                key={obj.id}
+                style={{
+                  position: "absolute",
+                  left: state.x,
+                  top: state.y,
+                  width: state.width,
+                  height: state.height,
+                  opacity: state.opacity,
+                  transform: `translateY(${state.translateY}px) scale(${state.scale})`,
+                  zIndex: state.zIndex,
+                }}
+              >
+                <Highlight
+                  intensity={state.highlightIntensity}
+                  progress={state.highlightProgress}
+                  color={state.highlightColor || state.customAccent || obj.waterfallProps.accentColor || "#EF4444"}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    boxShadow: dominanceGlow,
+                    borderRadius: 16,
+                  }}
+                >
+                  <WaterfallPrimitive
+                    props={obj.waterfallProps}
+                    visualState={state.visualState}
+                    badge={state.visualBadge}
+                    customAccent={state.customAccent}
+                    width={state.width}
+                    height={state.height}
+                    layout={obj.layout}
+                    style={{ width: "100%", height: "100%" }}
+                  />
+                </Highlight>
+              </div>
+            );
+          }
+
+          // 11. Render Capital Flow Route Primitive
+          if (obj.type === "capital_flow" && obj.capitalFlowProps) {
+            return (
+              <div
+                key={obj.id}
+                style={{
+                  position: "absolute",
+                  left: state.x,
+                  top: state.y,
+                  width: state.width,
+                  height: state.height,
+                  opacity: state.opacity,
+                  transform: `translateY(${state.translateY}px) scale(${state.scale})`,
+                  zIndex: state.zIndex,
+                }}
+              >
+                <Highlight
+                  intensity={state.highlightIntensity}
+                  progress={state.highlightProgress}
+                  color={state.highlightColor || state.customAccent || obj.capitalFlowProps.accentColor || "#2563EB"}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    boxShadow: dominanceGlow,
+                    borderRadius: 16,
+                  }}
+                >
+                  <CapitalFlowPrimitive
+                    props={obj.capitalFlowProps}
+                    visualState={state.visualState}
+                    badge={state.visualBadge}
+                    customAccent={state.customAccent}
+                    width={state.width}
+                    height={state.height}
+                    layout={obj.layout}
+                    style={{ width: "100%", height: "100%" }}
+                  />
+                </Highlight>
+              </div>
+            );
+          }
+
           return null;
         })}
+
+        {/* Render Active Impact Stamps (Forensic Slams & Canvas Verdicts) */}
+        {evaluated.activeStamps?.map((stamp) => {
+          let targetRect = undefined;
+          if (stamp.targetId && stamp.targetId !== "canvas") {
+            const tgtState = evaluated.objects.get(stamp.targetId);
+            if (tgtState) {
+              targetRect = {
+                x: tgtState.x,
+                y: tgtState.y,
+                width: tgtState.width,
+                height: tgtState.height,
+              };
+            }
+          }
+
+          return (
+            <ImpactStamp
+              key={stamp.id}
+              text={stamp.text}
+              tone={stamp.tone}
+              color={stamp.color}
+              rotationDeg={stamp.rotationDeg}
+              frame={frame}
+              startFrame={stamp.startFrame}
+              durationFrames={stamp.durationFrames}
+              fps={plan.fps}
+              targetRect={targetRect}
+            />
+          );
+        })}
       </div>
+
+      {/* Cutaway B-Roll Layer (Full Screen Stock Video Cutaway Outside Canvas) */}
+      {cutawayVideos.map((obj) => {
+        const state = evaluated.objects.get(obj.id);
+        if (!state || state.opacity <= 0 || !obj.stockVideoProps) return null;
+
+        return (
+          <div
+            key={obj.id}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              opacity: state.opacity,
+              zIndex: 50,
+              pointerEvents: "none",
+            }}
+          >
+            <StockVideoPrimitive
+              props={obj.stockVideoProps}
+              style={{ width: "100%", height: "100%" }}
+            />
+          </div>
+        );
+      })}
 
       {/* Cinematic Dramatic Dimming Veil */}
       {backdropDim > 0 && (

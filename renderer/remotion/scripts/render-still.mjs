@@ -42,6 +42,7 @@ await renderStill({
   serveUrl,
   output: outputPath,
   inputProps,
+  frame: request.frame ?? 0,
   imageFormat: "png",
   logLevel: "warn",
 });

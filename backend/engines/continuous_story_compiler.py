@@ -42,6 +42,8 @@ def resolve_anchor_ms(
 
     anchor_decoded = html.unescape(anchor_phrase)
     anchor_clean = re.sub(r"<[^>]+>", " ", anchor_decoded).replace("-", " ")
+    anchor_clean = re.sub(r"([a-zA-Z]+)(\d+)", r"\1 \2", anchor_clean)
+    anchor_clean = re.sub(r"(\d+)([a-zA-Z]+)", r"\1 \2", anchor_clean)
     clean_tokens = [
         re.sub(r"[^\w\.]", "", t.lower()).strip(".")
         for t in anchor_clean.split()
@@ -58,6 +60,8 @@ def resolve_anchor_ms(
         w_decoded = html.unescape(w_raw)
         w_stripped = re.sub(r"<[^>]+>", " ", w_decoded)
         w_clean = w_stripped.replace("-", " ")
+        w_clean = re.sub(r"([a-zA-Z]+)(\d+)", r"\1 \2", w_clean)
+        w_clean = re.sub(r"(\d+)([a-zA-Z]+)", r"\1 \2", w_clean)
         for tok in w_clean.split():
             c_tok = re.sub(r"[^\w\.]", "", tok.lower()).strip(".")
             if c_tok and not w_raw.strip().startswith("<break") and not w_raw.strip().startswith("<pause"):
@@ -196,27 +200,74 @@ class ContinuousStoryCompiler:
         duration_in_frames = max(self.min_duration_frames, calculated_frames)
 
         # ----------------------------------------------------
-        # 1. Resolve Object Lifespans to Enable Context-Aware Promotion
+        # 1. Resolve Event Timestamps Chronologically & Object Lifespans
         # ----------------------------------------------------
-        object_intervals: dict[str, tuple[int, int]] = {}
+        timeline_cursor_ms = 0
+        event_resolved_ms: list[int] = []
+        enter_times_ms: dict[str, int] = {}
+        exit_times_ms: dict[str, int] = {}
+
         for event in draft.events:
-            tgt = event.target_id
+            search_min = max(0, timeline_cursor_ms - 4000)
+            if event.action == "exit" and event.target_id in enter_times_ms:
+                search_min = max(search_min, enter_times_ms[event.target_id])
+            elif event.action == "connect":
+                target_obj_conn = next((o for o in draft.objects if o.id == event.target_id), None)
+                if target_obj_conn and target_obj_conn.type == "connector":
+                    search_min = max(
+                        search_min,
+                        enter_times_ms.get(target_obj_conn.from_id, 0),
+                        enter_times_ms.get(target_obj_conn.to_id, 0),
+                    )
+
+            try:
+                t_ms = resolve_anchor_ms(word_timestamps, event.anchor, min_start_ms=search_min)
+            except Exception:
+                t_ms = resolve_anchor_ms(word_timestamps, event.anchor, min_start_ms=0)
+
+            event_resolved_ms.append(t_ms)
+            timeline_cursor_ms = max(timeline_cursor_ms, t_ms)
             if event.action in ("enter", "connect"):
-                try:
-                    start_ms = resolve_anchor_ms(word_timestamps, event.anchor)
-                    s_frame = round((start_ms / 1000.0) * fps)
-                except Exception:
-                    s_frame = 0
-                cur_end = object_intervals.get(tgt, (s_frame, duration_in_frames))[1]
-                object_intervals[tgt] = (s_frame, cur_end)
+                if event.target_id not in enter_times_ms:
+                    enter_times_ms[event.target_id] = t_ms
             elif event.action == "exit":
-                try:
-                    exit_ms = resolve_anchor_ms(word_timestamps, event.anchor)
-                    e_frame = round((exit_ms / 1000.0) * fps)
-                except Exception:
-                    e_frame = duration_in_frames
+                exit_times_ms[event.target_id] = t_ms
+
+        object_intervals: dict[str, tuple[int, int]] = {}
+        for idx, event in enumerate(draft.events):
+            tgt = event.target_id
+            frame = round((event_resolved_ms[idx] / 1000.0) * fps)
+            if event.action in ("enter", "connect"):
+                cur_end = object_intervals.get(tgt, (frame, duration_in_frames))[1]
+                object_intervals[tgt] = (frame, cur_end)
+            elif event.action == "exit":
                 cur_start = object_intervals.get(tgt, (0, duration_in_frames))[0]
-                object_intervals[tgt] = (cur_start, e_frame)
+                object_intervals[tgt] = (cur_start, frame)
+
+        # Clamp unexited foreground objects before full_screen canvas objects (e.g. backdrop image)
+        # Note: stock_video is a Cutaway B-Roll Layer outside the canvas and does NOT truncate foreground canvas objects.
+        existing_exits = {e.target_id for e in draft.events if e.action == "exit"}
+        auto_exits_to_add: list[dict[str, Any]] = []
+
+        for obj in draft.objects:
+            if obj.id not in existing_exits and obj.layout != "full_screen" and obj.type != "stock_video":
+                cur_start = object_intervals.get(obj.id, (0, duration_in_frames))[0]
+                earliest_fs_frame = None
+                for other_obj in draft.objects:
+                    if other_obj.id != obj.id and other_obj.layout == "full_screen" and other_obj.type != "stock_video":
+                        other_start = object_intervals.get(other_obj.id, (0, duration_in_frames))[0]
+                        if other_start > cur_start:
+                            if earliest_fs_frame is None or other_start < earliest_fs_frame:
+                                earliest_fs_frame = other_start
+                if earliest_fs_frame is not None:
+                    object_intervals[obj.id] = (cur_start, earliest_fs_frame)
+                    auto_exits_to_add.append({
+                        "action": "exit",
+                        "targetId": obj.id,
+                        "startFrame": earliest_fs_frame,
+                        "durationFrames": 0,
+                        "direction": "cut",
+                    })
 
         # ----------------------------------------------------
         # 2. Compile Atomic Elements Directly
@@ -274,44 +325,47 @@ class ContinuousStoryCompiler:
                 char_dict = self._compile_character(obj)
                 compiled_objects.append(char_dict)
 
+            elif obj.type == "scale":
+                scale_dict = self._compile_scale(obj)
+                compiled_objects.append(scale_dict)
+
+            elif obj.type == "money_stack":
+                ms_dict = self._compile_money_stack(obj)
+                compiled_objects.append(ms_dict)
+
+            elif obj.type == "document":
+                doc_dict = self._compile_document(obj)
+                compiled_objects.append(doc_dict)
+
+            elif obj.type == "waterfall":
+                wf_dict = self._compile_waterfall(obj)
+                compiled_objects.append(wf_dict)
+
+            elif obj.type == "capital_flow":
+                cf_dict = self._compile_capital_flow(obj)
+                compiled_objects.append(cf_dict)
+
             else:
                 raise ValueError(f"Unsupported object '{obj.id}' of type '{obj.type}'.")
 
         # ----------------------------------------------------
         # 2. Compile Events (Speech Anchor -> Start Frame)
         # ----------------------------------------------------
-        enter_times_ms: dict[str, int] = {}
-        for event in draft.events:
-            if event.action == "enter" and event.target_id not in enter_times_ms:
-                try:
-                    enter_times_ms[event.target_id] = resolve_anchor_ms(
-                        word_timestamps=word_timestamps,
-                        anchor_phrase=event.anchor,
-                    )
-                except Exception:
-                    pass
-
         compiled_events: list[dict[str, Any]] = []
-        for event in draft.events:
-            min_start = 0
+        for idx, event in enumerate(draft.events):
             target_obj = next((o for o in draft.objects if o.id == event.target_id), None)
-            if event.action != "enter":
-                min_start = enter_times_ms.get(event.target_id, 0)
-                if event.action == "connect":
-                    if target_obj and target_obj.type == "connector":
-                        min_start = max(
-                            enter_times_ms.get(target_obj.from_id, 0),
-                            enter_times_ms.get(target_obj.to_id, 0),
-                        )
-
+            resolved_frame = round((event_resolved_ms[idx] / 1000.0) * fps)
             event_dict = self._compile_event(
                 event=event,
                 word_timestamps=word_timestamps,
                 fps=fps,
-                min_start_ms=min_start,
                 target_obj=target_obj,
+                resolved_start_frame=resolved_frame,
             )
             compiled_events.append(event_dict)
+
+        # Append auto-exits for unexited foreground objects interrupted by full_screen stock videos
+        compiled_events.extend(auto_exits_to_add)
 
         # ----------------------------------------------------
         # 3. Construct Final StoryPlan Contract
@@ -323,6 +377,10 @@ class ContinuousStoryCompiler:
             "width": self.default_width,
             "height": self.default_height,
             "safeMargin": self.default_safe_margin,
+            "autoLayout": True,
+            "atmosphere": {
+                "preset": "paper_clean" if (not draft.atmosphere or draft.atmosphere == "desk_noir") else draft.atmosphere,
+            },
             "audioFileName": audio_file,
             "narration": {
                 "text": narration_text,
@@ -344,9 +402,16 @@ class ContinuousStoryCompiler:
         display_value = card_obj.display_value
         value = card_obj.numeric_value
         fmt = "plain"
-        accent_color = card_obj.accent or "#3B82F6"
         visual_state = card_obj.visual_state or "normal"
         badge = card_obj.badge
+        state_colors = {
+            "danger": "#EF4444",
+            "warning": "#F59E0B",
+            "success": "#10B981",
+            "dimmed": "#6B7280",
+            "normal": "#3B82F6",
+        }
+        accent_color = state_colors.get(visual_state, "#3B82F6")
 
         card_props: dict[str, Any] = {
             "title": title,
@@ -362,11 +427,11 @@ class ContinuousStoryCompiler:
 
         # Dynamic responsive dimensions based on layout zone
         if card_obj.layout == "center":
-            width = 720
-            height = 360
+            width = 840
+            height = 420
         elif card_obj.layout in ("split_left", "split_right"):
-            width = 560
-            height = 300
+            width = 600
+            height = 320
         else:
             width = 420
             height = 240
@@ -394,8 +459,8 @@ class ContinuousStoryCompiler:
             "factId": fact_key,
         }
 
-        width = 680 if obj.layout == "center" else 360
-        height = 220 if obj.layout == "center" else 180
+        width = 720 if obj.layout == "center" else 480
+        height = 240 if obj.layout == "center" else 180
 
         return {
             "id": obj.id,
@@ -443,7 +508,7 @@ class ContinuousStoryCompiler:
     ) -> dict[str, Any]:
         """Compiles a chart element directly from Gemini-authored series or points."""
         chart_type = obj.chart_type or "trajectory_area"
-        accent_color = obj.accent or "#3B82F6"
+        accent_color = "#3B82F6"
 
         chart_props: dict[str, Any] = {
             "chartType": chart_type,
@@ -531,12 +596,38 @@ class ContinuousStoryCompiler:
         if obj.border_radius is not None:
             image_props["borderRadius"] = obj.border_radius
 
+        is_doc = any(
+            term in (obj.caption or "").lower() or term in (obj.alt or "").lower() or term in (obj.id or "").lower()
+            for term in ("document", "statement", "contract", "paperwork", "form", "letter", "report", "agreement", "circular", "policy")
+        )
+
+        if obj.layout == "full_screen":
+            width = 1920
+            height = 1080
+        elif obj.layout == "center":
+            if is_doc:
+                width = 600
+                height = 800
+            else:
+                width = 1040
+                height = 585
+        elif obj.layout in ("split_left", "split_right"):
+            if is_doc:
+                width = 460
+                height = 610
+            else:
+                width = 580
+                height = 435
+        else:
+            width = 580
+            height = 435
+
         return {
             "id": obj.id,
             "type": "image",
             "layout": obj.layout,
-            "width": 1920 if obj.layout == "full_screen" else 640,
-            "height": 1080 if obj.layout == "full_screen" else 360,
+            "width": width,
+            "height": height,
             "imageProps": image_props,
         }
 
@@ -555,7 +646,7 @@ class ContinuousStoryCompiler:
                 "pose": obj.pose or "idle",
                 "emotion": obj.emotion or "neutral",
                 "facing": obj.facing or "right",
-                "accentColor": obj.accent or "#38BDF8",
+                "accentColor": "#38BDF8",
             },
         }
 
@@ -610,6 +701,170 @@ class ContinuousStoryCompiler:
             "stockVideoProps": stock_video_props,
         }
 
+    def _compile_scale(self, obj: StoryObjectDraft) -> dict[str, Any]:
+        """Compiles a physical mechanical balance scale primitive."""
+        scale_props: dict[str, Any] = {
+            "title": obj.title or obj.purpose,
+            "leftTitle": obj.left_title or "Assets",
+            "leftDisplayValue": obj.left_display_value or (str(obj.left_numeric_value) if obj.left_numeric_value is not None else ""),
+            "leftNumericValue": obj.left_numeric_value if obj.left_numeric_value is not None else 1.0,
+            "leftBadge": obj.left_badge,
+            "rightTitle": obj.right_title or "Liabilities",
+            "rightDisplayValue": obj.right_display_value or (str(obj.right_numeric_value) if obj.right_numeric_value is not None else ""),
+            "rightNumericValue": obj.right_numeric_value if obj.right_numeric_value is not None else 1.0,
+            "rightBadge": obj.right_badge,
+            "tiltDirection": obj.tilt_direction,
+            "visualState": obj.visual_state or "normal",
+        }
+
+        if obj.layout == "center":
+            width = 840
+            height = 440
+        else:
+            width = 640
+            height = 360
+
+        return {
+            "id": obj.id,
+            "type": "scale",
+            "layout": obj.layout,
+            "width": width,
+            "height": height,
+            "scaleProps": scale_props,
+        }
+
+    def _compile_money_stack(self, obj: StoryObjectDraft) -> dict[str, Any]:
+        """Compiles a concrete scale visualizer money stack primitive."""
+        money_stack_props: dict[str, Any] = {
+            "title": obj.title or obj.purpose,
+            "stackMode": obj.stack_mode or "single_tower",
+            "unitLabel": obj.unit_label or "₹1,000 Cr",
+            "unitValue": obj.unit_value or 1000.0,
+            "totalDisplayValue": obj.total_display_value or obj.display_value or "",
+            "totalNumericValue": obj.total_numeric_value if obj.total_numeric_value is not None else obj.numeric_value,
+            "comparisonLeftLabel": obj.comparison_left_label or "Monthly Savings",
+            "comparisonLeftValue": obj.comparison_left_value or "₹25,000",
+            "comparisonRightLabel": obj.comparison_right_label or "Corporate Profit",
+            "comparisonRightValue": obj.comparison_right_value or "₹4.8 Crore",
+            "showHumanScale": obj.show_human_scale if obj.show_human_scale is not None else True,
+            "visualState": obj.visual_state or "normal",
+            "badge": obj.badge,
+        }
+
+        if obj.layout == "center":
+            width = 840
+            height = 440
+        else:
+            width = 640
+            height = 360
+
+        return {
+            "id": obj.id,
+            "type": "money_stack",
+            "layout": obj.layout,
+            "width": width,
+            "height": height,
+            "moneyStackProps": money_stack_props,
+        }
+
+    def _compile_document(self, obj: StoryObjectDraft) -> dict[str, Any]:
+        """Compiles an investigative regulatory proof document primitive."""
+        doc_props: dict[str, Any] = {
+            "title": obj.doc_title or obj.title or "OFFICIAL DOCUMENT",
+            "serialNo": obj.doc_reference or "REF // CIRCULAR",
+            "docReference": obj.doc_reference,
+            "docBody": obj.doc_body or "",
+            "highlightPhrase": obj.highlight_phrase,
+            "watermark": obj.watermark or "OFFICIAL",
+            "stampText": obj.stamp_text,
+            "statusBadge": obj.badge,
+            "visualState": obj.visual_state or "normal",
+        }
+        if obj.layout == "center":
+            width = 760
+            height = 440
+        else:
+            width = 620
+            height = 380
+
+        return {
+            "id": obj.id,
+            "type": "document",
+            "layout": obj.layout,
+            "width": width,
+            "height": height,
+            "documentProps": doc_props,
+        }
+
+    def _compile_waterfall(self, obj: StoryObjectDraft) -> dict[str, Any]:
+        """Compiles a financial cash flow waterfall deduction funnel."""
+        compiled_steps = []
+        for s in (obj.steps or []):
+            compiled_steps.append({
+                "label": s.label,
+                "value": s.value,
+                "displayValue": s.display_value,
+                "stepType": s.step_type,
+            })
+
+        wf_props: dict[str, Any] = {
+            "title": obj.title or "CASH FLOW WATERFALL",
+            "initialLabel": obj.initial_label or "Gross Income",
+            "initialValue": obj.initial_value if obj.initial_value is not None else 100000.0,
+            "initialDisplayValue": obj.initial_display_value or "₹1,00,000",
+            "steps": compiled_steps,
+            "finalLabel": obj.final_label or "Net Surviving",
+            "finalValue": obj.final_value if obj.final_value is not None else 15000.0,
+            "finalDisplayValue": obj.final_display_value or "₹15,000",
+            "visualState": obj.visual_state or "normal",
+            "badge": obj.badge,
+        }
+        if obj.layout == "center":
+            width = 840
+            height = 460
+        else:
+            width = 680
+            height = 380
+
+        return {
+            "id": obj.id,
+            "type": "waterfall",
+            "layout": obj.layout,
+            "width": width,
+            "height": height,
+            "waterfallProps": wf_props,
+        }
+
+    def _compile_capital_flow(self, obj: StoryObjectDraft) -> dict[str, Any]:
+        """Compiles a capital flow route visualizer."""
+        cf_props: dict[str, Any] = {
+            "title": obj.title or "CAPITAL FLOW ROUTE",
+            "sourceLabel": obj.source_label or "Origin",
+            "sourceSublabel": obj.source_sublabel,
+            "targetLabel": obj.target_label or "Destination",
+            "targetSublabel": obj.target_sublabel,
+            "flowLabel": obj.flow_label or "Capital Flight",
+            "flowDisplayValue": obj.flow_display_value or "",
+            "flowDirection": obj.flow_direction or "left_to_right",
+            "visualState": obj.visual_state or "normal",
+            "badge": obj.badge,
+        }
+        if obj.layout == "center":
+            width = 860
+            height = 380
+        else:
+            width = 680
+            height = 320
+
+        return {
+            "id": obj.id,
+            "type": "capital_flow",
+            "layout": obj.layout,
+            "width": width,
+            "height": height,
+            "capitalFlowProps": cf_props,
+        }
+
     def _compile_event(
         self,
         event: StoryEventDraft,
@@ -618,14 +873,18 @@ class ContinuousStoryCompiler:
         min_start_ms: int = 0,
         approved_facts: dict[str, Any] | None = None,
         target_obj: StoryObjectDraft | None = None,
+        resolved_start_frame: int | None = None,
     ) -> dict[str, Any]:
         """Compiles a choreography action, resolving speech anchors to exact frames."""
-        start_frame = resolve_anchor_frame(
-            word_timestamps=word_timestamps,
-            anchor_phrase=event.anchor,
-            fps=fps,
-            min_start_ms=min_start_ms,
-        )
+        if resolved_start_frame is not None:
+            start_frame = resolved_start_frame
+        else:
+            start_frame = resolve_anchor_frame(
+                word_timestamps=word_timestamps,
+                anchor_phrase=event.anchor,
+                fps=fps,
+                min_start_ms=min_start_ms,
+            )
 
         is_stock_video = target_obj is not None and target_obj.type == "stock_video"
         is_cut_enter = event.action == "enter" and (event.style == "cut" or is_stock_video)
@@ -685,6 +944,16 @@ class ContinuousStoryCompiler:
                 event_dict["emotion"] = event.emotion
             if event.facing:
                 event_dict["facing"] = event.facing
+
+        elif event.action == "stamp":
+            event_dict["durationFrames"] = 180
+            event_dict["text"] = event.stamp_text or "VERDICT"
+            event_dict["tone"] = event.stamp_tone or "verdict"
+            if event.stamp_color:
+                event_dict["color"] = event.stamp_color
+            if event.rotation_deg is not None:
+                event_dict["rotationDeg"] = event.rotation_deg
+            event_dict["shake"] = event.shake
 
         elif event.action == "exit":
             if is_cut_exit:

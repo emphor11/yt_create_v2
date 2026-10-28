@@ -66,9 +66,10 @@ export const Card: React.FC<CardComponentProps> = ({
 
   const cardW = width ?? 420;
   const cardH = height ?? 240;
-  const isCenter = layout === "center" || cardW >= 700;
-  const isWide = cardW >= 480 && !isCenter;
-  const isCompact = cardW <= 380 || cardH <= 210;
+  const isUltraCompact = cardH <= 170;
+  const isCompact = (cardW <= 380 || cardH <= 210) && !isUltraCompact;
+  const isCenter = (layout === "center" || cardW >= 700) && !isUltraCompact && !isCompact;
+  const isWide = cardW >= 480 && !isCenter && !isUltraCompact && !isCompact;
 
   let accentColor: string = handDrawnAccent(activeVisualState, customAccent || props.accentColor);
   let borderColor: string = handDrawn.colors.ink;
@@ -116,7 +117,31 @@ export const Card: React.FC<CardComponentProps> = ({
   // Dynamic responsive typography scaling based on string length, layout context, and container size
   const valLen = formattedValue.length;
   let valFontSize = 50;
-  if (isCenter) {
+  if (isUltraCompact) {
+    if (valLen > 18) {
+      valFontSize = 18;
+    } else if (valLen > 14) {
+      valFontSize = 22;
+    } else if (valLen > 10) {
+      valFontSize = 26;
+    } else if (valLen > 6) {
+      valFontSize = 30;
+    } else {
+      valFontSize = 34;
+    }
+  } else if (isCompact) {
+    if (valLen > 18) {
+      valFontSize = 22;
+    } else if (valLen > 14) {
+      valFontSize = 26;
+    } else if (valLen > 10) {
+      valFontSize = 32;
+    } else if (valLen > 6) {
+      valFontSize = 38;
+    } else {
+      valFontSize = 44;
+    }
+  } else if (isCenter) {
     if (valLen > 18) {
       valFontSize = 38;
     } else if (valLen > 14) {
@@ -142,22 +167,30 @@ export const Card: React.FC<CardComponentProps> = ({
     }
   } else {
     if (valLen > 18) {
-      valFontSize = isCompact ? 24 : 30;
+      valFontSize = 26;
     } else if (valLen > 14) {
-      valFontSize = isCompact ? 28 : 34;
+      valFontSize = 30;
     } else if (valLen > 10) {
-      valFontSize = isCompact ? 34 : 40;
+      valFontSize = 36;
     } else if (valLen > 6) {
-      valFontSize = isCompact ? 40 : 46;
+      valFontSize = 42;
     } else {
-      valFontSize = isCompact ? 44 : 50;
+      valFontSize = 48;
     }
   }
 
-  const titleFontSize = isCenter ? 20 : isCompact ? 13 : isWide ? 17 : 15;
-  const subtitleFontSize = isCenter ? 17 : isCompact ? 12 : isWide ? 15 : 14;
-  const paddingStyle = isCenter ? "32px 38px" : isCompact ? "16px 20px" : isWide ? "24px 30px" : "20px 24px";
-  const badgeRightReserve = activeBadge ? (isCenter ? 110 : isCompact ? 76 : 94) : 0;
+  const titleFontSize = isUltraCompact ? 11 : isCenter ? 20 : isCompact ? 13 : isWide ? 17 : 15;
+  const subtitleFontSize = isUltraCompact ? 10 : isCenter ? 17 : isCompact ? 12 : isWide ? 15 : 14;
+  const paddingStyle = isUltraCompact
+    ? "8px 16px"
+    : isCenter
+    ? "32px 38px"
+    : isCompact
+    ? "14px 18px"
+    : isWide
+    ? "24px 30px"
+    : "20px 24px";
+  const badgeRightReserve = activeBadge ? (isUltraCompact ? 60 : isCenter ? 110 : isCompact ? 76 : 94) : 0;
 
   return (
     <div
@@ -186,7 +219,7 @@ export const Card: React.FC<CardComponentProps> = ({
           top: 0,
           left: 0,
           right: 0,
-          height: isCompact ? 5 : 7,
+          height: isUltraCompact ? 3 : isCompact ? 5 : 7,
           backgroundColor: accentColor,
           opacity: 0.92,
         }}
@@ -197,15 +230,15 @@ export const Card: React.FC<CardComponentProps> = ({
         <div
           style={{
             position: "absolute",
-            top: isCompact ? 12 : 16,
-            right: isCompact ? 14 : 20,
-            padding: isCompact ? "2px 7px" : "4px 10px",
+            top: isUltraCompact ? 6 : isCompact ? 12 : 16,
+            right: isUltraCompact ? 8 : isCompact ? 14 : 20,
+            padding: isUltraCompact ? "1px 6px" : isCompact ? "2px 7px" : "4px 10px",
             borderRadius: handDrawn.radius.pill,
             backgroundColor: handDrawn.colors.paper,
             border: `1px solid ${accentColor}`,
             color: accentColor,
             fontFamily: handDrawn.font.label,
-            fontSize: isCompact ? 10 : 11,
+            fontSize: isUltraCompact ? 9 : isCompact ? 10 : 11,
             fontWeight: 700,
             letterSpacing: "0.06em",
             textTransform: "uppercase",
@@ -226,10 +259,10 @@ export const Card: React.FC<CardComponentProps> = ({
             transform: `rotate(${stamp.angle ?? -14}deg)`,
             border: `3px solid ${stamp.color || "#EF4444"}`,
             borderRadius: 8,
-            padding: isCompact ? "4px 10px" : "6px 14px",
+            padding: isUltraCompact ? "2px 6px" : isCompact ? "4px 10px" : "6px 14px",
             color: stamp.color || "#EF4444",
             fontFamily: handDrawn.font.label,
-            fontSize: isCompact ? 14 : 18,
+            fontSize: isUltraCompact ? 11 : isCompact ? 14 : 18,
             fontWeight: 900,
             letterSpacing: "0.15em",
             textTransform: "uppercase",
@@ -252,7 +285,7 @@ export const Card: React.FC<CardComponentProps> = ({
             color: handDrawn.colors.inkMuted,
             letterSpacing: "0.05em",
             textTransform: "uppercase",
-            marginBottom: 6,
+            marginBottom: isUltraCompact ? 2 : 6,
             paddingRight: badgeRightReserve,
             whiteSpace: "nowrap",
             overflow: "hidden",
@@ -301,11 +334,11 @@ export const Card: React.FC<CardComponentProps> = ({
           style={{
             fontSize: subtitleFontSize,
             color: handDrawn.colors.inkMuted,
-            marginTop: 4,
+            marginTop: isUltraCompact ? 2 : 4,
             zIndex: 2,
-            lineHeight: 1.3,
+            lineHeight: 1.25,
             display: "-webkit-box",
-            WebkitLineClamp: isCompact ? 1 : 2,
+            WebkitLineClamp: isUltraCompact || isCompact ? 1 : 2,
             WebkitBoxOrient: "vertical",
             overflow: "hidden",
             textOverflow: "ellipsis",

@@ -444,11 +444,11 @@ export function validateStoryPlan(
     return { valid: false, errors };
   }
 
-  const surfaceElements = plan.objects.filter((o) => o.type !== "connector");
+  const surfaceElements = plan.objects.filter((o) => o.type !== "connector" && o.type !== "stock_video");
 
   // Safe area checks
   for (const surf of surfaceElements) {
-    if (surf.layout === "full_screen" || surf.type === "stock_video") continue;
+    if (surf.layout === "full_screen") continue;
     const geom = layouts.get(surf.id);
     if (!geom) continue;
 
@@ -466,8 +466,9 @@ export function validateStoryPlan(
     }
   }
 
-  // Stock Video specific validations
-  for (const sv of plan.objects.filter((o) => o.type === "stock_video")) {
+  // Stock Video specific validations (Cutaway B-Roll Layer outside canvas)
+  const stockVideos = plan.objects.filter((o) => o.type === "stock_video");
+  for (const sv of stockVideos) {
     if (sv.layout !== "full_screen") {
       errors.push({
         code: "STOCK_VIDEO_INVALID_LAYOUT",
@@ -521,22 +522,28 @@ export function validateStoryPlan(
           targetId: sv.id,
         });
       }
+    }
+  }
 
-      // Check connectors during stock video active interval
-      const svStart = svEnters[0].startFrame;
-      const svEnd = svExits[0].startFrame;
-      for (const conn of connectors) {
-        const connEnter = plan.events.find(
-          (e) => (e.action === "connect" || e.action === "enter") && "targetId" in e && e.targetId === conn.id
-        );
-        if (!connEnter) continue;
-        const connExit = plan.events.find((e): e is ExitAction => e.action === "exit" && "targetId" in e && e.targetId === conn.id);
-        const connEnd = connExit ? connExit.startFrame + connExit.durationFrames : plan.durationInFrames;
-        if (Math.max(svStart, connEnter.startFrame) < Math.min(svEnd, connEnd)) {
+  // Mutual exclusivity between cutaway stock videos (no two stock videos playing at the same time)
+  for (let i = 0; i < stockVideos.length; i++) {
+    for (let j = i + 1; j < stockVideos.length; j++) {
+      const sv1 = stockVideos[i];
+      const sv2 = stockVideos[j];
+      const e1Enter = plan.events.find((e) => e.action === "enter" && "targetId" in e && e.targetId === sv1.id);
+      const e1Exit = plan.events.find((e): e is ExitAction => e.action === "exit" && "targetId" in e && e.targetId === sv1.id);
+      const e2Enter = plan.events.find((e) => e.action === "enter" && "targetId" in e && e.targetId === sv2.id);
+      const e2Exit = plan.events.find((e): e is ExitAction => e.action === "exit" && "targetId" in e && e.targetId === sv2.id);
+      if (e1Enter && e1Exit && e2Enter && e2Exit) {
+        const s1 = e1Enter.startFrame;
+        const end1 = e1Exit.startFrame + (e1Exit.durationFrames ?? 0);
+        const s2 = e2Enter.startFrame;
+        const end2 = e2Exit.startFrame + (e2Exit.durationFrames ?? 0);
+        if (Math.max(s1, s2) < Math.min(end1, end2)) {
           errors.push({
-            code: "STOCK_VIDEO_CONNECTOR_COLLISION",
-            message: `Connector '${conn.id}' is active during stock_video '${sv.id}' interval [frame ${svStart}, ${svEnd}]. Stock video cannot coexist with connectors.`,
-            targetId: sv.id,
+            code: "STOCK_VIDEO_OVERLAP_COLLISION",
+            message: `Stock video cutaway '${sv1.id}' overlaps with '${sv2.id}' between frames [${Math.max(s1, s2)}, ${Math.min(end1, end2)}]. Only one cutaway video can play at a time.`,
+            targetId: sv2.id,
           });
         }
       }
@@ -689,11 +696,17 @@ export function validateStoryPlan(
           if (overlapStart < overlapEnd) {
             // 1. Exact zone occupancy conflict
             if (intA.zone === intB.zone) {
-              errors.push({
-                code: "ZONE_OCCUPANCY_COLLISION",
-                message: `Spatial collision in zone '${intA.zone}': '${idA}' and '${idB}' occupy the same zone simultaneously between frames ${overlapStart} and ${overlapEnd}.`,
-                details: { idA, idB, zone: intA.zone, overlapStart, overlapEnd },
-              });
+              const allowsMultiOccupancy =
+                plan.autoLayout === true &&
+                ["split_left", "split_right", "center"].includes(intA.zone);
+
+              if (!allowsMultiOccupancy) {
+                errors.push({
+                  code: "ZONE_OCCUPANCY_COLLISION",
+                  message: `Spatial collision in zone '${intA.zone}': '${idA}' and '${idB}' occupy the same zone simultaneously between frames ${overlapStart} and ${overlapEnd}.`,
+                  details: { idA, idB, zone: intA.zone, overlapStart, overlapEnd },
+                });
+              }
             }
 
             // 2. Macro zone conflicts
@@ -712,15 +725,39 @@ export function validateStoryPlan(
             }
 
             // 3. AABB Geometric Overlap
-            const xOverlap = Math.max(0, Math.min(intA.geom.x + intA.geom.width, intB.geom.x + intB.geom.width) - Math.max(intA.geom.x, intB.geom.x));
-            const yOverlap = Math.max(0, Math.min(intA.geom.y + intA.geom.height, intB.geom.y + intB.geom.height) - Math.max(intA.geom.y, intB.geom.y));
+            const fbH = intA.zone === "full_bottom" ? intA.geom.height : (intB.zone === "full_bottom" ? intB.geom.height : 0);
+            const fbIsValid = (intA.zone !== "full_bottom" && intB.zone !== "full_bottom") || fbH <= 280;
 
-            if (xOverlap > 0 && yOverlap > 0) {
-              errors.push({
-                code: "CARD_OVERLAP",
-                message: `Surface elements '${idA}' and '${idB}' have overlapping bounding boxes (${Math.round(xOverlap)}x${Math.round(yOverlap)}px) between frames ${overlapStart} and ${overlapEnd}.`,
-                details: { idA, idB, xOverlap, yOverlap, overlapStart, overlapEnd },
-              });
+            const isComplementary =
+              plan.autoLayout === true &&
+              ((intA.zone === "center" && (intB.zone === "split_left" || intB.zone === "split_right")) ||
+                (intB.zone === "center" && (intA.zone === "split_left" || intA.zone === "split_right")) ||
+                (intA.zone === "split_left" && intB.zone === "split_right") ||
+                (intA.zone === "split_right" && intB.zone === "split_left") ||
+                (intA.zone === intB.zone && ["split_left", "split_right", "center"].includes(intA.zone)) ||
+                ((intA.zone === "full_bottom" || intB.zone === "full_bottom") &&
+                  ["center", "split_left", "split_right"].includes(intA.zone === "full_bottom" ? intB.zone : intA.zone) &&
+                  fbIsValid));
+
+            if (!isComplementary) {
+              if ((intA.zone === "full_bottom" || intB.zone === "full_bottom") && !fbIsValid) {
+                errors.push({
+                  code: "CARD_OVERLAP",
+                  message: `Surface element in full_bottom exceeds vertical height budget (${Math.round(fbH)}px > 280px) between frames ${overlapStart} and ${overlapEnd}.`,
+                  details: { idA, idB, overlapStart, overlapEnd },
+                });
+              } else {
+                const xOverlap = Math.max(0, Math.min(intA.geom.x + intA.geom.width, intB.geom.x + intB.geom.width) - Math.max(intA.geom.x, intB.geom.x));
+                const yOverlap = Math.max(0, Math.min(intA.geom.y + intA.geom.height, intB.geom.y + intB.geom.height) - Math.max(intA.geom.y, intB.geom.y));
+
+                if (xOverlap > 0 && yOverlap > 0) {
+                  errors.push({
+                    code: "CARD_OVERLAP",
+                    message: `Surface elements '${idA}' and '${idB}' have overlapping bounding boxes (${Math.round(xOverlap)}x${Math.round(yOverlap)}px) between frames ${overlapStart} and ${overlapEnd}.`,
+                    details: { idA, idB, xOverlap, yOverlap, overlapStart, overlapEnd },
+                  });
+                }
+              }
             }
           }
         }

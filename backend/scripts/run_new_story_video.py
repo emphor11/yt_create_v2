@@ -217,32 +217,167 @@ def run_pipeline_for_topic(topic: str, angle: str, audience: str, channel: str, 
         shutil.copy2(video_path, dest_topic)
         print(f"  * Copied video to artifact directory: {dest_topic}")
 
+        # Extract choreographic highlights for player
+        scenes_cards_html = ""
+        csp_art = store.find_artifact_by_type(project_id, run_id, "continuous_story_plan")
+        if csp_art:
+            csp_plan = csp_art.payload_json.get("plan", {})
+            objs_by_id = {o.get("id"): o for o in csp_plan.get("objects", [])}
+            fps = csp_plan.get("fps", 30)
+            seen_targets = set()
+            for ev in csp_plan.get("events", []):
+                target_id = ev.get("targetId")
+                action = ev.get("action")
+                if action in ("enter", "highlight", "transform_number") and target_id not in seen_targets:
+                    seen_targets.add(target_id)
+                    obj = objs_by_id.get(target_id, {})
+                    obj_type = obj.get("type", "element")
+                    layout = obj.get("layout", "center")
+                    props = obj.get("cardProps") or obj.get("numberProps") or obj.get("textProps") or obj.get("chartProps") or obj.get("imageProps") or {}
+                    title = props.get("title") or props.get("label") or props.get("text") or target_id
+                    frame = ev.get("startFrame", 0)
+                    sec = frame / fps
+                    mm = int(sec // 60)
+                    ss = int(sec % 60)
+                    badge_class = "badge-hero" if layout == "center" else ("badge-split" if "split" in layout else "badge-compress")
+                    scenes_cards_html += f"""
+        <div class="scene-card" onclick="seek({sec:.1f})">
+          <span class="time">{mm:02d}:{ss:02d}</span>
+          <span class="title">[{obj_type.upper()}] {title[:32]}</span>
+          <span class="desc">Layout: {layout} &bull; Action: {action}</span>
+          <span class="badge {badge_class}">{layout}</span>
+        </div>"""
+                    if len(seen_targets) >= 8:
+                        break
+
         # Write player HTML for this new video
         player_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>{topic} — Continuous Story Video Player</title>
+  <title>{topic} — Living Canvas Video</title>
   <style>
-    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b1120; color: #f8fafc; margin: 0; padding: 32px 24px; display: flex; flex-direction: column; align-items: center; }}
-    .container {{ max-width: 980px; width: 100%; }}
-    h1 {{ font-size: 26px; font-weight: 700; margin: 0 0 8px; color: #38bdf8; }}
-    p.subtitle {{ color: #94a3b8; font-size: 15px; margin: 0 0 20px; }}
-    .video-wrapper {{ position: relative; width: 100%; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6); border: 1px solid #1e293b; }}
-    video {{ width: 100%; height: auto; display: block; }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      background: #0f1110;
+      color: #f7f4ee;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 32px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }}
+    .header {{
+      text-align: center;
+      margin-bottom: 24px;
+      max-width: 900px;
+    }}
+    .header h1 {{
+      font-size: 26px;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }}
+    .header p {{
+      font-size: 14px;
+      color: #a1a1aa;
+      line-height: 1.5;
+    }}
+    .player-container {{
+      width: 100%;
+      max-width: 1080px;
+      background: #181b19;
+      border: 1px solid #272a27;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }}
+    video {{
+      width: 100%;
+      border-radius: 8px;
+      display: block;
+      background: #000;
+      aspect-ratio: 16 / 9;
+    }}
+    .scenes-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      margin-top: 20px;
+    }}
+    .scene-card {{
+      background: #202421;
+      border: 1px solid #2f3430;
+      border-radius: 8px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }}
+    .scene-card:hover {{
+      background: #282d29;
+      border-color: #38bdf8;
+      transform: translateY(-2px);
+    }}
+    .scene-card .time {{
+      font-family: monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: #38bdf8;
+    }}
+    .scene-card .title {{
+      font-size: 13px;
+      font-weight: 600;
+      color: #f7f4ee;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
+    .scene-card .desc {{
+      font-size: 11px;
+      color: #94a3b8;
+      line-height: 1.4;
+    }}
+    .badge {{
+      display: inline-block;
+      align-self: flex-start;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 4px;
+    }}
+    .badge-hero {{ background: #38bdf822; color: #38bdf8; border: 1px solid #38bdf844; }}
+    .badge-split {{ background: #10b98122; color: #10b981; border: 1px solid #10b98144; }}
+    .badge-compress {{ background: #f59e0b22; color: #f59e0b; border: 1px solid #f59e0b44; }}
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="header">
     <h1>{topic}</h1>
-    <p class="subtitle">{angle}</p>
-    <div class="video-wrapper">
-      <video id="player" controls autoplay playsinline preload="auto">
-        <source src="{slug}.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-      </video>
+    <p>{angle}</p>
+  </div>
+  <div class="player-container">
+    <video id="videoPlayer" controls autoplay playsinline preload="auto">
+      <source src="{slug}.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+    <div class="scenes-grid">
+      {scenes_cards_html}
     </div>
   </div>
+  <script>
+    const player = document.getElementById('videoPlayer');
+    function seek(sec) {{
+      player.currentTime = sec;
+      player.play();
+    }}
+  </script>
 </body>
 </html>"""
         (artifact_dir / f"{slug}_player.html").write_text(player_html, encoding="utf-8")

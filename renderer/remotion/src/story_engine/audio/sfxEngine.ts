@@ -116,11 +116,13 @@ export function generateSoundCues(plan: StoryPlan): SoundCue[] {
             volume: SFX_CONFIG.whoosh_cut.defaultVolume,
             priority: SFX_CONFIG.whoosh_cut.priority,
           });
-        } else if (["card", "document", "text", "character"].includes(targetObj.type)) {
+        } else if (["card", "document", "text", "character", "scale", "money_stack", "waterfall", "capital_flow"].includes(targetObj.type)) {
           // If the card already enters with a TRAP or DANGER badge, give it a stamp thud!
           const hasTrapBadge =
             (targetObj.cardProps?.badge && TRAP_BADGE_REGEX.test(targetObj.cardProps.badge)) ||
-            (targetObj.documentProps?.statusBadge && TRAP_BADGE_REGEX.test(targetObj.documentProps.statusBadge));
+            (targetObj.documentProps?.statusBadge && TRAP_BADGE_REGEX.test(targetObj.documentProps.statusBadge)) ||
+            (targetObj.waterfallProps?.badge && TRAP_BADGE_REGEX.test(targetObj.waterfallProps.badge)) ||
+            (targetObj.capitalFlowProps?.badge && TRAP_BADGE_REGEX.test(targetObj.capitalFlowProps.badge));
 
           if (hasTrapBadge) {
             rawCues.push({
@@ -159,7 +161,7 @@ export function generateSoundCues(plan: StoryPlan): SoundCue[] {
             volume: 0.30,
             priority: SFX_CONFIG.whoosh_cut.priority,
           });
-        } else if (["card", "document"].includes(targetObj.type)) {
+        } else if (["card", "document", "scale", "money_stack", "waterfall", "capital_flow"].includes(targetObj.type)) {
           rawCues.push({
             id: `sfx_exit_${targetId}_${cueCounter++}`,
             sound: "paper_slide",
@@ -239,6 +241,19 @@ export function generateSoundCues(plan: StoryPlan): SoundCue[] {
             priority: SFX_CONFIG.paper_slide.priority,
           });
         }
+        break;
+      }
+
+      case "stamp": {
+        rawCues.push({
+          id: `sfx_stamp_${targetId || "canvas"}_${cueCounter++}`,
+          sound: "stamp_thud",
+          file: SFX_CONFIG.stamp_thud.file,
+          frame: event.startFrame + 6, // Synchronized with impact slam frame
+          durationFrames: SFX_CONFIG.stamp_thud.durationFrames,
+          volume: 0.65,
+          priority: 5,
+        });
         break;
       }
 

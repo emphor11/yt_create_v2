@@ -75,6 +75,8 @@ const testPlan = {
     { action: "change_visual_state", targetId: "hero_card", startFrame: 200, durationFrames: 15, state: "danger" },
     // 7s: Stock video exit -> whoosh_cut
     { action: "exit", targetId: "bank_vid", startFrame: 240, durationFrames: 15, direction: "fade" },
+    // 8s: Impact stamp action -> stamp_thud synchronized at frame 270 + 6
+    { action: "stamp", targetId: "hero_card", startFrame: 270, durationFrames: 30, text: "OVERVALUED", tone: "verdict" },
   ],
 };
 
@@ -93,7 +95,7 @@ assert.ok(paperCues.length >= 1, "Expected at least 1 paper_slide cue");
 assert.ok(photoCues.length >= 1, "Expected at least 1 photo_drop cue");
 assert.ok(whooshCues.length >= 2, "Expected at least 2 whoosh_cut cues (enter + exit)");
 assert.ok(markerCues.length >= 1, "Expected at least 1 marker_stroke cue");
-assert.ok(stampCues.length >= 2, "Expected at least 2 stamp_thud cues (trap badge + danger state)");
+assert.ok(stampCues.length >= 3, "Expected at least 3 stamp_thud cues (trap badge + danger state + stamp action)");
 assert.ok(tickCues.length >= 3, "Expected at least 3 counter_tick cues across number transform");
 
 console.log(`✓ paper_slide cues generated: ${paperCues.length}`);

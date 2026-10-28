@@ -33,6 +33,7 @@ Enforces 16 strict pre-compilation rules:
 from __future__ import annotations
 
 import html
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -48,7 +49,19 @@ VALID_ZONES = {
     "full_bottom",
 }
 
-SURFACE_TYPES = {"card", "number", "text", "chart", "image", "character", "stock_video"}
+SURFACE_TYPES = {
+    "card",
+    "number",
+    "text",
+    "chart",
+    "image",
+    "character",
+    "scale",
+    "money_stack",
+    "document",
+    "waterfall",
+    "capital_flow",
+}
 EXIT_DURATION_MS = 0  # Zone releases immediately upon exit start, enabling seamless cross-fades and handoffs without black screen gaps
 
 MACRO_ZONE_CONFLICTS: dict[str, set[str]] = {
@@ -63,13 +76,17 @@ MACRO_ZONE_CONFLICTS: dict[str, set[str]] = {
 
 DEFAULT_PRIMITIVE_DIMENSIONS: dict[str, tuple[int, int]] = {
     "chart": (560, 320),
-    "document": (480, 320),
+    "document": (580, 360),
     "image": (420, 240),
     "number": (340, 160),
     "text": (800, 160),
     "character": (240, 360),
     "card": (420, 240),
     "stock_video": (1920, 1080),
+    "scale": (640, 360),
+    "money_stack": (640, 360),
+    "waterfall": (640, 360),
+    "capital_flow": (680, 320),
 }
 
 ZONE_CENTERS: dict[str, tuple[int, int]] = {
@@ -93,10 +110,12 @@ def _resolve_obj_geometry(
     w = width if width is not None else default_w
     h = height if height is not None else default_h
 
-    # Ensure localized images strictly stay under the zone's safe dimensions (420x240)
+    # Ensure localized images strictly stay under the zone's safe dimensions
     if obj_type == "image" and zone in ZONE_CENTERS:
-        w = min(w, 420)
-        h = min(h, 240)
+        max_w = 740 if zone in ("split_left", "split_right") else 1080
+        max_h = 440 if zone in ("split_left", "split_right") else 640
+        w = min(w, max_w)
+        h = min(h, max_h)
 
     if zone in ZONE_CENTERS:
         cx, cy = ZONE_CENTERS[zone]
@@ -150,6 +169,8 @@ def _get_anchor_start_ms(anchor: str, word_timestamps: list[dict[str, Any]], min
 
     anchor_decoded = html.unescape(anchor)
     anchor_clean = re.sub(r"<[^>]+>", " ", anchor_decoded).replace("-", " ")
+    anchor_clean = re.sub(r"([a-zA-Z]+)(\d+)", r"\1 \2", anchor_clean)
+    anchor_clean = re.sub(r"(\d+)([a-zA-Z]+)", r"\1 \2", anchor_clean)
     clean_anchor_tokens = [_clean_token(t) for t in anchor_clean.split() if _clean_token(t)]
     if not clean_anchor_tokens:
         return None
@@ -162,6 +183,8 @@ def _get_anchor_start_ms(anchor: str, word_timestamps: list[dict[str, Any]], min
         w_decoded = html.unescape(w_raw)
         w_stripped = re.sub(r"<[^>]+>", " ", w_decoded)
         w_clean = w_stripped.replace("-", " ")
+        w_clean = re.sub(r"([a-zA-Z]+)(\d+)", r"\1 \2", w_clean)
+        w_clean = re.sub(r"(\d+)([a-zA-Z]+)", r"\1 \2", w_clean)
         for tok in w_clean.split():
             c_tok = _clean_token(tok)
             if c_tok and not w_raw.strip().startswith("<break") and not w_raw.strip().startswith("<pause"):
@@ -205,6 +228,32 @@ def validate_story_draft(
     word_timestamps = word_timestamps or []
     if available_assets is not None and not isinstance(available_assets, set):
         available_assets = set(available_assets)
+
+    # ----------------------------------------------------
+    # Check: Minimum Visual Density & Event Cadence (Fixed Budget Rule 1)
+    # ----------------------------------------------------
+    if total_duration_ms is not None and total_duration_ms >= 45000:
+        duration_seconds = total_duration_ms / 1000.0
+        # Under Rule 1, fixed budget targets 50-60 objects and 90-100 visual refresh events.
+        # Required floor caps at 70 regardless of audio length, ensuring long videos aren't over-burdened.
+        min_required_events = min(70, math.floor(duration_seconds / 3.0))
+        actual_events = len(draft.events)
+        if actual_events < min_required_events:
+            errors.append(
+                DraftValidationError(
+                    code="LOW_VISUAL_DENSITY",
+                    message=(
+                        f"Visual choreography is under-populated: draft contains {actual_events} events for {round(duration_seconds)}s narration, "
+                        f"falling below the mandatory minimum of {min_required_events} events (Rule 1 target: 90–100 visual refresh events across 50–60 objects). "
+                        f"Author additional choreography across sentences (secondary cards, documentary photos, charts, badges/visual states, number transforms, character pose changes, causal connectors) to maintain high visual pacing."
+                    ),
+                    details={
+                        "actual_events": actual_events,
+                        "required_events": min_required_events,
+                        "duration_seconds": round(duration_seconds),
+                    },
+                )
+            )
 
     # ----------------------------------------------------
     # Check: Word Timestamps Integrity
@@ -537,16 +586,19 @@ def validate_story_draft(
     # ----------------------------------------------------
     for event in draft.events:
         if event.target_id not in object_map:
-            errors.append(
-                DraftValidationError(
-                    code="UNKNOWN_TARGET_ID",
-                    message=f"Action '{event.action}' references non-existent target_id '{event.target_id}'.",
-                    target_id=event.target_id,
+            if event.action == "stamp" and event.target_id == "canvas":
+                target_obj = None
+            else:
+                errors.append(
+                    DraftValidationError(
+                        code="UNKNOWN_TARGET_ID",
+                        message=f"Action '{event.action}' references non-existent target_id '{event.target_id}'.",
+                        target_id=event.target_id,
+                    )
                 )
-            )
-            continue
-
-        target_obj = object_map[event.target_id]
+                continue
+        else:
+            target_obj = object_map[event.target_id]
 
         # Check: move destination zone
         if event.action == "move" and event.to not in VALID_ZONES:
@@ -598,12 +650,12 @@ def validate_story_draft(
                 )
             )
 
-        # Check: transform_number targets a card or number
-        if event.action == "transform_number" and target_obj.type not in ("card", "number"):
+        # Check: transform_number targets a card, number, scale, money_stack, or waterfall
+        if event.action == "transform_number" and target_obj.type not in ("card", "number", "scale", "money_stack", "waterfall"):
             errors.append(
                 DraftValidationError(
                     code="TRANSFORM_TARGET_INVALID",
-                    message=f"Action 'transform_number' can only target a 'card' or 'number' element, but '{target_obj.id}' is a '{target_obj.type}'.",
+                    message=f"Action 'transform_number' can only target a 'card', 'number', 'scale', 'money_stack', or 'waterfall' element, but '{target_obj.id}' is a '{target_obj.type}'.",
                     target_id=target_obj.id,
                 )
             )
@@ -618,13 +670,13 @@ def validate_story_draft(
                 )
             )
 
-        # Check: change_visual_state targets a card or character
+        # Check: change_visual_state targets a card, character, scale, money_stack, document, waterfall, or capital_flow
         if event.action == "change_visual_state":
-            if target_obj.type not in ("card", "character"):
+            if target_obj.type not in ("card", "character", "scale", "money_stack", "document", "waterfall", "capital_flow"):
                 errors.append(
                     DraftValidationError(
                         code="VISUAL_STATE_TARGET_NOT_CARD",
-                        message=f"Action 'change_visual_state' can only target a 'card' or 'character' element, but '{target_obj.id}' is '{target_obj.type}'.",
+                        message=f"Action 'change_visual_state' can only target a 'card', 'character', 'scale', 'money_stack', 'document', 'waterfall', or 'capital_flow' element, but '{target_obj.id}' is '{target_obj.type}'.",
                         target_id=target_obj.id,
                     )
                 )
@@ -676,45 +728,58 @@ def validate_story_draft(
                 )
             )
 
+        # Check: anchor must not be empty
+        anchor_tokens = [t for t in re.sub(r"[^\w\.]", " ", event.anchor or "").split() if t]
+        if len(anchor_tokens) < 1:
+            errors.append(
+                DraftValidationError(
+                    code="ANCHOR_EMPTY",
+                    message=f"Action '{event.action}' on '{event.target_id}' has an empty anchor. Every anchor MUST be at least 1 word.",
+                    target_id=event.target_id,
+                )
+            )
+
     # ----------------------------------------------------
     # Check: Temporal Causality (Actions After Enter)
     # ----------------------------------------------------
     enter_times_ms: dict[str, int] = {}
     enter_anchors: dict[str, str] = {}
     exit_times_ms: dict[str, int] = {}
+    event_resolved_times_ms: list[int | None] = []
 
+    timeline_cursor_ms = 0
     for event in draft.events:
-        if event.action in ("enter", "connect"):
-            t_ms = _get_anchor_start_ms(event.anchor, word_timestamps)
-            if t_ms is not None:
-                if event.target_id not in enter_times_ms or t_ms < enter_times_ms[event.target_id]:
+        # Forward-progressing timeline cursor with a 4s grace window for near-simultaneous split events
+        search_min = max(0, timeline_cursor_ms - 4000)
+        if event.action == "exit" and event.target_id in enter_times_ms:
+            search_min = max(search_min, enter_times_ms[event.target_id])
+        elif event.action == "connect":
+            target_obj_conn = object_map.get(event.target_id)
+            if target_obj_conn and target_obj_conn.type == "connector":
+                search_min = max(
+                    search_min,
+                    enter_times_ms.get(target_obj_conn.from_id, 0),
+                    enter_times_ms.get(target_obj_conn.to_id, 0),
+                )
+
+        t_ms = _get_anchor_start_ms(event.anchor, word_timestamps, min_start_ms=search_min)
+        if t_ms is None:
+            t_ms = _get_anchor_start_ms(event.anchor, word_timestamps, min_start_ms=0)
+
+        event_resolved_times_ms.append(t_ms)
+        if t_ms is not None:
+            timeline_cursor_ms = max(timeline_cursor_ms, t_ms)
+            if event.action in ("enter", "connect"):
+                if event.target_id not in enter_times_ms:
                     enter_times_ms[event.target_id] = t_ms
                     enter_anchors[event.target_id] = event.anchor
-        elif event.action == "exit":
-            min_s = enter_times_ms.get(event.target_id, 0)
-            t_ms = _get_anchor_start_ms(event.anchor, word_timestamps, min_start_ms=min_s)
-            if t_ms is not None:
+            elif event.action == "exit":
                 exit_times_ms[event.target_id] = t_ms
 
     current_exited: set[str] = set()
 
-    for event in draft.events:
-        min_start = 0
-        if event.action != "enter":
-            min_start = enter_times_ms.get(event.target_id, 0)
-            if event.action == "connect":
-                target_obj_conn = object_map.get(event.target_id)
-                if target_obj_conn and target_obj_conn.type == "connector":
-                    min_start = max(
-                        enter_times_ms.get(target_obj_conn.from_id, 0),
-                        enter_times_ms.get(target_obj_conn.to_id, 0),
-                    )
-
-        event_time_ms = _get_anchor_start_ms(event.anchor, word_timestamps, min_start_ms=min_start)
-        if event_time_ms is None:
-            raw_time_ms = _get_anchor_start_ms(event.anchor, word_timestamps, min_start_ms=0)
-            if raw_time_ms is not None:
-                event_time_ms = raw_time_ms
+    for idx, event in enumerate(draft.events):
+        event_time_ms = event_resolved_times_ms[idx]
         if event_time_ms is None or event.target_id not in object_map:
             continue
 
@@ -724,7 +789,7 @@ def validate_story_draft(
         if event.action == "enter":
             current_exited.discard(event.target_id)
 
-        elif event.action in ("move", "highlight", "change_visual_state", "transform_number", "transform_text", "change_pose"):
+        elif event.action in ("move", "highlight", "change_visual_state", "transform_number", "transform_text", "change_pose", "stamp"):
             if enter_t is None:
                 errors.append(
                     DraftValidationError(
@@ -842,6 +907,70 @@ def validate_story_draft(
                 )
 
     # ----------------------------------------------------
+    # Check: Mandatory Exit Events for Surface Objects
+    # ----------------------------------------------------
+    exited_target_ids = {e.target_id for e in draft.events if e.action == "exit"}
+
+    for obj in draft.objects:
+        if obj.type not in SURFACE_TYPES:
+            continue
+        if obj.type == "stock_video":
+            continue  # stock_video exit is checked in STOCK_VIDEO_EVENT_COUNT
+
+        obj_enter_ms = enter_times_ms.get(obj.id)
+        if obj_enter_ms is None:
+            continue
+
+        has_exit = obj.id in exited_target_ids
+
+        # Check A: Preceding full_screen canvas elements (e.g. backdrop image) must have explicit exit
+        # Note: stock_video is a Cutaway B-Roll Layer outside the canvas and does NOT require canvas elements to exit.
+        for fs_obj in draft.objects:
+            if fs_obj.id != obj.id and fs_obj.layout == "full_screen" and fs_obj.type != "stock_video":
+                fs_enter_ms = enter_times_ms.get(fs_obj.id)
+                if fs_enter_ms is not None and fs_enter_ms > obj_enter_ms:
+                    if not has_exit:
+                        errors.append(
+                            DraftValidationError(
+                                code="MISSING_EXIT_BEFORE_FULLSCREEN",
+                                message=(
+                                    f"Surface '{obj.id}' enters at {obj_enter_ms}ms but has no explicit 'exit' event "
+                                    f"before full_screen '{fs_obj.id}' enters at {fs_enter_ms}ms. "
+                                    f"Every foreground visual preceding a full-screen cutaway MUST have an explicit exit event."
+                                ),
+                                target_id=obj.id,
+                                details={
+                                    "target_id": obj.id,
+                                    "enter_time_ms": obj_enter_ms,
+                                    "fullscreen_id": fs_obj.id,
+                                    "fullscreen_enter_ms": fs_enter_ms,
+                                },
+                            )
+                        )
+                        break
+                    else:
+                        obj_exit_ms = exit_times_ms.get(obj.id)
+                        if obj_exit_ms is not None and obj_exit_ms > fs_enter_ms:
+                            errors.append(
+                                DraftValidationError(
+                                    code="EXIT_AFTER_FULLSCREEN_ENTER",
+                                    message=(
+                                        f"Surface '{obj.id}' exits at {obj_exit_ms}ms, which is after full_screen "
+                                        f"'{fs_obj.id}' enters at {fs_enter_ms}ms. "
+                                        f"Preceding foreground visuals must exit on or before the full-screen cutaway."
+                                    ),
+                                    target_id=obj.id,
+                                    details={
+                                        "target_id": obj.id,
+                                        "exit_time_ms": obj_exit_ms,
+                                        "fullscreen_id": fs_obj.id,
+                                        "fullscreen_enter_ms": fs_enter_ms,
+                                    },
+                                )
+                            )
+                            break
+
+    # ----------------------------------------------------
     # Check: Temporal Spatial Zone Occupancy (Collision Prevention)
     # ----------------------------------------------------
     # Build lifecycle intervals for each surface element
@@ -862,11 +991,35 @@ def validate_story_draft(
         exit_clearance_ms = 0 if is_cut_exit else EXIT_DURATION_MS
         full_end_t = (exit_t + exit_clearance_ms) if exit_t is not None else (total_duration_ms or 999999)
 
+        # Sequential zone handoff: if incumbent element in an exclusive zone (full_screen, full_bottom)
+        # has an explicit exit that overlaps the next element entering that zone by <= 2000ms,
+        # clamp incumbent's end time to the incoming element's enter time to achieve a clean cut transition.
+        if exit_t is not None and obj.layout in ("full_screen", "full_bottom"):
+            for other_obj in draft.objects:
+                if other_obj.id != obj.id and other_obj.layout == obj.layout:
+                    other_enter_t = enter_times_ms.get(other_obj.id)
+                    if other_enter_t is not None and other_enter_t > enter_t:
+                        if full_end_t > other_enter_t and (full_end_t - other_enter_t) <= 2000:
+                            full_end_t = other_enter_t
+
+        # If an unexited foreground surface element entered before a full_screen canvas element (e.g. backdrop image),
+        # the full_screen element naturally terminates/eclipses the preceding foreground element.
+        if exit_t is None and obj.layout != "full_screen" and obj.type != "stock_video":
+            earliest_fs_ms = None
+            for other_obj in draft.objects:
+                if other_obj.id != obj.id and other_obj.layout == "full_screen" and other_obj.type != "stock_video":
+                    other_enter_t = enter_times_ms.get(other_obj.id)
+                    if other_enter_t is not None and other_enter_t > enter_t:
+                        if earliest_fs_ms is None or other_enter_t < earliest_fs_ms:
+                            earliest_fs_ms = other_enter_t
+            if earliest_fs_ms is not None:
+                full_end_t = min(full_end_t, earliest_fs_ms)
+
         # Check for moves to track zone transitions over time
         moves_for_obj: list[tuple[int, str]] = []
-        for event in draft.events:
+        for idx, event in enumerate(draft.events):
             if event.action == "move" and event.target_id == obj.id and event.to:
-                m_t = _get_anchor_start_ms(event.anchor, word_timestamps, min_start_ms=enter_t or 0)
+                m_t = event_resolved_times_ms[idx]
                 if m_t is not None:
                     moves_for_obj.append((m_t, event.to))
         moves_for_obj.sort(key=lambda m: m[0])
@@ -959,24 +1112,52 @@ def validate_story_draft(
                     if overlap_start < overlap_end:
                         # 1. Direct zone match
                         if z1 == z2:
-                            errors.append(
-                                DraftValidationError(
-                                    code="ZONE_OCCUPANCY_COLLISION",
-                                    message=(
-                                        f"Spatial collision in zone '{z1}': element '{id2}' overlaps with '{id1}' "
-                                        f"between {overlap_start}ms and {overlap_end}ms."
-                                    ),
-                                    target_id=id2,
-                                    details={
-                                        "zone": z1,
-                                        "colliding_with": id1,
-                                        "start_ms": overlap_start,
-                                        "end_ms": overlap_end,
-                                        "element_1": id1,
-                                        "element_2": id2,
-                                    },
+                            if z1 in ("full_screen", "full_bottom"):
+                                errors.append(
+                                    DraftValidationError(
+                                        code="ZONE_OCCUPANCY_COLLISION",
+                                        message=(
+                                            f"Spatial collision in zone '{z1}': element '{id2}' overlaps with '{id1}' "
+                                            f"between {overlap_start}ms and {overlap_end}ms. Exclusive zone '{z1}' only allows 1 element."
+                                        ),
+                                        target_id=id2,
+                                        details={
+                                            "zone": z1,
+                                            "colliding_with": id1,
+                                            "start_ms": overlap_start,
+                                            "end_ms": overlap_end,
+                                            "element_1": id1,
+                                            "element_2": id2,
+                                        },
+                                    )
                                 )
-                            )
+                            else:
+                                # For split_left, split_right, and center: Remotion Dynamic AutoLayout supports up to 4 concurrent elements (vertical stack with progressive size reduction)
+                                concurrent_in_zone = set()
+                                for check_id, check_intervals in element_intervals.items():
+                                    for cs, ce, cz, _ in check_intervals:
+                                        if cz == z1 and max(cs, overlap_start) < min(ce, overlap_end):
+                                            concurrent_in_zone.add(check_id)
+                                if len(concurrent_in_zone) > 4:
+                                    errors.append(
+                                        DraftValidationError(
+                                            code="ZONE_OCCUPANCY_COLLISION",
+                                            message=(
+                                                f"Spatial collision in zone '{z1}': {len(concurrent_in_zone)} elements "
+                                                f"({sorted(concurrent_in_zone)}) occupy zone '{z1}' simultaneously between "
+                                                f"{overlap_start}ms and {overlap_end}ms. Zone '{z1}' supports at most 4 simultaneous elements."
+                                            ),
+                                            target_id=id2,
+                                            details={
+                                                "zone": z1,
+                                                "concurrent_elements": sorted(concurrent_in_zone),
+                                                "start_ms": overlap_start,
+                                                "end_ms": overlap_end,
+                                                "element_1": id1,
+                                                "element_2": id2,
+                                            },
+                                        )
+                                    )
                         # 2. Macro layout conflicts
                         elif z1 in MACRO_ZONE_CONFLICTS and z2 in MACRO_ZONE_CONFLICTS[z1]:
                             errors.append(
@@ -1021,67 +1202,99 @@ def validate_story_draft(
 
                         # 3. Geometric AABB Collision between distinct non-fullscreen surfaces
                         if z1 != z2 and z1 != "full_screen" and z2 != "full_screen":
-                            x1, y1, w1, h1 = g1
-                            x2, y2, w2, h2 = g2
-                            x_overlap = max(0, min(x1 + w1, x2 + w2) - max(x1, x2))
-                            y_overlap = max(0, min(y1 + h1, y2 + h2) - max(y1, y2))
-                            if x_overlap > 0 and y_overlap > 0:
-                                errors.append(
-                                    DraftValidationError(
-                                        code="CARD_OVERLAP",
-                                        message=(
-                                            f"Spatial bounding box overlap between '{id1}' and '{id2}' ({round(x_overlap)}x{round(y_overlap)}px) "
-                                            f"in zones '{z1}' and '{z2}' between {overlap_start}ms and {overlap_end}ms."
-                                        ),
-                                        target_id=id2,
-                                        details={
-                                            "id1": id1,
-                                            "id2": id2,
-                                            "zone1": z1,
-                                            "zone2": z2,
-                                            "x_overlap": x_overlap,
-                                            "y_overlap": y_overlap,
-                                            "start_ms": overlap_start,
-                                            "end_ms": overlap_end,
-                                        },
-                                    )
-                                )
+                            # Dynamic Auto-Layout Living Canvas accommodates complementary zone pairings
+                            fb_is_valid = True
+                            fb_h = 0
+                            if "full_bottom" in (z1, z2):
+                                fb_h = g1[3] if z1 == "full_bottom" else g2[3]
+                                fb_is_valid = fb_h <= 280
 
-    # Check: Reject any connector active during a stock_video's active interval
-    for sv_obj in draft.objects:
-        if sv_obj.type == "stock_video":
-            sv_enter = enter_times_ms.get(sv_obj.id)
-            sv_exit = exit_times_ms.get(sv_obj.id)
-            if sv_enter is not None and sv_exit is not None:
-                for conn in draft.objects:
-                    if conn.type == "connector":
-                        c_enter = enter_times_ms.get(conn.id)
-                        c_exit = exit_times_ms.get(conn.id)
-                        if c_exit is None:
-                            src_exit = exit_times_ms.get(conn.from_id)
-                            dst_exit = exit_times_ms.get(conn.to_id)
-                            endpoints_exit = [t for t in (src_exit, dst_exit) if t is not None]
-                            c_exit = min(endpoints_exit) if endpoints_exit else (total_duration_ms or 999999)
-
-                        if c_enter is not None and c_exit is not None:
-                            overlap_start = max(sv_enter, c_enter)
-                            overlap_end = min(sv_exit, c_exit)
-                            if overlap_start < overlap_end:
-                                errors.append(
-                                    DraftValidationError(
-                                        code="STOCK_VIDEO_CONNECTOR_COLLISION",
-                                        message=(
-                                            f"Connector '{conn.id}' is active during stock_video '{sv_obj.id}' interval "
-                                            f"[{overlap_start}ms, {overlap_end}ms]. Stock video cannot coexist with connectors."
-                                        ),
-                                        target_id=sv_obj.id,
-                                        details={
-                                            "stock_video_id": sv_obj.id,
-                                            "connector_id": conn.id,
-                                            "overlap_start_ms": overlap_start,
-                                            "overlap_end_ms": overlap_end,
-                                        },
-                                    )
+                            is_complementary = (
+                                {z1, z2} in (
+                                    {"center", "split_left"},
+                                    {"center", "split_right"},
+                                    {"split_left", "split_right"},
                                 )
+                                or (
+                                    ("full_bottom" in (z1, z2))
+                                    and bool({z1, z2} & {"center", "split_left", "split_right"})
+                                    and fb_is_valid
+                                )
+                            )
+                            if not is_complementary:
+                                if "full_bottom" in (z1, z2) and not fb_is_valid:
+                                    errors.append(
+                                        DraftValidationError(
+                                            code="CARD_OVERLAP",
+                                            message=(
+                                                f"Element in 'full_bottom' exceeds vertical budget (height {round(fb_h)}px > 280px) "
+                                                f"between {overlap_start}ms and {overlap_end}ms."
+                                            ),
+                                            target_id=id2,
+                                            details={
+                                                "id1": id1,
+                                                "id2": id2,
+                                                "zone1": z1,
+                                                "zone2": z2,
+                                                "start_ms": overlap_start,
+                                                "end_ms": overlap_end,
+                                            },
+                                        )
+                                    )
+                                else:
+                                    x1, y1, w1, h1 = g1
+                                    x2, y2, w2, h2 = g2
+                                    x_overlap = max(0, min(x1 + w1, x2 + w2) - max(x1, x2))
+                                    y_overlap = max(0, min(y1 + h1, y2 + h2) - max(y1, y2))
+                                    if x_overlap > 0 and y_overlap > 0:
+                                        errors.append(
+                                            DraftValidationError(
+                                                code="CARD_OVERLAP",
+                                                message=(
+                                                    f"Spatial bounding box overlap between '{id1}' and '{id2}' ({round(x_overlap)}x{round(y_overlap)}px) "
+                                                    f"in zones '{z1}' and '{z2}' between {overlap_start}ms and {overlap_end}ms."
+                                                ),
+                                                target_id=id2,
+                                                details={
+                                                    "id1": id1,
+                                                    "id2": id2,
+                                                    "zone1": z1,
+                                                    "zone2": z2,
+                                                    "x_overlap": x_overlap,
+                                                    "y_overlap": y_overlap,
+                                                    "start_ms": overlap_start,
+                                                    "end_ms": overlap_end,
+                                                },
+                                            )
+                                        )
+
+    # Check: Stock video cutaways cannot overlap with each other (Cutaway Layer mutual exclusivity)
+    stock_videos = [o for o in draft.objects if o.type == "stock_video"]
+    for i in range(len(stock_videos)):
+        for j in range(i + 1, len(stock_videos)):
+            sv1 = stock_videos[i]
+            sv2 = stock_videos[j]
+            s1, e1 = enter_times_ms.get(sv1.id), exit_times_ms.get(sv1.id)
+            s2, e2 = enter_times_ms.get(sv2.id), exit_times_ms.get(sv2.id)
+            if s1 is not None and e1 is not None and s2 is not None and e2 is not None:
+                overlap_start = max(s1, s2)
+                overlap_end = min(e1, e2)
+                if overlap_start < overlap_end:
+                    errors.append(
+                        DraftValidationError(
+                            code="STOCK_VIDEO_OVERLAP_COLLISION",
+                            message=(
+                                f"Stock video cutaway '{sv1.id}' overlaps with '{sv2.id}' between "
+                                f"{overlap_start}ms and {overlap_end}ms. Only one cutaway video can play at a time."
+                            ),
+                            target_id=sv2.id,
+                            details={
+                                "sv1": sv1.id,
+                                "sv2": sv2.id,
+                                "overlap_start_ms": overlap_start,
+                                "overlap_end_ms": overlap_end,
+                            },
+                        )
+                    )
 
     return DraftValidationResult(valid=len(errors) == 0, errors=errors)

@@ -93,6 +93,19 @@ export function CreateProjectPage({
         <div className="mode-options">
           <label
             className={
+              visualMode === "continuous_story" ? "mode-option active" : "mode-option"
+            }
+          >
+            <input
+              checked={visualMode === "continuous_story"}
+              name="visual-mode"
+              onChange={() => onVisualModeChange("continuous_story")}
+              type="radio"
+            />
+            <span>Continuous Story (Living Canvas)</span>
+          </label>
+          <label
+            className={
               visualMode === "composition" ? "mode-option active" : "mode-option"
             }
           >
@@ -102,7 +115,7 @@ export function CreateProjectPage({
               onChange={() => onVisualModeChange("composition")}
               type="radio"
             />
-            <span>Composition (New)</span>
+            <span>Composition</span>
           </label>
           <label
             className={

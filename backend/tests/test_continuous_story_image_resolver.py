@@ -479,8 +479,8 @@ def test_image_collision_with_another_object(sample_voice_data):
             },
         ],
         "events": [
-            {"action": "enter", "target_id": "bank_img", "anchor": "going toward the house"},
-            {"action": "enter", "target_id": "loan_card", "anchor": "life of the loan"},
+            {"action": "enter", "target_id": "bank_img", "anchor": "toward the house"},
+            {"action": "enter", "target_id": "loan_card", "anchor": "of the loan"},
         ],
     }
 
@@ -492,8 +492,66 @@ def test_image_collision_with_another_object(sample_voice_data):
         total_duration_ms=9000,
         available_assets=["assets/bank_001.jpg"],
     )
-    assert not val_res.valid
-    assert any(e.code == "ZONE_OCCUPANCY_COLLISION" for e in val_res.errors)
+    # Image + Card in split_left is now valid (auto-stacked vertically)
+    assert val_res.valid
+
+    # Adding 3rd and 4th concurrent elements in split_left is valid (up to 4 elements stacked vertically)
+    raw_draft["objects"].extend([
+        {
+            "id": "extra_card_3",
+            "type": "card",
+            "layout": "split_left",
+            "title": "Extra Card 3",
+            "display_value": "₹10 Lakhs",
+            "subtitle": "Element 3",
+        },
+        {
+            "id": "extra_card_4",
+            "type": "card",
+            "layout": "split_left",
+            "title": "Extra Card 4",
+            "display_value": "₹15 Lakhs",
+            "subtitle": "Element 4",
+        },
+    ])
+    raw_draft["events"].extend([
+        {"action": "enter", "target_id": "extra_card_3", "anchor": "of the loan"},
+        {"action": "enter", "target_id": "extra_card_4", "anchor": "of the loan"},
+    ])
+    draft_four = ContinuousStoryDraft.model_validate(raw_draft)
+    val_res_four = validate_story_draft(
+        draft=draft_four,
+        approved_facts={},
+        word_timestamps=words,
+        total_duration_ms=9000,
+        available_assets=["assets/bank_001.jpg"],
+    )
+    assert val_res_four.valid
+
+    # Adding a 5th concurrent element in split_left exceeds capacity (max 4)
+    raw_draft["objects"].append({
+        "id": "extra_card_5",
+        "type": "card",
+        "layout": "split_left",
+        "title": "Extra Card 5",
+        "display_value": "₹20 Lakhs",
+        "subtitle": "Overflow 5",
+    })
+    raw_draft["events"].append({
+        "action": "enter",
+        "target_id": "extra_card_5",
+        "anchor": "of the loan",
+    })
+    draft_over = ContinuousStoryDraft.model_validate(raw_draft)
+    val_res_over = validate_story_draft(
+        draft=draft_over,
+        approved_facts={},
+        word_timestamps=words,
+        total_duration_ms=9000,
+        available_assets=["assets/bank_001.jpg"],
+    )
+    assert not val_res_over.valid
+    assert any(e.code == "ZONE_OCCUPANCY_COLLISION" for e in val_res_over.errors)
 
 
 # ----------------------------------------------------
@@ -521,10 +579,10 @@ def test_image_exiting_correctly(sample_voice_data):
             },
         ],
         "events": [
-            # 1. bank_img enters at "going toward the house" (2000ms)
-            {"action": "enter", "target_id": "bank_img", "anchor": "going toward the house"},
-            # 2. bank_img exits cleanly at "life of the loan" (4000ms)
-            {"action": "exit", "target_id": "bank_img", "anchor": "life of the loan", "direction": "fade"},
+            # 1. bank_img enters at "toward the house" (2050ms)
+            {"action": "enter", "target_id": "bank_img", "anchor": "toward the house"},
+            # 2. bank_img exits cleanly at "of the loan" (4150ms)
+            {"action": "exit", "target_id": "bank_img", "anchor": "of the loan", "direction": "fade"},
             # 3. loan_card enters "split_left" at "as interest" (7600ms)
             {"action": "enter", "target_id": "loan_card", "anchor": "as interest"},
         ],
@@ -706,6 +764,7 @@ def test_real_mp4_render_using_downloaded_image(sample_voice_data):
         "Permission denied" in (video.error_message or "")
         or "SIGTRAP" in (video.error_message or "")
         or "timed out" in (video.error_message or "")
+        or "EPERM" in (video.error_message or "")
     ):
         pytest.skip("Remotion Chromium browser launch restricted by sandbox (run with unsandboxed mode for real MP4 rendering).")
 
@@ -737,10 +796,10 @@ def test_image_dimension_clamping_under_zone_boundaries():
     assert cx == 960 - 210  # 750
     assert cy == 540 - 120  # 420
 
-    # If an oversized width (e.g. 800x600) is specified on localized image, it is clamped to zone bounds (420x240)
+    # If an oversized width (e.g. 1200x800) is specified on localized image, it is clamped to zone safe bounds (740x440 for split_left)
     clamped_x, clamped_y, clamped_w, clamped_h = _resolve_obj_geometry(
-        "image", "split_left", width=800, height=600
+        "image", "split_left", width=1200, height=800
     )
-    assert clamped_w <= 420
-    assert clamped_h <= 240
-    assert clamped_x + clamped_w <= 690
+    assert clamped_w <= 740
+    assert clamped_h <= 440
+    assert clamped_x + clamped_w <= 960  # Stays left of divider

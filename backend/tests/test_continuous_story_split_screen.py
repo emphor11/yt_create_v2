@@ -341,8 +341,70 @@ def test_collision_across_divider_and_same_half(loan_fixture: dict):
         word_timestamps=loan_fixture["word_timestamps"],
         total_duration_ms=loan_fixture["total_duration_ms"],
     )
-    assert result_same_half.valid is False
-    assert any(e.code == "ZONE_OCCUPANCY_COLLISION" for e in result_same_half.errors)
+    # 2 cards in split_left is now valid (auto-stacked vertically)
+    assert result_same_half.valid is True
+
+    # 3 and 4 cards in split_left are valid (stacked vertically up to 4 elements)
+    raw_same_half["objects"].extend([
+        {
+            "id": "left_card_3",
+            "type": "card",
+            "purpose": "Third card in split_left",
+            "layout": "split_left",
+            "title": "Third Card",
+            "subtitle": "Left Side 3",
+            "display_value": "₹30 Lakh",
+            "numeric_value": 3000000,
+        },
+        {
+            "id": "left_card_4",
+            "type": "card",
+            "purpose": "Fourth card in split_left",
+            "layout": "split_left",
+            "title": "Fourth Card",
+            "subtitle": "Left Side 4",
+            "display_value": "₹40 Lakh",
+            "numeric_value": 4000000,
+        },
+    ])
+    raw_same_half["events"].extend([
+        {"action": "enter", "target_id": "left_card_3", "anchor": "50 lakh"},
+        {"action": "enter", "target_id": "left_card_4", "anchor": "50 lakh"},
+    ])
+    draft_four = ContinuousStoryDraft.model_validate(raw_same_half)
+    result_four = validate_story_draft(
+        draft=draft_four,
+        approved_facts=loan_fixture["approved_facts"],
+        word_timestamps=loan_fixture["word_timestamps"],
+        total_duration_ms=loan_fixture["total_duration_ms"],
+    )
+    assert result_four.valid is True
+
+    # 5 cards in split_left exceeds max concurrency (4)
+    raw_same_half["objects"].append({
+        "id": "left_card_5",
+        "type": "card",
+        "purpose": "Fifth card in split_left",
+        "layout": "split_left",
+        "title": "Fifth Card",
+        "subtitle": "Left Side 5",
+        "display_value": "₹50 Lakh",
+        "numeric_value": 5000000,
+    })
+    raw_same_half["events"].append({
+        "action": "enter",
+        "target_id": "left_card_5",
+        "anchor": "50 lakh",
+    })
+    draft_five = ContinuousStoryDraft.model_validate(raw_same_half)
+    result_five = validate_story_draft(
+        draft=draft_five,
+        approved_facts=loan_fixture["approved_facts"],
+        word_timestamps=loan_fixture["word_timestamps"],
+        total_duration_ms=loan_fixture["total_duration_ms"],
+    )
+    assert result_five.valid is False
+    assert any(e.code == "ZONE_OCCUPANCY_COLLISION" for e in result_five.errors)
 
     # 6c. Geometric overlap between split_left (y=420..660) and full_bottom (y=640..960)
     raw_geom_overlap = {

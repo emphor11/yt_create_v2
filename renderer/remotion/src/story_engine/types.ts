@@ -17,7 +17,11 @@ export type PrimitiveType =
   | "chart"
   | "image"
   | "stock_video"
-  | "character";
+  | "character"
+  | "scale"
+  | "money_stack"
+  | "waterfall"
+  | "capital_flow";
 
 export type CharacterStyle = "futuristic_stick";
 export type CharacterPose =
@@ -109,11 +113,16 @@ export interface DocumentItem {
 export interface DocumentProps {
   title: string;
   serialNo?: string;
+  docReference?: string;
   issuer?: string;
   date?: string;
+  docBody?: string;
+  highlightPhrase?: string;
+  stampText?: string;
   statusBadge?: string;
   items?: DocumentItem[];
   watermark?: string;
+  visualState?: VisualStateKind;
   accentColor?: string;
   value?: number;
   provenance?: FactualProvenance;
@@ -183,6 +192,77 @@ export interface HighlightProps {
   color?: string;
 }
 
+export interface ScaleProps {
+  title?: string;
+  leftTitle: string;
+  leftDisplayValue?: string;
+  leftNumericValue?: number;
+  leftBadge?: string;
+  rightTitle: string;
+  rightDisplayValue?: string;
+  rightNumericValue?: number;
+  rightBadge?: string;
+  tiltDirection?: "left" | "right" | "balanced";
+  visualState?: VisualStateKind;
+  accentColor?: string;
+}
+
+export interface MoneyStackProps {
+  title?: string;
+  stackMode?: "single_tower" | "comparison";
+  unitLabel?: string;
+  unitValue?: number;
+  totalDisplayValue?: string;
+  totalNumericValue?: number;
+  comparisonLeftLabel?: string;
+  comparisonLeftValue?: string;
+  comparisonRightLabel?: string;
+  comparisonRightValue?: string;
+  showHumanScale?: boolean;
+  visualState?: VisualStateKind;
+  badge?: string;
+  accentColor?: string;
+}
+
+export type WaterfallStepType = "deduction" | "addition" | "subtotal";
+
+export interface WaterfallStep {
+  label: string;
+  value: number;
+  displayValue: string;
+  stepType: WaterfallStepType;
+}
+
+export interface WaterfallProps {
+  title?: string;
+  initialLabel: string;
+  initialValue?: number;
+  initialDisplayValue: string;
+  steps: WaterfallStep[];
+  finalLabel: string;
+  finalValue?: number;
+  finalDisplayValue: string;
+  visualState?: VisualStateKind;
+  badge?: string;
+  accentColor?: string;
+}
+
+export type CapitalFlowDirection = "left_to_right" | "right_to_left" | "bidirectional";
+
+export interface CapitalFlowProps {
+  title?: string;
+  sourceLabel: string;
+  sourceSublabel?: string;
+  targetLabel: string;
+  targetSublabel?: string;
+  flowLabel?: string;
+  flowDisplayValue: string;
+  flowDirection?: CapitalFlowDirection;
+  visualState?: VisualStateKind;
+  badge?: string;
+  accentColor?: string;
+}
+
 export interface StoryObject {
   id: string;
   type: PrimitiveType;
@@ -204,6 +284,10 @@ export interface StoryObject {
   connectorProps?: ConnectorProps;
   highlightProps?: HighlightProps;
   characterProps?: CharacterProps;
+  scaleProps?: ScaleProps;
+  moneyStackProps?: MoneyStackProps;
+  waterfallProps?: WaterfallProps;
+  capitalFlowProps?: CapitalFlowProps;
 }
 
 // ----------------------------------------------------
@@ -225,6 +309,30 @@ export interface StampProps {
   angle?: number;
 }
 
+export type StampTone = "verdict" | "warning" | "classified" | "amount";
+
+export type AtmospherePreset =
+  | "desk_noir"
+  | "paper_clean"
+  | "blueprint"
+  | "vault"
+  | "newsroom";
+
+export interface KeyLightConfig {
+  anchor?: "tl" | "tr" | "bl" | "br" | "top";
+  color?: string;
+  intensity?: number;
+  flicker?: number;
+}
+
+export interface AtmosphereProps {
+  preset?: AtmospherePreset;
+  vignette?: number;
+  grain?: number;
+  keyLight?: KeyLightConfig;
+  parallax?: number;
+}
+
 export type ActionType =
   | "enter"
   | "move"
@@ -238,7 +346,8 @@ export type ActionType =
   | "merge"
   | "change_visual_state"
   | "exit"
-  | "change_pose";
+  | "change_pose"
+  | "stamp";
 
 export interface EnterAction {
   action: "enter";
@@ -380,6 +489,19 @@ export interface ChangePoseAction {
   anchor?: string;
 }
 
+export interface StampAction {
+  action: "stamp";
+  targetId?: string; // target object ID, or "canvas"
+  startFrame: number;
+  durationFrames: number;
+  text: string;
+  tone?: StampTone;
+  color?: string;
+  rotationDeg?: number;
+  shake?: boolean;
+  anchor?: string;
+}
+
 export type StoryAction =
   | EnterAction
   | MoveAction
@@ -393,7 +515,8 @@ export type StoryAction =
   | MergeAction
   | ChangeVisualStateAction
   | ExitAction
-  | ChangePoseAction;
+  | ChangePoseAction
+  | StampAction;
 
 // ----------------------------------------------------
 // Real Narration Timing
@@ -431,6 +554,8 @@ export interface StoryPlan {
   safeMargin?: number; // e.g. 80px default safe boundary
   audioFileName?: string; // Real audible MP3 file in public/
   narration?: NarrationTrack;
+  autoLayout?: boolean; // Dynamic living canvas auto-layout reflow
+  atmosphere?: AtmosphereProps;
   objects: StoryObject[];
   events: StoryAction[];
   debug?: boolean;

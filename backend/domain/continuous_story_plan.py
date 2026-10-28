@@ -86,6 +86,19 @@ VALID_CHARACTER_EMOTIONS = ("neutral", "focused", "concerned", "surprised", "hap
 CharacterFacing = Literal["left", "right"]
 VALID_CHARACTER_FACINGS = ("left", "right")
 
+AtmospherePreset = Literal[
+    "paper_clean",
+    "blueprint",
+    "vault",
+    "newsroom",
+]
+VALID_ATMOSPHERE_PRESETS = (
+    "paper_clean",
+    "blueprint",
+    "vault",
+    "newsroom",
+)
+
 ObjectType = Literal[
     "card",
     "number",
@@ -95,6 +108,11 @@ ObjectType = Literal[
     "connector",
     "character",
     "stock_video",
+    "scale",
+    "money_stack",
+    "document",
+    "waterfall",
+    "capital_flow",
 ]
 
 
@@ -160,6 +178,17 @@ class VideoAssetRequest(StrictBaseModel):
         if not v or not v.strip():
             raise ValueError("VideoAssetRequest 'query' must be a non-empty string.")
         return v.strip()
+
+
+class WaterfallStepDraft(StrictBaseModel):
+    """A deduction or addition step in a financial cash flow waterfall funnel."""
+    label: str = Field(description="Step name (e.g. 'Operating Expenses', 'Direct Taxes', 'Loan EMI').")
+    value: float = Field(description="Numeric amount for math calculations.")
+    display_value: str = Field(description="Formatted human display string (e.g. '-₹60,000', '-₹2,500 Cr').")
+    step_type: Literal["deduction", "addition", "subtotal"] = Field(
+        default="deduction",
+        description="Step type: 'deduction' (leakage/cost), 'addition' (revenue/inflow), or 'subtotal'."
+    )
 
 
 class StoryObjectDraft(StrictBaseModel):
@@ -311,6 +340,172 @@ class StoryObjectDraft(StrictBaseModel):
     facing: CharacterFacing | None = Field(
         default=None,
         description="Direction character faces ('left' or 'right')."
+    )
+
+    # Scale-specific fields (Directly Authored)
+    left_title: str | None = Field(
+        default=None,
+        description="Left pan label/title (scale elements only)."
+    )
+    left_display_value: str | None = Field(
+        default=None,
+        description="Left pan formatted value string, e.g. '₹50 Lakhs' (scale elements only)."
+    )
+    left_numeric_value: float | None = Field(
+        default=None,
+        description="Left pan raw numeric weight for physics calculation (scale elements only)."
+    )
+    left_badge: str | None = Field(
+        default=None,
+        description="Left pan status badge text (scale elements only)."
+    )
+    right_title: str | None = Field(
+        default=None,
+        description="Right pan label/title (scale elements only)."
+    )
+    right_display_value: str | None = Field(
+        default=None,
+        description="Right pan formatted value string, e.g. '₹88.4 Lakhs' (scale elements only)."
+    )
+    right_numeric_value: float | None = Field(
+        default=None,
+        description="Right pan raw numeric weight for physics calculation (scale elements only)."
+    )
+    right_badge: str | None = Field(
+        default=None,
+        description="Right pan status badge text (scale elements only)."
+    )
+    tilt_direction: Literal["left", "right", "balanced"] | None = Field(
+        default=None,
+        description="Optional explicit tilt override ('left', 'right', 'balanced'). If omitted, computed from left vs right numeric values."
+    )
+
+    # Money Stack-specific fields (Directly Authored)
+    stack_mode: Literal["single_tower", "comparison"] | None = Field(
+        default=None,
+        description="Stack mode: 'single_tower' (one skyscraper) or 'comparison' (side-by-side divide piles)."
+    )
+    unit_label: str | None = Field(
+        default=None,
+        description="Human label for each brick/bundle, e.g. '₹1,000 Cr per brick' or '₹50,000 per bundle'."
+    )
+    unit_value: float | None = Field(
+        default=None,
+        description="Numeric value represented by one brick/bundle."
+    )
+    total_display_value: str | None = Field(
+        default=None,
+        description="Total formatted value string, e.g. '₹25,000 Cr'."
+    )
+    total_numeric_value: float | None = Field(
+        default=None,
+        description="Total numeric value represented by the entire stack."
+    )
+    comparison_left_label: str | None = Field(
+        default=None,
+        description="Comparison mode: left pile label (e.g. 'Monthly Savings')."
+    )
+    comparison_left_value: str | None = Field(
+        default=None,
+        description="Comparison mode: left pile display value (e.g. '₹25,000')."
+    )
+    comparison_right_label: str | None = Field(
+        default=None,
+        description="Comparison mode: right pile label (e.g. 'Daily Profit')."
+    )
+    comparison_right_value: str | None = Field(
+        default=None,
+        description="Comparison mode: right pile display value (e.g. '₹4.8 Crore')."
+    )
+    show_human_scale: bool | None = Field(
+        default=None,
+        description="Whether to show the stick-figure silhouette at the base for human scale reference."
+    )
+
+    # Document-specific fields (Directly Authored)
+    doc_title: str | None = Field(
+        default=None,
+        description="Headline document title (e.g. 'SEBI CIRCULAR // OCT 2024', 'RESERVE BANK OF INDIA')."
+    )
+    doc_reference: str | None = Field(
+        default=None,
+        description="Reference / circular serial number (e.g. 'CIRC-8924/2024', 'NOTIFICATION NO. 45')."
+    )
+    doc_body: str | None = Field(
+        default=None,
+        description="Verbatim or summarized legal/regulatory text excerpt inside the proof document."
+    )
+    highlight_phrase: str | None = Field(
+        default=None,
+        description="Key excerpt phrase within doc_body that receives an animated yellow highlighter swipe."
+    )
+    watermark: str | None = Field(
+        default=None,
+        description="Optional background security watermark (e.g. 'OFFICIAL', 'CONFIDENTIAL', 'CIRCULAR')."
+    )
+    stamp_text: str | None = Field(
+        default=None,
+        description="Optional rubber stamp overlay text (e.g. 'VERIFIED', 'MANDATORY', 'WARNING', 'APPROVED')."
+    )
+
+    # Waterfall-specific fields (Directly Authored)
+    initial_label: str | None = Field(
+        default=None,
+        description="Starting capital or gross revenue label (e.g. 'Gross Corporate Revenue', 'Monthly Salary')."
+    )
+    initial_value: float | None = Field(
+        default=None,
+        description="Starting numeric value."
+    )
+    initial_display_value: str | None = Field(
+        default=None,
+        description="Starting formatted string (e.g. '₹1,00,000', '₹10,000 Cr')."
+    )
+    steps: list[WaterfallStepDraft] | None = Field(
+        default=None,
+        description="List of cascading deduction/addition steps in the waterfall."
+    )
+    final_label: str | None = Field(
+        default=None,
+        description="Label for surviving bottom cash (e.g. 'Net Operating Cash', 'Surviving Savings')."
+    )
+    final_value: float | None = Field(
+        default=None,
+        description="Final surviving numeric value."
+    )
+    final_display_value: str | None = Field(
+        default=None,
+        description="Final surviving formatted string (e.g. '₹12,000', '₹1,200 Cr')."
+    )
+
+    # Capital Flow-specific fields (Directly Authored)
+    source_label: str | None = Field(
+        default=None,
+        description="Source entity/location label (e.g. 'MUMBAI // BSE', 'Domestic Retail Accounts')."
+    )
+    source_sublabel: str | None = Field(
+        default=None,
+        description="Optional source subtext (e.g. 'Emerging Market Equity')."
+    )
+    target_label: str | None = Field(
+        default=None,
+        description="Destination entity/location label (e.g. 'NEW YORK // WALL ST', 'US 10-Yr Treasuries')."
+    )
+    target_sublabel: str | None = Field(
+        default=None,
+        description="Optional destination subtext (e.g. 'Safe Haven Yield (4.5%)')."
+    )
+    flow_label: str | None = Field(
+        default=None,
+        description="Label describing the capital movement (e.g. 'Capital Flight', 'FII Net Drain', 'SIP Pipeline')."
+    )
+    flow_display_value: str | None = Field(
+        default=None,
+        description="Formatted monetary value in flight (e.g. '₹1.14 Lakh Crore', '$15 Billion')."
+    )
+    flow_direction: Literal["left_to_right", "right_to_left", "bidirectional"] | None = Field(
+        default=None,
+        description="Direction of capital flow particles/arrow ('left_to_right', 'right_to_left', 'bidirectional')."
     )
 
     @model_validator(mode="after")
@@ -523,6 +718,81 @@ class StoryObjectDraft(StrictBaseModel):
                     f"Character '{self.id}' cannot specify non-character fields: {', '.join(leaked_fields)}."
                 )
 
+        elif self.type == "scale":
+            has_label = bool(
+                (self.left_title and self.left_title.strip())
+                or (self.right_title and self.right_title.strip())
+                or (self.title and self.title.strip())
+            )
+            if not has_label:
+                raise ValueError(f"Scale '{self.id}' requires at least 'left_title', 'right_title', or 'title'.")
+            if self.from_id is not None or self.to_id is not None or self.label is not None:
+                raise ValueError(f"Scale '{self.id}' cannot specify connector fields.")
+            if self.chart_type is not None or self.series is not None or self.points is not None:
+                raise ValueError(f"Scale '{self.id}' cannot specify chart fields.")
+            if self.asset_id is not None or self.asset_request is not None:
+                raise ValueError(f"Scale '{self.id}' cannot specify media asset fields.")
+
+        elif self.type == "money_stack":
+            has_val = bool(
+                (self.total_display_value and self.total_display_value.strip())
+                or (self.comparison_left_value and self.comparison_left_value.strip())
+                or (self.display_value and str(self.display_value).strip())
+                or (self.title and self.title.strip())
+            )
+            if not has_val:
+                raise ValueError(f"MoneyStack '{self.id}' requires 'total_display_value', 'comparison_left_value', or 'display_value'.")
+            if self.from_id is not None or self.to_id is not None or self.label is not None:
+                raise ValueError(f"MoneyStack '{self.id}' cannot specify connector fields.")
+            if self.chart_type is not None or self.series is not None or self.points is not None:
+                raise ValueError(f"MoneyStack '{self.id}' cannot specify chart fields.")
+            if self.asset_id is not None or self.asset_request is not None:
+                raise ValueError(f"MoneyStack '{self.id}' cannot specify media asset fields.")
+
+        elif self.type == "document":
+            has_title = bool(
+                (self.doc_title and self.doc_title.strip())
+                or (self.title and self.title.strip())
+            )
+            if not has_title:
+                raise ValueError(f"Document '{self.id}' requires 'doc_title' or 'title'.")
+            if not self.doc_body or not self.doc_body.strip():
+                raise ValueError(f"Document '{self.id}' requires non-empty 'doc_body' text excerpt.")
+            if self.from_id is not None or self.to_id is not None or self.label is not None:
+                raise ValueError(f"Document '{self.id}' cannot specify connector fields.")
+            if self.chart_type is not None or self.series is not None or self.points is not None:
+                raise ValueError(f"Document '{self.id}' cannot specify chart fields.")
+            if self.asset_id is not None or self.asset_request is not None:
+                raise ValueError(f"Document '{self.id}' cannot specify media asset fields.")
+
+        elif self.type == "waterfall":
+            if not self.initial_label or not self.initial_label.strip():
+                raise ValueError(f"Waterfall '{self.id}' requires 'initial_label'.")
+            if not self.initial_display_value or not self.initial_display_value.strip():
+                raise ValueError(f"Waterfall '{self.id}' requires 'initial_display_value'.")
+            if not self.steps:
+                raise ValueError(f"Waterfall '{self.id}' requires at least one step in 'steps'.")
+            if not self.final_label or not self.final_label.strip():
+                raise ValueError(f"Waterfall '{self.id}' requires 'final_label'.")
+            if not self.final_display_value or not self.final_display_value.strip():
+                raise ValueError(f"Waterfall '{self.id}' requires 'final_display_value'.")
+            if self.from_id is not None or self.to_id is not None or self.label is not None:
+                raise ValueError(f"Waterfall '{self.id}' cannot specify connector fields.")
+            if self.chart_type is not None or self.series is not None or self.points is not None:
+                raise ValueError(f"Waterfall '{self.id}' cannot specify chart fields.")
+
+        elif self.type == "capital_flow":
+            if not self.source_label or not self.source_label.strip():
+                raise ValueError(f"CapitalFlow '{self.id}' requires 'source_label'.")
+            if not self.target_label or not self.target_label.strip():
+                raise ValueError(f"CapitalFlow '{self.id}' requires 'target_label'.")
+            if not self.flow_display_value or not self.flow_display_value.strip():
+                raise ValueError(f"CapitalFlow '{self.id}' requires 'flow_display_value'.")
+            if self.from_id is not None or self.to_id is not None or self.label is not None:
+                raise ValueError(f"CapitalFlow '{self.id}' cannot specify connector fields.")
+            if self.chart_type is not None or self.series is not None or self.points is not None:
+                raise ValueError(f"CapitalFlow '{self.id}' cannot specify chart fields.")
+
         # Forbid character fields on other element types
         if self.type != "character":
             if (
@@ -534,6 +804,84 @@ class StoryObjectDraft(StrictBaseModel):
             ):
                 raise ValueError(
                     f"{self.type.title()} '{self.id}' cannot specify character fields ('character_style', 'role', 'pose', 'facing', 'emotion')."
+                )
+
+        # Forbid scale fields on other element types
+        if self.type != "scale":
+            if (
+                self.left_title is not None
+                or self.left_display_value is not None
+                or self.left_numeric_value is not None
+                or self.left_badge is not None
+                or self.right_title is not None
+                or self.right_display_value is not None
+                or self.right_numeric_value is not None
+                or self.right_badge is not None
+                or self.tilt_direction is not None
+            ):
+                raise ValueError(
+                    f"{self.type.title()} '{self.id}' cannot specify scale fields ('left_title', 'right_title', 'tilt_direction', etc.)."
+                )
+
+        # Forbid money_stack fields on other element types
+        if self.type != "money_stack":
+            if (
+                self.stack_mode is not None
+                or self.unit_label is not None
+                or self.unit_value is not None
+                or self.total_display_value is not None
+                or self.total_numeric_value is not None
+                or self.comparison_left_label is not None
+                or self.comparison_left_value is not None
+                or self.comparison_right_label is not None
+                or self.comparison_right_value is not None
+                or self.show_human_scale is not None
+            ):
+                raise ValueError(
+                    f"{self.type.title()} '{self.id}' cannot specify money_stack fields ('unit_label', 'total_display_value', etc.)."
+                )
+
+        # Forbid document fields on other element types
+        if self.type != "document":
+            if (
+                self.doc_title is not None
+                or self.doc_reference is not None
+                or self.doc_body is not None
+                or self.highlight_phrase is not None
+                or self.watermark is not None
+            ):
+                raise ValueError(
+                    f"{self.type.title()} '{self.id}' cannot specify document fields ('doc_title', 'doc_body', 'highlight_phrase', etc.)."
+                )
+
+        # Forbid waterfall fields on other element types
+        if self.type != "waterfall":
+            if (
+                self.initial_label is not None
+                or self.initial_value is not None
+                or self.initial_display_value is not None
+                or self.steps is not None
+                or self.final_label is not None
+                or self.final_value is not None
+                or self.final_display_value is not None
+            ):
+                raise ValueError(
+                    f"{self.type.title()} '{self.id}' cannot specify waterfall fields ('initial_label', 'steps', 'final_label', etc.)."
+                )
+
+        # Forbid capital_flow fields on other element types
+        if self.type != "capital_flow":
+            if (
+                self.source_label is not None
+                or self.source_sublabel is not None
+                or self.target_label is not None
+                or self.target_sublabel is not None
+                or self.flow_label is not None
+                or self.flow_display_value is not None
+                or self.flow_direction is not None
+            ):
+                raise ValueError(
+                    f"{self.type.title()} '{self.id}' cannot specify capital_flow fields ('source_label', 'target_label', 'flow_display_value', etc.)."
                 )
 
         return self
@@ -553,10 +901,11 @@ class StoryEventDraft(StrictBaseModel):
         "change_visual_state",
         "exit",
         "change_pose",
+        "stamp",
     ] = Field(description="The motion behavior to trigger.")
     target_id: str = Field(
         validation_alias=AliasChoices("target_id", "target"),
-        description="The ID of the visual element this action targets."
+        description="The ID of the visual element this action targets (or 'canvas' for canvas-level stamps)."
     )
     anchor: str = Field(description="The exact spoken phrase in narration where this action occurs.")
 
@@ -628,6 +977,29 @@ class StoryEventDraft(StrictBaseModel):
         default=None,
         description="Optional target facing for 'change_pose' action ('left', 'right')."
     )
+    stamp_text: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("stamp_text", "stampText", "text_stamp"),
+        description="Text displayed inside the rubber impact stamp for 'stamp' action (e.g. 'OVERVALUED', 'PRICED FOR PERFECTION')."
+    )
+    stamp_tone: Literal["verdict", "warning", "classified", "amount"] | None = Field(
+        default="verdict",
+        validation_alias=AliasChoices("stamp_tone", "stampTone", "tone"),
+        description="Visual tone for the rubber stamp: 'verdict' (crimson), 'warning' (amber), 'classified' (slate), 'amount' (green)."
+    )
+    stamp_color: str | None = Field(
+        default=None,
+        description="Optional custom hex color for the rubber stamp."
+    )
+    rotation_deg: float | None = Field(
+        default=None,
+        validation_alias=AliasChoices("rotation_deg", "rotationDeg", "angle"),
+        description="Resting rotation angle in degrees for the rubber stamp (default -6.5)."
+    )
+    shake: bool = Field(
+        default=True,
+        description="Whether camera receives a transient physical shake on stamp impact."
+    )
 
     @model_validator(mode="after")
     def validate_action_rules(self) -> StoryEventDraft:
@@ -697,6 +1069,14 @@ class StoryEventDraft(StrictBaseModel):
             if self.facing is not None:
                 raise ValueError(f"Action '{self.action}' on '{self.target_id}' cannot specify 'facing' (only for 'change_pose').")
 
+        # 9. 'stamp' requires non-empty 'stamp_text'
+        if self.action == "stamp":
+            if not self.stamp_text or not self.stamp_text.strip():
+                raise ValueError(f"Action 'stamp' targeting '{self.target_id}' requires non-empty 'stamp_text'.")
+        else:
+            if self.stamp_text is not None:
+                raise ValueError(f"Action '{self.action}' on '{self.target_id}' cannot specify 'stamp_text' (only for 'stamp').")
+
         return self
 
 
@@ -705,6 +1085,10 @@ class ContinuousStoryDraft(StrictBaseModel):
     The complete AI-authored story choreography draft using atomic visual elements.
     """
     story_id: str = Field(description="Identifier of the story (e.g. 'loan_rate_hike').")
+    atmosphere: AtmospherePreset | None = Field(
+        default="paper_clean",
+        description="The aesthetic material atmosphere preset for the canvas ('paper_clean', 'blueprint', 'vault', 'newsroom')."
+    )
     objects: list[StoryObjectDraft] = Field(
         description="Independent, atomic visual elements that participate in the continuous scene."
     )
@@ -796,8 +1180,7 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                                 "value_fact_id": {"type": "string", "description": "Required for numeric cards: approved fact identity used for verification and provenance."},
                                 "subtitle": {"type": "string", "description": "Card explanatory subtitle authored directly by AI (concise 3-6 words)."},
                                 "badge": {"type": "string", "description": "Status badge text."},
-                                "visual_state": {"type": "string", "enum": state_enum, "description": "Visual state."},
-                                "accent": {"type": "string", "description": "Optional accent color hex code."}
+                                "visual_state": {"type": "string", "enum": state_enum, "description": "Visual state."}
                             },
                             "required": ["id", "type", "layout", "title", "display_value", "subtitle"]
                         },
@@ -871,7 +1254,6 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                                         "required": ["xLabel", "yValue"]
                                     }
                                 },
-                                "accent": {"type": "string", "description": "Accent hex code."},
                                 "fact_id": {"type": "string", "description": "Optional reference to approved fact ID."}
                             },
                             "required": ["id", "type", "layout", "chart_type", "points"]
@@ -967,10 +1349,122 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                                 "label": {"type": "string", "description": "Optional human-readable label."},
                                 "pose": {"type": "string", "enum": pose_enum, "description": "Initial character pose ('idle', 'walk', 'point', 'think', 'worried', 'celebrate')."},
                                 "emotion": {"type": "string", "enum": emotion_enum, "description": "Initial character emotion ('neutral', 'focused', 'concerned', 'surprised', 'happy')."},
-                                "facing": {"type": "string", "enum": facing_enum, "description": "Facing direction ('left' or 'right')."},
-                                "accent": {"type": "string", "description": "Optional accent color hex code (e.g. '#38BDF8')."}
+                                "facing": {"type": "string", "enum": facing_enum, "description": "Facing direction ('left' or 'right')."}
                             },
                             "required": ["id", "type", "layout", "character_style", "role", "pose", "facing"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Unique identifier for the scale element."},
+                                "type": {"type": "string", "enum": ["scale"]},
+                                "layout": {"type": "string", "enum": zone_enum, "description": "Spatial zone name ('center', 'split_left', or 'split_right')."},
+                                "purpose": {"type": "string", "description": "Editorial purpose of the balance scale visualizer."},
+                                "title": {"type": "string", "description": "Optional overall headline title for the balance scale."},
+                                "left_title": {"type": "string", "description": "Title label for the left pan force (e.g. 'Monthly Cash Flow')."},
+                                "left_display_value": {"type": "string", "description": "Display value on left pan (e.g. '₹1.2 Lakh')."},
+                                "left_numeric_value": {"type": "number", "description": "Numeric weight value for left pan."},
+                                "left_badge": {"type": "string", "description": "Status badge for left side (e.g. 'HEALTHY')."},
+                                "right_title": {"type": "string", "description": "Title label for the right pan force (e.g. 'Total EMI Burden')."},
+                                "right_display_value": {"type": "string", "description": "Display value on right pan (e.g. '₹2.8 Lakh')."},
+                                "right_numeric_value": {"type": "number", "description": "Numeric weight value for right pan."},
+                                "right_badge": {"type": "string", "description": "Status badge for right side (e.g. 'DANGER // DEFICIT')."},
+                                "tilt_direction": {"type": "string", "enum": ["left", "right", "balanced"], "description": "Which side is heavier/tipping downwards ('left', 'right', or 'balanced')."},
+                                "visual_state": {"type": "string", "enum": state_enum, "description": "Visual state."}
+                            },
+                            "required": ["id", "type", "layout", "left_title", "right_title"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Unique identifier for the money_stack element."},
+                                "type": {"type": "string", "enum": ["money_stack"]},
+                                "layout": {"type": "string", "enum": zone_enum, "description": "Spatial zone name ('center', 'split_left', or 'split_right')."},
+                                "purpose": {"type": "string", "description": "Editorial purpose of this tangible money stack visualizer."},
+                                "title": {"type": "string", "description": "Optional title for the stack visualizer."},
+                                "stack_mode": {"type": "string", "enum": ["single_tower", "comparison"], "description": "Visualization mode: 'single_tower' (monumental scale) or 'comparison' (wealth divide)."},
+                                "unit_label": {"type": "string", "description": "Legend label per brick (e.g. '₹1,000 Cr per brick')."},
+                                "unit_value": {"type": "number", "description": "Numeric denomination per brick."},
+                                "total_display_value": {"type": "string", "description": "Formatted total value for single_tower mode (e.g. '₹25,000 Crore')."},
+                                "total_numeric_value": {"type": "number", "description": "Raw numeric total value for single_tower mode."},
+                                "comparison_left_label": {"type": "string", "description": "Label for left stack in comparison mode (e.g. 'Monthly Retail Salary')."},
+                                "comparison_left_value": {"type": "string", "description": "Formatted display value for left stack (e.g. '₹35,000')."},
+                                "comparison_right_label": {"type": "string", "description": "Label for right stack in comparison mode (e.g. 'Top 1% Daily Gain')."},
+                                "comparison_right_value": {"type": "string", "description": "Formatted display value for right stack (e.g. '₹4.8 Crore')."},
+                                "show_human_scale": {"type": "boolean", "description": "Whether to render stick figure silhouette next to the stack for human grounding."},
+                                "badge": {"type": "string", "description": "Status badge text overlay."},
+                                "visual_state": {"type": "string", "enum": state_enum, "description": "Visual state."}
+                            },
+                            "required": ["id", "type", "layout"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Unique identifier for the document element."},
+                                "type": {"type": "string", "enum": ["document"]},
+                                "layout": {"type": "string", "enum": zone_enum, "description": "Spatial zone name ('center', 'split_left', or 'split_right')."},
+                                "purpose": {"type": "string", "description": "Editorial purpose of this investigative proof document."},
+                                "doc_title": {"type": "string", "description": "Headline document title (e.g. 'SEBI CIRCULAR // OCT 2024', 'RESERVE BANK OF INDIA')."},
+                                "title": {"type": "string", "description": "Fallback document title."},
+                                "doc_reference": {"type": "string", "description": "Reference / circular serial number (e.g. 'CIRC-8924/2024', 'NOTIFICATION NO. 45')."},
+                                "doc_body": {"type": "string", "description": "MANDATORY verbatim or summarized legal/regulatory text excerpt inside the proof document."},
+                                "highlight_phrase": {"type": "string", "description": "Key phrase within doc_body that receives an animated yellow highlighter mark."},
+                                "watermark": {"type": "string", "description": "Optional background security watermark (e.g. 'OFFICIAL', 'CONFIDENTIAL', 'CIRCULAR')."},
+                                "stamp_text": {"type": "string", "description": "Optional rubber stamp overlay text (e.g. 'VERIFIED', 'MANDATORY', 'WARNING', 'APPROVED')."},
+                                "visual_state": {"type": "string", "enum": state_enum, "description": "Visual state."}
+                            },
+                            "required": ["id", "type", "layout", "doc_body"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Unique identifier for the waterfall element."},
+                                "type": {"type": "string", "enum": ["waterfall"]},
+                                "layout": {"type": "string", "enum": zone_enum, "description": "Spatial zone name ('center', 'split_left', or 'split_right')."},
+                                "purpose": {"type": "string", "description": "Editorial purpose of the financial cash flow waterfall funnel."},
+                                "title": {"type": "string", "description": "Optional title for the waterfall funnel."},
+                                "initial_label": {"type": "string", "description": "Starting capital or gross revenue label (e.g. 'Gross Corporate Revenue', 'Monthly Salary')."},
+                                "initial_display_value": {"type": "string", "description": "Starting formatted string (e.g. '₹1,00,000', '₹10,000 Cr')."},
+                                "initial_value": {"type": "number", "description": "Starting numeric value."},
+                                "steps": {
+                                    "type": "array",
+                                    "description": "List of cascading deduction/addition steps in the waterfall.",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "label": {"type": "string", "description": "Step name (e.g. 'Operating Expenses', 'Direct Taxes', 'Loan EMI')."},
+                                            "display_value": {"type": "string", "description": "Formatted human display string (e.g. '-₹60,000', '-₹2,500 Cr')."},
+                                            "value": {"type": "number", "description": "Numeric amount for math calculations."},
+                                            "step_type": {"type": "string", "enum": ["deduction", "addition", "subtotal"], "description": "Step type."}
+                                        },
+                                        "required": ["label", "display_value", "value"]
+                                    }
+                                },
+                                "final_label": {"type": "string", "description": "Label for surviving bottom cash (e.g. 'Net Operating Cash', 'Surviving Savings')."},
+                                "final_display_value": {"type": "string", "description": "Final surviving formatted string (e.g. '₹12,000', '₹1,200 Cr')."},
+                                "final_value": {"type": "number", "description": "Final surviving numeric value."},
+                                "visual_state": {"type": "string", "enum": state_enum, "description": "Visual state."}
+                            },
+                            "required": ["id", "type", "layout", "initial_label", "initial_display_value", "steps", "final_label", "final_display_value"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Unique identifier for the capital_flow element."},
+                                "type": {"type": "string", "enum": ["capital_flow"]},
+                                "layout": {"type": "string", "enum": zone_enum, "description": "Spatial zone name ('center', 'split_left', or 'split_right')."},
+                                "purpose": {"type": "string", "description": "Editorial purpose of this capital flow route visualizer."},
+                                "title": {"type": "string", "description": "Optional overarching title."},
+                                "source_label": {"type": "string", "description": "Source entity/location label (e.g. 'MUMBAI // BSE', 'Domestic Retail Accounts')."},
+                                "source_sublabel": {"type": "string", "description": "Optional source subtext (e.g. 'Emerging Market Equity')."},
+                                "target_label": {"type": "string", "description": "Destination entity/location label (e.g. 'NEW YORK // WALL ST', 'US 10-Yr Treasuries')."},
+                                "target_sublabel": {"type": "string", "description": "Optional destination subtext (e.g. 'Safe Haven Yield (4.5%)')."},
+                                "flow_label": {"type": "string", "description": "Label describing the capital movement (e.g. 'Capital Flight', 'FII Net Drain', 'SIP Pipeline')."},
+                                "flow_display_value": {"type": "string", "description": "Formatted monetary value in flight (e.g. '₹1.14 Lakh Crore', '$15 Billion')."},
+                                "flow_direction": {"type": "string", "enum": ["left_to_right", "right_to_left", "bidirectional"], "description": "Flow direction."},
+                                "visual_state": {"type": "string", "enum": state_enum, "description": "Visual state."}
+                            },
+                            "required": ["id", "type", "layout", "source_label", "target_label", "flow_display_value"]
                         }
                     ]
                 }
@@ -1004,7 +1498,7 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                             "type": "object",
                             "properties": {
                                 "action": {"type": "string", "enum": ["transform_number"]},
-                                "target_id": {"type": "string", "description": "ID of visual element whose number transforms."},
+                                "target_id": {"type": "string", "description": "ID of visual element whose number transforms (targets card, number, scale, or money_stack)."},
                                 "to_display_value": {"type": "string", "description": "MANDATORY new formatted display string authored directly (e.g. '₹5,000', '₹0', '3 Years')."},
                                 "to_numeric_value": {"type": "number", "description": "MANDATORY new numeric value authored directly."},
                                 "to_fact_id": {"type": "string", "description": "Optional approved fact ID for the transformed value."},
@@ -1026,7 +1520,7 @@ def build_continuous_story_contract_schema() -> dict[str, Any]:
                             "type": "object",
                             "properties": {
                                 "action": {"type": "string", "enum": ["change_visual_state"]},
-                                "target_id": {"type": "string", "description": "ID of visual element whose state changes."},
+                                "target_id": {"type": "string", "description": "ID of visual element whose state changes (targets card, character, scale, or money_stack)."},
                                 "state": {"type": "string", "enum": state_enum, "description": "MANDATORY target visual state."},
                                 "badge": {"type": "string", "description": "Optional badge label."},
                                 "anchor": {"type": "string", "description": "Exact spoken phrase in narration where action occurs."}

@@ -243,17 +243,17 @@ def test_stock_video_exit_must_be_strictly_after_enter(loan_fixture: dict):
     assert any(e.code == "EXIT_BEFORE_OBJECT_ENTER" for e in res.errors)
 
 
-def test_stock_video_temporal_exclusivity_surface_elements(loan_fixture: dict):
-    """6. Stock video cannot overlap with another surface element (card, chart, etc.)."""
+def test_stock_video_living_canvas_card_preservation(loan_fixture: dict):
+    """6. Surface element on living canvas remains intact during cutaway stock video."""
     raw = {
-        "story_id": "surface_collision_test",
+        "story_id": "surface_cutaway_preservation_test",
         "objects": [
             {
                 "id": "card_active",
                 "type": "card",
                 "layout": "center",
-                "title": "Overlapping Card",
-                "subtitle": "Conflict",
+                "title": "Persistent Card",
+                "subtitle": "Continuity",
                 "display_value": "₹50 Lakh",
                 "numeric_value": 5000000,
             },
@@ -268,10 +268,10 @@ def test_stock_video_temporal_exclusivity_surface_elements(loan_fixture: dict):
             # Card active from 2.95s ("50 lakh") -> exits at 30.04s ("heavy burden")
             {"action": "enter", "target_id": "card_active", "anchor": "50 lakh"},
             {"action": "exit", "target_id": "card_active", "anchor": "heavy burden", "direction": "fade"},
-            # Video enters at 15.54s ("rate rises") -> exits at 30.04s ("heavy burden")
-            # Overlaps card_active between 15.54s and 30.04s!
+            # Video enters at 15.54s ("rate rises") -> exits at 23.9s ("monthly EMI")
+            # Plays cutaway on top while card_active remains on the canvas underneath!
             {"action": "enter", "target_id": "video_broll", "anchor": "rate rises", "style": "cut"},
-            {"action": "exit", "target_id": "video_broll", "anchor": "heavy burden", "direction": "cut"},
+            {"action": "exit", "target_id": "video_broll", "anchor": "monthly EMI", "direction": "cut"},
         ],
     }
     draft = ContinuousStoryDraft.model_validate(raw)
@@ -280,14 +280,14 @@ def test_stock_video_temporal_exclusivity_surface_elements(loan_fixture: dict):
         word_timestamps=loan_fixture["word_timestamps"],
         available_assets=["assets/test.mp4"],
     )
-    assert res.valid is False
-    assert any(e.code == "MACRO_LAYOUT_COLLISION" for e in res.errors)
+    assert res.valid is True
+    assert len(res.errors) == 0
 
 
-def test_stock_video_temporal_exclusivity_connectors(loan_fixture: dict):
-    """7. Stock video cannot coexist with any active connector."""
+def test_stock_video_living_canvas_connector_coexistence(loan_fixture: dict):
+    """7. Connectors on living canvas coexist seamlessly with cutaway stock video."""
     raw = {
-        "story_id": "connector_collision_test",
+        "story_id": "connector_cutaway_test",
         "objects": [
             {
                 "id": "card_a",
@@ -324,11 +324,13 @@ def test_stock_video_temporal_exclusivity_connectors(loan_fixture: dict):
         ],
         "events": [
             {"action": "enter", "target_id": "card_a", "anchor": "50 lakh"},
+            {"action": "exit", "target_id": "card_a", "anchor": "heavy burden", "direction": "fade"},
             {"action": "enter", "target_id": "card_b", "anchor": "50 lakh"},
+            {"action": "exit", "target_id": "card_b", "anchor": "heavy burden", "direction": "fade"},
             {"action": "connect", "target_id": "ab_conn", "anchor": "starts at"},
-            # Video enters at rate rises while connector is still active!
+            # Video cutaway plays while connector is active on the canvas underneath
             {"action": "enter", "target_id": "video_broll", "anchor": "rate rises", "style": "cut"},
-            {"action": "exit", "target_id": "video_broll", "anchor": "heavy burden", "direction": "cut"},
+            {"action": "exit", "target_id": "video_broll", "anchor": "monthly EMI", "direction": "cut"},
         ],
     }
     draft = ContinuousStoryDraft.model_validate(raw)
@@ -337,8 +339,43 @@ def test_stock_video_temporal_exclusivity_connectors(loan_fixture: dict):
         word_timestamps=loan_fixture["word_timestamps"],
         available_assets=["assets/test.mp4"],
     )
+    assert res.valid is True
+    assert len(res.errors) == 0
+
+
+def test_two_stock_videos_overlap_rejected(loan_fixture: dict):
+    """7b. Two cutaway stock videos overlapping each other is rejected."""
+    raw = {
+        "story_id": "two_stock_videos_overlap_test",
+        "objects": [
+            {
+                "id": "sv1",
+                "type": "stock_video",
+                "layout": "full_screen",
+                "asset_id": "assets/test1.mp4",
+            },
+            {
+                "id": "sv2",
+                "type": "stock_video",
+                "layout": "full_screen",
+                "asset_id": "assets/test2.mp4",
+            },
+        ],
+        "events": [
+            {"action": "enter", "target_id": "sv1", "anchor": "rate rises", "style": "cut"},
+            {"action": "exit", "target_id": "sv1", "anchor": "heavy burden", "direction": "cut"},
+            {"action": "enter", "target_id": "sv2", "anchor": "monthly EMI", "style": "cut"},
+            {"action": "exit", "target_id": "sv2", "anchor": "15.6 lakh", "direction": "cut"},
+        ],
+    }
+    draft = ContinuousStoryDraft.model_validate(raw)
+    res = validate_story_draft(
+        draft=draft,
+        word_timestamps=loan_fixture["word_timestamps"],
+        available_assets=["assets/test1.mp4", "assets/test2.mp4"],
+    )
     assert res.valid is False
-    assert any(e.code == "STOCK_VIDEO_CONNECTOR_COLLISION" for e in res.errors)
+    assert any(e.code == "STOCK_VIDEO_OVERLAP_COLLISION" for e in res.errors)
 
 
 def test_video_resolver_missing_request():

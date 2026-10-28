@@ -263,6 +263,7 @@ def build_pipeline_service(
     *,
     render_engine: RenderEngine | None = None,
     llm_provider: LLMProvider | None = None,
+    continuous_story_llm_provider: LLMProvider | None = None,
     image_generation_provider: Any = None,
     media_storage: LocalMediaStorage | None = None,
 ) -> PipelineService:
@@ -361,7 +362,7 @@ def build_pipeline_service(
         PipelineStage.CONTINUOUS_STORY: ContinuousStoryHandler(
             store=store,
             story_engine=ContinuousStoryEngine(
-                llm_provider=llm_provider,
+                llm_provider=continuous_story_llm_provider or llm_provider,
                 compiler=ContinuousStoryCompiler(),
                 asset_resolver=ContinuousStoryAssetResolver(
                     media_storage=media_storage,

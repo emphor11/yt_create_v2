@@ -25,13 +25,17 @@ type ProjectPipelinePageProps = {
   onRunScriptVisualStrategy: () => void;
   onRunQualityReview: () => void;
   onRunVoiceGeneration: () => void;
+  onRunContinuousStory: () => void;
   onRunVideoAssembly: () => void;
   onRunRender: () => void;
+  onResumeContinuousStory: () => void;
+  onRunFullPipeline: () => void;
   onRunYoutubeMetadata: () => void;
   onRunThumbnail: () => void;
   onRunYoutubeUpload: (targetAccount?: "test" | "production") => void;
   onRegenerateDescendants: () => void;
   isRunningStage: boolean;
+  runningStageName?: string | null;
 };
 
 export function ProjectPipelinePage({
@@ -51,13 +55,17 @@ export function ProjectPipelinePage({
   onRunScriptVisualStrategy,
   onRunQualityReview,
   onRunVoiceGeneration,
+  onRunContinuousStory,
   onRunVideoAssembly,
   onRunRender,
+  onResumeContinuousStory,
+  onRunFullPipeline,
   onRunYoutubeMetadata,
   onRunThumbnail,
   onRunYoutubeUpload,
   onRegenerateDescendants,
   isRunningStage,
+  runningStageName,
 }: ProjectPipelinePageProps) {
   if (!project) {
     return (
@@ -131,10 +139,61 @@ export function ProjectPipelinePage({
       </section>
 
       <section className="panel">
-        <div>
-          <p className="section-label">Artifacts</p>
-          <h2>Run Artifacts</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+          <div>
+            <p className="section-label">Pipeline Actions</p>
+            <h2>Choreography & Execution</h2>
+          </div>
+          {isRunningStage && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(56, 189, 248, 0.15)", border: "1px solid #38bdf8", padding: "6px 14px", borderRadius: "20px" }}>
+              <span className="spinner" style={{ display: "inline-block", width: "12px", height: "12px", border: "2px solid #38bdf8", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#38bdf8" }}>
+                {runningStageName || "Running pipeline..."}
+              </span>
+            </div>
+          )}
         </div>
+
+        {/* Highlighted Automated Workflows */}
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", margin: "14px 0 18px", padding: "12px", background: "var(--bg-secondary)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+          <button
+            className="primary-button"
+            disabled={!selectedRun || isRunningStage}
+            onClick={onResumeContinuousStory}
+            style={{
+              background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+              color: "#ffffff",
+              fontWeight: 700,
+              padding: "10px 18px",
+              boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
+            }}
+            type="button"
+            title="Runs Stage 7 (Continuous Story) and Stage 8 (Render) sequentially — exactly like resume_rent_vs_buy"
+          >
+            ⚡ Resume Continuous Story & Render
+          </button>
+
+          <button
+            className="primary-button"
+            disabled={!selectedRun || isRunningStage}
+            onClick={onRunFullPipeline}
+            style={{
+              background: "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)",
+              color: "#ffffff",
+              fontWeight: 700,
+              padding: "10px 18px",
+              boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
+            }}
+            type="button"
+            title="Runs the entire pipeline sequentially: Research -> Narrative -> Hook -> Strategy -> Review -> Voiceover -> Continuous Story -> Render"
+          >
+            🚀 Run Full Pipeline (End-to-End)
+          </button>
+        </div>
+
+        <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>
+          Individual Stages
+        </p>
         <div className="stage-actions">
           <button
             className="primary-button"
@@ -185,6 +244,21 @@ export function ProjectPipelinePage({
             Run Voiceover
           </button>
           <button
+            className="primary-button"
+            disabled={!selectedRun || isRunningStage}
+            onClick={onRunContinuousStory}
+            style={{
+              background: "#10b981",
+              borderColor: "#10b981",
+              color: "#000000",
+              fontWeight: 700,
+            }}
+            type="button"
+            title="Stage 7: Generates Continuous Story Plan with Dynamic Living Canvas"
+          >
+            🎨 Run Continuous Story
+          </button>
+          <button
             className="primary-button secondary"
             disabled={!selectedRun || isRunningStage}
             onClick={onRunVideoAssembly}
@@ -193,12 +267,18 @@ export function ProjectPipelinePage({
             Run Assembly
           </button>
           <button
-            className="primary-button secondary"
+            className="primary-button"
             disabled={!selectedRun || isRunningStage}
             onClick={onRunRender}
+            style={{
+              background: "#0f172a",
+              borderColor: "#334155",
+              color: "#38bdf8",
+              fontWeight: 700,
+            }}
             type="button"
           >
-            Run Render
+            🎬 Run Render
           </button>
           <button
             className="primary-button secondary"

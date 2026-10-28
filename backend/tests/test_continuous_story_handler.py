@@ -211,3 +211,43 @@ def test_pipeline_service_executes_continuous_story_stage(temp_store: ArtifactSt
     run_record = temp_store.get_run(project_id, run_id)
     assert run_record.current_stage == "continuous_story"
     assert run_record.state == "running"
+
+
+def test_continuous_story_debug_artifact_saved_on_success(temp_store: ArtifactStore, sample_draft_dict: dict):
+    project_id, run_id = seed_prerequisite_artifacts(temp_store)
+    handler = ContinuousStoryHandler(store=temp_store)
+    record = handler.run(project_id, run_id, mock_draft=sample_draft_dict)
+
+    assert record.artifact_type == "continuous_story_plan"
+
+    # Verify debug artifact is present in ArtifactStore
+    debug_art = temp_store.find_artifact_by_type(project_id, run_id, "continuous_story_debug")
+    assert debug_art is not None
+    assert debug_art.payload_json["status"] == "valid"
+    assert debug_art.payload_json["total_calls"] == 1
+    assert len(debug_art.payload_json["calls"]) == 1
+    assert debug_art.payload_json["calls"][0]["status"] == "valid"
+
+
+def test_continuous_story_debug_artifact_saved_on_failure(temp_store: ArtifactStore):
+    project_id, run_id = seed_prerequisite_artifacts(temp_store)
+    handler = ContinuousStoryHandler(store=temp_store)
+
+    # Provide an invalid mock draft that will fail draft validation
+    bad_draft = {
+        "story_id": "bad_story",
+        "objects": [{"id": "card1", "type": "card", "layout": "center", "title": "Card 1"}],
+        "events": [{"action": "enter", "target_id": "non_existent_card", "anchor": "50 lakh"}],
+    }
+
+    with pytest.raises(Exception):
+        handler.run(project_id, run_id, mock_draft=bad_draft)
+
+    # Verify debug artifact was saved despite failure!
+    debug_art = temp_store.find_artifact_by_type(project_id, run_id, "continuous_story_debug")
+    assert debug_art is not None
+    assert debug_art.payload_json["status"] == "failed"
+    assert "error_message" in debug_art.payload_json
+    assert debug_art.payload_json["total_calls"] >= 1
+    assert len(debug_art.payload_json["calls"][0]["validation_errors"]) > 0
+
